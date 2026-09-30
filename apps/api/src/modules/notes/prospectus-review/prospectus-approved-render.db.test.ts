@@ -1,11 +1,12 @@
 /**
  * SECTION: Approved Prospectus renders from its freeze (local DB)
- * WHY: After approval nothing re-resolves sources or years. Approve stores HTML rendered from
- * the stored page_2; GET / preview of a version-2 approval and publish finalization read the
- * approved snapshot only (no application / CTOS read, no live Page 2 / Page 3 resolution).
+ * WHY: After approval nothing re-reads financial inputs. Approve stores HTML rendered from the
+ * stored page_2 (built from the Note financial snapshot); GET / preview of a version-2 approval
+ * and publish finalization read the approved snapshot only (no application / CTOS read, no Note
+ * snapshot adaptation, no Page 2 / Page 3 loader), and the published Note shows the same HTML.
  */
 
-import { Prisma, ProspectusReviewStatus } from "@prisma/client";
+import { NoteStatus, Prisma, ProspectusReviewStatus } from "@prisma/client";
 import {
   buildProspectusDemoCtosFinancials,
   buildProspectusDemoFinancialStatements,
@@ -13,6 +14,7 @@ import {
 import { prisma } from "../../../lib/prisma";
 import * as ownedCtosModule from "../../applications/application-owned-ctos";
 import { toAdminFinancialComparisonTable } from "../prospectus/prospectus-financial-comparison-metrics";
+import { parseNoteFinancialSnapshot, type NoteFinancialSnapshot } from "../note-financial-snapshot.types";
 import * as sourceModule from "../prospectus/prospectus-financial-comparison-source";
 import * as pageThreePrismaModule from "../prospectus/prospectus-page-three-prisma";
 import * as pageTwoPrismaModule from "../prospectus/prospectus-page-two-prisma";
@@ -38,7 +40,6 @@ import {
   makeProspectusDraftApprovable,
   readProspectusReviewRow,
   seedIsolatedProspectusNote,
-  writeProspectusNoteFinancialSnapshot,
   type IsolatedProspectusNoteGraph,
   type ProspectusTestActor,
 } from "./prospectus-review.db-test-support";
@@ -78,13 +79,25 @@ function withoutBanner(html: string): string {
   return html.replace(/^<div data-prospectus-preview-banner="[^"]*"[^>]*>[^<]*<\/div>/, "");
 }
 
-/** Spies on every live financial read and on source / year selection. */
+async function readNoteFinancialSnapshot(
+  graph: IsolatedProspectusNoteGraph
+): Promise<NoteFinancialSnapshot> {
+  const note = await prisma.note.findUniqueOrThrow({
+    where: { id: graph.noteId },
+    select: { financial_snapshot: true },
+  });
+  const snapshot = parseNoteFinancialSnapshot(note.financial_snapshot);
+  if (!snapshot) throw new Error("note financial_snapshot missing or malformed");
+  return snapshot;
+}
+
+/** Spies on every application / CTOS read, the Note-snapshot adapter and the Page 2 / 3 loaders. */
 function spyOnLiveFinancialReads() {
   const spies = {
     applicationFindUnique: jest.spyOn(prisma.application, "findUnique"),
     ctosFindFirst: jest.spyOn(prisma.ctosReport, "findFirst"),
     ownedCtos: jest.spyOn(ownedCtosModule, "loadApplicationOwnedCtosFinancialReport"),
-    resolver: jest.spyOn(sourceModule, "buildProspectusFinancialComparisonSource"),
+    resultAdapter: jest.spyOn(sourceModule, "buildProspectusFinancialComparisonSourceFromResult"),
     pageTwoLiveLoad: jest.spyOn(pageTwoPrismaModule, "loadProspectusPageTwoData"),
     pageThreeLiveLoad: jest.spyOn(pageThreePrismaModule, "loadProspectusPageThreeData"),
   };
@@ -100,7 +113,7 @@ const NO_LIVE_READS = {
   applicationFindUnique: 0,
   ctosFindFirst: 0,
   ownedCtos: 0,
-  resolver: 0,
+  resultAdapter: 0,
   pageTwoLiveLoad: 0,
   pageThreeLiveLoad: 0,
 };
@@ -116,7 +129,6 @@ describe("approved Prospectus renders from its freeze (local DB)", () => {
       ctosFinancials: buildProspectusDemoCtosFinancials(),
     });
     graphs.push(graph);
-    await writeProspectusNoteFinancialSnapshot(graph);
     await makeProspectusDraftApprovable(graph, actor);
     const approved = await approveProspectus(graph, actor);
     expect(approved.status).toBe(ProspectusReviewStatus.READY_FOR_PUBLISH);
@@ -155,17 +167,44 @@ describe("approved Prospectus renders from its freeze (local DB)", () => {
       expect(reads.callCounts()).toMatchObject({ applicationFindUnique: 1, ctosFindFirst: 1 });
     });
 
-    it("stores a version-2 freeze with the Note's financial reference date", async () => {
+    it("stores a version-2 freeze with the Note financial snapshot's reference date", async () => {
       const freeze = parseApprovedFinancialFreeze(storedSnapshot(approvedRow));
-      const note = await prisma.note.findUniqueOrThrow({
-        where: { id: graph.noteId },
-        select: { financial_snapshot: true },
-      });
+      const noteSnapshot = await readNoteFinancialSnapshot(graph);
       expect(freeze?.freeze_version).toBe(2);
-      expect(freeze?.reference_date).toBe(
-        new Date((note.financial_snapshot as { reference_date: string }).reference_date).toISOString()
-      );
+      expect(freeze?.reference_date).toBe(noteSnapshot.approved_financial_result.reference_date);
       expect(freeze?.selected_years.length).toBeGreaterThan(0);
+    });
+
+    it("F21: approval freezes every selected year and every stored calculated value of the Note snapshot", async () => {
+      const freeze = parseApprovedFinancialFreeze(storedSnapshot(approvedRow))!;
+      const noteYears = (await readNoteFinancialSnapshot(graph)).approved_financial_result.years.filter(
+        (year) => year.selected
+      );
+      expect(freeze.selected_years.map((year) => year.year)).toEqual(noteYears.map((year) => year.year));
+      for (const noteYear of noteYears) {
+        const frozen = freeze.selected_years.find((year) => year.year === noteYear.year)!;
+        expect([noteYear.year, frozen.calculated_values]).toEqual([
+          noteYear.year,
+          noteYear.calculated_values,
+        ]);
+        expect([noteYear.year, frozen.record_source]).toEqual([noteYear.year, noteYear.record_source]);
+        for (const [key, value] of Object.entries(noteYear.effective_raw_values)) {
+          expect([noteYear.year, key, frozen.raw_financials[key] ?? null]).toEqual([
+            noteYear.year,
+            key,
+            value,
+          ]);
+        }
+      }
+
+      // The admin working area of the approved GET shows exactly those stored values.
+      const get = await prospectusReviewService.getOrCreateReview(graph.noteId, actor);
+      const realYears = get.financialComparison.years.filter((year) => !year.isPlaceholder);
+      expect(realYears.map((year) => year.calendarYear)).toEqual(noteYears.map((year) => year.year));
+      for (const noteYear of noteYears) {
+        const shown = realYears.find((year) => year.calendarYear === noteYear.year)!;
+        expect(shown.calculated).toEqual(noteYear.calculated_values);
+      }
     });
 
     it("stored approve HTML equals a frozen-mode render of the stored snapshot", async () => {
@@ -191,7 +230,7 @@ describe("approved Prospectus renders from its freeze (local DB)", () => {
       expect(published.html.page3).toBe(rendered.page3);
     });
 
-    it("E19: GET changes nothing and makes no application / CTOS read", async () => {
+    it("GET changes nothing and makes no financial input read", async () => {
       const before = await readProspectusReviewRow(graph);
       const reads = spyOnLiveFinancialReads();
 
@@ -283,6 +322,64 @@ describe("approved Prospectus renders from its freeze (local DB)", () => {
     });
   });
 
+  describe("F22: published Note", () => {
+    it("shows the approved Page 2 / Page 3 HTML, with or without a Note financial snapshot", async () => {
+      const graph = await seedApprovedNote("approved_render_published");
+      const approvedRow = await readProspectusReviewRow(graph);
+      const approved = storedSnapshot(approvedRow);
+      const approvedGet = await prospectusReviewService.getOrCreateReview(graph.noteId, actor);
+
+      // Publish as notes/service does: finalize, store the updated snapshot on the Note, flip states.
+      const { snapshot, publicationId, reviewId } =
+        await prospectusReviewService.getApprovedSnapshotForPublish(graph.noteId);
+      const { updatedSnapshot } = await prospectusReviewService.generateFinalProspectusPdfForPublish({
+        noteId: graph.noteId,
+        actor,
+        approvedSnapshot: snapshot,
+        publicationId,
+        reviewId,
+        listingDates: {
+          opensAt: new Date("2026-10-01T00:00:00.000Z"),
+          closesAt: new Date("2026-10-15T00:00:00.000Z"),
+        },
+      });
+      await prisma.note.update({
+        where: { id: graph.noteId },
+        data: {
+          status: NoteStatus.PUBLISHED,
+          published_at: new Date(),
+          prospectus_snapshot: updatedSnapshot as unknown as Prisma.InputJsonValue,
+        },
+      });
+      await prisma.noteProspectusReview.update({
+        where: { note_id: graph.noteId },
+        data: { status: ProspectusReviewStatus.PUBLISHED },
+      });
+
+      const expectPublishedEqualsApproved = async () => {
+        const reads = spyOnLiveFinancialReads();
+        const preview = await prospectusReviewService.preview(graph.noteId, actor);
+        const get = await prospectusReviewService.getOrCreateReview(graph.noteId, actor);
+        expect([reads.spies.applicationFindUnique.mock.calls.length, reads.spies.ctosFindFirst.mock.calls.length]).toEqual([0, 0]);
+        expect(reads.spies.resultAdapter).not.toHaveBeenCalled();
+        reads.restore();
+        expect(withoutBanner(preview.html.page2)).toBe(approved.html.page2);
+        expect(withoutBanner(preview.html.page3)).toBe(approved.html.page3);
+        expect(get.financialComparison.table).toEqual(approvedGet.financialComparison.table);
+        expect(get.financialComparison.years).toEqual(approvedGet.financialComparison.years);
+      };
+
+      await expectPublishedEqualsApproved();
+
+      // C15: a published Note without a Note financial snapshot still renders from its frozen snapshot.
+      await prisma.note.update({
+        where: { id: graph.noteId },
+        data: { financial_snapshot: Prisma.DbNull },
+      });
+      await expectPublishedEqualsApproved();
+    });
+  });
+
   describe("legacy approval (no freeze_version)", () => {
     /** Rewrite the stored freeze to the pre-version-2 shape and re-seal its fingerprint. */
     async function downgradeToLegacyFreeze(graph: IsolatedProspectusNoteGraph): Promise<void> {
@@ -324,7 +421,7 @@ describe("approved Prospectus renders from its freeze (local DB)", () => {
       });
     }
 
-    it("GET and preview keep today's live path and the approval stands", async () => {
+    it("GET and preview keep the Note-snapshot path and the approval stands", async () => {
       const graph = await seedApprovedNote("approved_render_legacy");
       await downgradeToLegacyFreeze(graph);
       const before = await readProspectusReviewRow(graph);
@@ -333,7 +430,7 @@ describe("approved Prospectus renders from its freeze (local DB)", () => {
       const reads = spyOnLiveFinancialReads();
       const get = await prospectusReviewService.getOrCreateReview(graph.noteId, actor);
       expect(reads.spies.pageTwoLiveLoad).toHaveBeenCalledTimes(1);
-      expect(reads.spies.resolver).toHaveBeenCalled();
+      expect(reads.spies.resultAdapter).toHaveBeenCalled();
       expect(get.review.status).toBe(ProspectusReviewStatus.READY_FOR_PUBLISH);
 
       reads.spies.pageTwoLiveLoad.mockClear();
@@ -365,7 +462,7 @@ describe("approved Prospectus renders from its freeze (local DB)", () => {
       });
       expect(publishReads.callCounts()).toEqual(NO_LIVE_READS);
       expect(updatedSnapshot.html.page2).toBe(snapshot.html.page2);
-      // Legacy freeze fallback renders from its 18 frozen keys, not from live data.
+      // Legacy freeze fallback renders from its 18 frozen keys, not from the Note snapshot.
       expect(updatedSnapshot.html.page3).toContain("<table");
     });
   });

@@ -72,6 +72,8 @@ export interface FinancialSectionProps {
   sectionStatus?: string;
   /** Application status; Admin financial edits need a reviewable application. */
   applicationStatus: string | null | undefined;
+  /** Application submission date; year-selection reference for the Financial Review result. */
+  applicationSubmittedAt: string | null | undefined;
   onResetSectionToPending?: (section: ReviewSectionId) => void;
   onApprove: (section: ReviewSectionId) => void;
   onReject: (section: ReviewSectionId) => void;
@@ -255,6 +257,7 @@ export function FinancialSection({
   actionLockTooltip,
   sectionStatus,
   applicationStatus,
+  applicationSubmittedAt,
   onResetSectionToPending,
   onApprove,
   onReject,
@@ -314,6 +317,7 @@ export function FinancialSection({
         issuerOrganizationId={issuerOrganizationId ?? app.issuer_organization?.id ?? null}
         financialSectionStatus={sectionStatus}
         applicationStatus={applicationStatus}
+        applicationSubmittedAt={applicationSubmittedAt}
         app={app}
       />
       {!hideSectionComments ? (

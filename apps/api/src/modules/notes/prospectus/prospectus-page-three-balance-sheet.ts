@@ -1,19 +1,15 @@
 /**
  * SECTION: Build Page 3 Stage 4 balance sheet rows
- * WHY: Direct CTOS fields only for totals/current ratio; officer fills for Cash/Equity/Quick
+ * WHY: Raw rows from reviewed raw values; totals, equity and ratios are stored Financial Review
+ * values (never recalculated here)
  */
 
-import {
-  resolveCtosCurrentRatio,
-  resolveCtosTotalAssets,
-  resolveCtosTotalLiabilities,
-} from "@cashsouk/types";
+import type { FinancialReviewCalculatedValues } from "@cashsouk/types";
 import {
   formatProspectusFinancialMultiple,
   formatProspectusMyrMillions,
   parseProspectusFinancialNumber,
 } from "./prospectus-financial-comparison-metrics";
-// Quick Ratio / other non-CTOS rows are fully system-derived from Stage 4A rawFinancials.
 import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
   PROSPECTUS_PAGE_THREE_BALANCE_SHEET_AUDIT,
@@ -40,6 +36,7 @@ function moneyMillionsOrDna(value: number | string | null | undefined): string {
 function valueForRow(
   key: ProspectusPageThreeBalanceSheetRowKey,
   raw: Record<string, unknown>,
+  calculated: FinancialReviewCalculatedValues,
   _year: number,
   _input: ProspectusPageThreeBalanceSheetInput,
   isPlaceholder: boolean
@@ -52,34 +49,19 @@ function valueForRow(
     case "trade_receivables":
       return moneyMillionsOrDna(fieldFromRaw(raw, "tradeReceivables"));
     case "total_equity":
-      // System-derived net worth (totass - totlib) for unaudited years too.
-      // Prospectus freezes Stage 4A derived totals/ratios for this row.
-      return moneyMillionsOrDna(fieldFromRaw(raw, "networth"));
-    case "quick_ratio": {
-      const parsed = fieldFromRaw(raw, "quickRatio");
-      if (parsed == null) return PROSPECTUS_DATA_NOT_AVAILABLE;
-      return formatProspectusFinancialMultiple(parsed);
-    }
+      return moneyMillionsOrDna(calculated.networth);
+    case "quick_ratio":
+      return formatProspectusFinancialMultiple(calculated.quickRatio);
     case "current_assets":
       return moneyMillionsOrDna(fieldFromRaw(raw, "bscatot"));
     case "total_assets":
-      // CTOS ENQWS v5.11.0 — direct r:totass only (no component sum).
-      return moneyMillionsOrDna(resolveCtosTotalAssets({ totass: fieldFromRaw(raw, "totass") }));
+      return moneyMillionsOrDna(calculated.totass);
     case "current_liabilities":
       return moneyMillionsOrDna(fieldFromRaw(raw, "curlib"));
     case "total_liabilities":
-      // CTOS ENQWS v5.11.0 — direct r:totlib only (no component sum).
-      return moneyMillionsOrDna(
-        resolveCtosTotalLiabilities({ totlib: fieldFromRaw(raw, "totlib") })
-      );
-    case "current_ratio": {
-      // CTOS ENQWS v5.11.0 Financial Highlights XSL — direct r:currat only.
-      return formatProspectusFinancialMultiple(
-        resolveCtosCurrentRatio({
-          currat: fieldFromRaw(raw, "currat"),
-        })
-      );
-    }
+      return moneyMillionsOrDna(calculated.totlib);
+    case "current_ratio":
+      return formatProspectusFinancialMultiple(calculated.currat);
     default: {
       const _exhaustive: never = key;
       return _exhaustive;
@@ -106,7 +88,14 @@ export function buildProspectusPageThreeBalanceSheet(
       key,
       label: PROSPECTUS_PAGE_THREE_BALANCE_SHEET_ROW_LABELS[key],
       values: years.map((year) =>
-        valueForRow(key, year.rawFinancials, year.year, input, year.isPlaceholder === true)
+        valueForRow(
+          key,
+          year.rawFinancials,
+          year.calculatedValues,
+          year.year,
+          input,
+          year.isPlaceholder === true
+        )
       ),
     })),
     audit: PROSPECTUS_PAGE_THREE_BALANCE_SHEET_AUDIT,

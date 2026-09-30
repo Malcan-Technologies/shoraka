@@ -1,5 +1,6 @@
 import { NoteStatus } from "@prisma/client";
 import { buildProspectusFinancialComparisonMetrics } from "./prospectus-financial-comparison-metrics";
+import { approvedFinancialResultFromInputs } from "./prospectus-financial-comparison-test-helpers";
 import { parseProspectusPageTwoSnapshot } from "./prospectus-json-guards";
 import {
   buildProspectusPageThree,
@@ -132,9 +133,11 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
   describe("shared snapshot extension", () => {
     it("freezes original and extended raw keys without formatted or narrative content", () => {
       const page2 = buildProspectusPage2Snapshot({
-        referenceDate: new Date(),
-        financialStatements: liveFinancialStatements,
-        ctosFinancials: liveCtosFinancials,
+        approvedFinancialResult: approvedFinancialResultFromInputs({
+          financialStatements: liveFinancialStatements,
+          ctosFinancials: liveCtosFinancials,
+          ref: new Date(),
+        }),
       });
       const raw = page2.financial_comparison.selected_years[0]?.raw_financials;
       expect(PROSPECTUS_PAGE_TWO_RAW_FINANCIAL_KEYS).toEqual([
@@ -176,9 +179,11 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
 
     it("merges page_2 without creating page_3 financial_comparison or dropping unknown branches", () => {
       const page2 = buildProspectusPage2Snapshot({
-        referenceDate: new Date(),
-        financialStatements: liveFinancialStatements,
-        ctosFinancials: liveCtosFinancials,
+        approvedFinancialResult: approvedFinancialResultFromInputs({
+          financialStatements: liveFinancialStatements,
+          ctosFinancials: liveCtosFinancials,
+          ref: new Date(),
+        }),
       });
       const merged = wrapProspectusSnapshotWithPageTwo(frozenPage1, page2, {
         page_1: { old: true },
@@ -236,9 +241,11 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
   describe("published vs unpublished mapping", () => {
     it("uses frozen page_2 financials for published Notes and ignores live Application data", () => {
       const frozen = buildProspectusPage2Snapshot({
-        referenceDate: new Date(),
-        financialStatements: liveFinancialStatements,
-        ctosFinancials: liveCtosFinancials,
+        approvedFinancialResult: approvedFinancialResultFromInputs({
+          financialStatements: liveFinancialStatements,
+          ctosFinancials: liveCtosFinancials,
+          ref: new Date(),
+        }),
       }).financial_comparison;
       const changedLive = {
         ...liveFinancialStatements,
@@ -247,7 +254,6 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
         },
       };
       const data: ProspectusPageThreeLoadedData = {
-        financialReferenceDate: null,
         note: baseNote({
           status: NoteStatus.PUBLISHED,
           published_at: new Date("2026-07-01T00:00:00.000Z"),
@@ -256,13 +262,16 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
             page_2: { financial_comparison: frozen },
           },
         }),
-        liveFinancialStatements: changedLive,
-          liveCtosFinancials: null,
+        approvedFinancialResult: approvedFinancialResultFromInputs({
+          financialStatements: changedLive,
+          ctosFinancials: null,
+          ref: new Date("2026-07-17T00:00:00.000Z"),
+        }),
       };
 
       const input = mapProspectusPageThreeDataToInput(data);
       expect(input.financialMode).toBe("frozen_publication_snapshot");
-      expect(input.liveFinancialStatements).toBeNull();
+      expect(input.approvedFinancialResult).toBeNull();
 
       const page = buildProspectusPageThree(input);
       expect(row(page.incomeStatement.rows, "revenue")?.[0]).toBe("13.9");
@@ -273,14 +282,16 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
     it("does not live-fallback when published snapshot is missing or malformed", () => {
       const missing = buildProspectusPageThree(
         mapProspectusPageThreeDataToInput({
-          financialReferenceDate: null,
           note: baseNote({
             status: NoteStatus.PUBLISHED,
             published_at: new Date(),
             prospectus_snapshot: { page_1: frozenPage1 },
           }),
-          liveFinancialStatements: liveFinancialStatements,
-          liveCtosFinancials,
+          approvedFinancialResult: approvedFinancialResultFromInputs({
+            financialStatements: liveFinancialStatements,
+            ctosFinancials: liveCtosFinancials,
+            ref: new Date("2026-07-17T00:00:00.000Z"),
+          }),
         })
       );
       expect(missing.meta.financialMode).toBe("published_unavailable");
@@ -290,7 +301,6 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
 
       const malformed = buildProspectusPageThree(
         mapProspectusPageThreeDataToInput({
-          financialReferenceDate: null,
           note: baseNote({
             status: NoteStatus.PUBLISHED,
             published_at: new Date(),
@@ -298,21 +308,26 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
               page_2: { financial_comparison: { source: "wrong" } },
             },
           }),
-          liveFinancialStatements: liveFinancialStatements,
-          liveCtosFinancials,
+          approvedFinancialResult: approvedFinancialResultFromInputs({
+            financialStatements: liveFinancialStatements,
+            ctosFinancials: liveCtosFinancials,
+            ref: new Date("2026-07-17T00:00:00.000Z"),
+          }),
         })
       );
       expect(malformed.meta.financialMode).toBe("published_unavailable");
       expect(malformed.financialSource.years).toEqual([]);
     });
 
-    it("uses live Application Stage 4A source for unpublished Notes", () => {
+    it("uses the Note financial snapshot Stage 4A source for unpublished Notes", () => {
       const page = buildProspectusPageThree(
         mapProspectusPageThreeDataToInput({
-          financialReferenceDate: new Date(),
           note: baseNote(),
-          liveFinancialStatements,
-          liveCtosFinancials,
+          approvedFinancialResult: approvedFinancialResultFromInputs({
+            financialStatements: liveFinancialStatements,
+            ctosFinancials: liveCtosFinancials,
+            ref: new Date(),
+          }),
         })
       );
       expect(page.meta.financialMode).toBe("live_unpublished_preview");
@@ -343,15 +358,13 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(parsed).not.toBeNull();
 
       const page = buildProspectusPageThree({
-        financialReferenceDate: null,
         noteId: "old",
         isPublished: true,
         financialMode: "frozen_publication_snapshot",
         issuerSnapshot: { name: "Old Issuer", industry: "Construction" },
         invoiceSnapshot: { offer_details: { risk_rating: "SME-3" } },
         paymasterSnapshot: { name: "Old Paymaster" },
-        liveFinancialStatements: null,
-          liveCtosFinancials: null,
+        approvedFinancialResult: null,
         frozenFinancialComparison: parsed!.financial_comparison,
       });
 
@@ -407,12 +420,14 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
 
       const invalid = buildProspectusPageThree({
         ...mapProspectusPageThreeDataToInput({
-          financialReferenceDate: new Date(),
           note: baseNote({
             invoice_snapshot: { offer_details: { risk_rating: "AAA" } },
           }),
-          liveFinancialStatements,
-          liveCtosFinancials,
+          approvedFinancialResult: approvedFinancialResultFromInputs({
+            financialStatements: liveFinancialStatements,
+            ctosFinancials: liveCtosFinancials,
+            ref: new Date(),
+          }),
         }),
       });
       expect(invalid.metadata.metadata.riskRating).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
@@ -433,7 +448,9 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(row(page.balanceSheet.rows, "quick_ratio")?.[0]).toBe(
         PROSPECTUS_DATA_NOT_AVAILABLE
       );
-      expect(row(page.coverageEfficiency.rows, "return_on_equity")?.[0]).toBe("60%");
+      // User Input year: stored ROE = PAT ÷ (Total Assets − Total Liabilities) = 1.2M ÷ 4.5M;
+      // the block's stored networth (2M) is ignored.
+      expect(row(page.coverageEfficiency.rows, "return_on_equity")?.[0]).toBe("26.67%");
       expect(row(page.coverageEfficiency.rows, "dscr")?.[0]).toBe(
         PROSPECTUS_DATA_NOT_AVAILABLE
       );
@@ -465,10 +482,12 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
 
       const prismaPath = buildProspectusPageThree(
         mapProspectusPageThreeDataToInput({
-          financialReferenceDate: new Date(),
           note: baseNote(),
-          liveFinancialStatements,
-          liveCtosFinancials,
+          approvedFinancialResult: approvedFinancialResultFromInputs({
+            financialStatements: liveFinancialStatements,
+            ctosFinancials: liveCtosFinancials,
+            ref: new Date(),
+          }),
         })
       );
       expect(

@@ -349,7 +349,8 @@ function ProspectusReviewPageInner() {
       };
     });
 
-    const metricToRawKey: Record<string, keyof (typeof frozenFinancialYears)[number]["raw"]> = {
+    // Presence follows the stored calculated values the API formats these rows from.
+    const metricToCalculatedKey: Record<string, keyof (typeof frozenFinancialYears)[number]["calculated"]> = {
       "ROE (%)": "return_on_equity",
       "Current Ratio (x)": "currat",
       "Net Debt / Equity (x)": "netDebtEquity",
@@ -358,7 +359,7 @@ function ProspectusReviewPageInner() {
       "Receivables Days": "receivablesDays",
     };
 
-    const calculatedMetricNames = new Set(Object.keys(metricToRawKey));
+    const calculatedMetricNames = new Set(Object.keys(metricToCalculatedKey));
 
     const rows = pageTwoFinancialTable.rows.map((r) => {
       const values = [...r.values];
@@ -368,7 +369,7 @@ function ProspectusReviewPageInner() {
         return { ...r, values, cellHints };
       }
 
-      const rawKey = metricToRawKey[r.metric]!;
+      const calculatedKey = metricToCalculatedKey[r.metric]!;
 
       for (let i = 0; i < yearHeaders.length; i++) {
         const header = yearHeaders[i]!;
@@ -377,8 +378,8 @@ function ProspectusReviewPageInner() {
         const frozen = frozenByCalendarYear.get(calendarYear);
         if (!frozen) continue;
 
-        const rawValue = frozen.raw[rawKey] as number | null;
-        if (rawValue != null) continue; // present -> keep API-formatted value
+        const calculatedValue = frozen.calculated?.[calculatedKey] ?? null;
+        if (calculatedValue != null) continue; // present -> keep API-formatted value
 
         // Prospectus is presentation-only: if the resolved value is unavailable, show `—`.
         // Do not surface diagnostic missing-field helper text in Prospectus.

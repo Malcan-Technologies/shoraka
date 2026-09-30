@@ -12,8 +12,8 @@
  * Eligibility (matches NoteService.createFromInvoice / listSourceInvoicesForNotes):
  * - Invoice.status = APPROVED
  * - Application.status = COMPLETED
- * - Every required review section approved (shared policy in modules/admin/review-section-approval);
- *   the seed writes APPROVED application_reviews rows for exactly the sections the policy reports
+ * - A current approved Financial result (Financial review APPROVED with a stored result); the seed
+ *   approves it through the real approval function (modules/admin/financial-approved-result)
  * - No existing note.source_invoice_id for the invoice
  * - Positive offered/applied financing in details + offer_details
  */
@@ -25,17 +25,15 @@ import {
   ContractStatus,
   InvoiceStatus,
   OrganizationType,
-  ReviewStepStatus,
   UserRole,
 } from "@prisma/client";
 import { generateUniqueUserId } from "../src/lib/user-id-generator";
-import { prisma as appPrisma } from "../src/lib/prisma";
-import { loadApplicationReviewApproval } from "../src/modules/admin/review-section-approval";
 import {
   resolveOfferedAmount,
   resolveRequestedInvoiceAmount,
 } from "../src/lib/invoice-offer";
 import { buildAboutYourBusinessCod } from "./seed-application-helpers";
+import { seedApprovedFinancialReviewForApplication } from "./lib/seed-note-financial-snapshot";
 
 const prisma = new PrismaClient();
 
@@ -285,39 +283,6 @@ async function ensureSharedSeedInfrastructure(ownerUserId: string) {
   return { issuerOrgId: SEED_ISSUER_ORG_ID, issuerOrgName };
 }
 
-/**
- * Approve exactly the required review sections the shared policy reports as unapproved, so the
- * seeded invoice passes Note creation's review-section guard. Idempotent: a re-run writes nothing.
- */
-async function approveRequiredReviewSections(applicationId: string) {
-  const before = await loadApplicationReviewApproval(prisma, applicationId);
-  if (!before) {
-    throw new Error(`Seed application ${applicationId} not found while approving review sections`);
-  }
-
-  const reviewedAt = new Date();
-  for (const section of before.unapprovedRequiredSections) {
-    await prisma.applicationReview.upsert({
-      where: { application_id_section: { application_id: applicationId, section } },
-      update: { status: ReviewStepStatus.APPROVED, reviewed_at: reviewedAt },
-      create: {
-        application_id: applicationId,
-        section,
-        status: ReviewStepStatus.APPROVED,
-        reviewed_at: reviewedAt,
-      },
-    });
-  }
-
-  const after = await loadApplicationReviewApproval(prisma, applicationId);
-  const stillUnapproved = after?.unapprovedRequiredSections ?? ["<application missing>"];
-  if (stillUnapproved.length > 0) {
-    throw new Error(
-      `Seed application ${applicationId} still has unapproved required review sections: ${stillUnapproved.join(", ")}`
-    );
-  }
-}
-
 async function ensureFixedContractAndApplications() {
   await prisma.contract.upsert({
     where: { id: SEED_CONTRACT_ID },
@@ -402,7 +367,7 @@ async function ensureFixedContractAndApplications() {
         review_and_submit: Prisma.JsonNull,
       },
     });
-    await approveRequiredReviewSections(id);
+    await seedApprovedFinancialReviewForApplication(prisma, { applicationId: id });
   };
 
   await upsertCompletedApp(SEED_APP_INVOICE_ONLY_ID, "invoice_only", null);
@@ -606,7 +571,7 @@ async function createFreshApplication(runId: string) {
     },
     select: { id: true },
   });
-  await approveRequiredReviewSections(application.id);
+  await seedApprovedFinancialReviewForApplication(prisma, { applicationId: application.id });
   return application;
 }
 
@@ -808,6 +773,5 @@ main()
     process.exitCode = 1;
   })
   .finally(async () => {
-    // appPrisma is the API client the shared review-section policy reads products through.
-    await Promise.all([prisma.$disconnect(), appPrisma.$disconnect()]);
+    await prisma.$disconnect();
   });

@@ -1,11 +1,17 @@
 /**
  * SECTION: Build / wrap Page 2 publication freeze (Stage 4 financial comparison)
- * WHY: Application financials are live; freeze the resolved years (every raw key) at approval
+ * WHY: Freeze exactly what the preview displayed from the approved Financial Review result
+ * (raw and calculated values) so the approved document never changes
  */
 
+import {
+  FINANCIAL_REVIEW_CALCULATED_KEYS,
+  type ApprovedFinancialResult,
+  type FinancialReviewCalculatedValues,
+} from "@cashsouk/types";
 import { decimalToSerializableString } from "../../issuer-dashboard/track-record-aggregates";
 import { asJsonRecord } from "./prospectus-json-guards";
-import { buildProspectusFinancialComparisonSource } from "./prospectus-financial-comparison-source";
+import { buildProspectusFinancialComparisonSourceFromResult } from "./prospectus-financial-comparison-source";
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types";
 import { PROSPECTUS_SOUKSCORE_SCALE_VERSION } from "./prospectus-soukscore-rating-scale.types";
 import {
@@ -52,10 +58,10 @@ function serializeRawField(value: unknown): string | number | null {
 const LEGACY_RAW_KEY_SET: ReadonlySet<string> = new Set(RAW_KEYS);
 
 /**
- * Freeze every key of one resolved year: the 18 legacy keys first (null when absent, so old
- * readers keep working), then every other key the resolver produced.
- * WHY: Page 2 / Page 3 read derived keys (ebit, dscr, cashAndBank, …); a hand-picked list drops
- * them and the frozen render shows "Data not available".
+ * Freeze every effective raw value of one selected year: the 18 legacy keys first (null when
+ * absent, so old readers keep working), then every other key the Financial Review stored.
+ * WHY: Page 2 / Page 3 raw rows read issuer keys (cashAndBank, grossProfit, …); a hand-picked
+ * list drops them and the frozen render shows "Data not available".
  */
 function freezeRawFinancials(raw: Record<string, unknown>): ProspectusPage2FinancialRawSnapshot {
   const keys = [...RAW_KEYS, ...Object.keys(raw).filter((key) => !LEGACY_RAW_KEY_SET.has(key))];
@@ -65,30 +71,32 @@ function freezeRawFinancials(raw: Record<string, unknown>): ProspectusPage2Finan
   ) as ProspectusPage2FinancialRawSnapshot;
 }
 
+/** All 18 stored metrics, in the Financial Review key order. */
+function freezeCalculatedValues(
+  calculated: FinancialReviewCalculatedValues
+): FinancialReviewCalculatedValues {
+  const out = {} as FinancialReviewCalculatedValues;
+  for (const key of FINANCIAL_REVIEW_CALCULATED_KEYS) out[key] = calculated[key];
+  return out;
+}
+
 /**
- * Freeze Stage 4 (version 2): the resolved years with every raw key, statement type, source
- * footer and missing-year state — everything Page 2 / Page 3 need to render without live data.
- * Missing financials → valid empty selected_years (publication still succeeds).
- * `now` stamps calculated_at; `referenceDate` drives year selection (the Note's financial
- * reference date, not the freeze time).
+ * Freeze Stage 4 (version 2) from the same source adapter the preview uses: the selected years
+ * with their effective raw values, stored calculated values, statement type, source footer and
+ * missing-year state. No selected years → valid empty selected_years (publication still succeeds).
+ * `now` stamps calculated_at; reference_date is the Financial Review result's.
  */
 export function buildProspectusPage2FinancialComparisonSnapshot(input: {
-  financialStatements: unknown;
-  ctosFinancials?: unknown;
-  referenceDate: Date;
+  approvedFinancialResult: ApprovedFinancialResult;
   now?: Date;
 }): ProspectusPage2FinancialComparisonSnapshot {
   const now = input.now ?? new Date();
-  const source = buildProspectusFinancialComparisonSource({
-    financialStatements: input.financialStatements,
-    ctosFinancials: input.ctosFinancials,
-    ref: input.referenceDate,
-  });
+  const source = buildProspectusFinancialComparisonSourceFromResult(input.approvedFinancialResult);
 
   return {
     source: "admin_financial_statements_normalized",
     freeze_version: PROSPECTUS_PAGE2_FINANCIAL_FREEZE_VERSION,
-    reference_date: input.referenceDate.toISOString(),
+    reference_date: input.approvedFinancialResult.reference_date,
     selected_years: source.years.map((year) => ({
       year: year.year,
       year_label: year.yearLabel,
@@ -100,6 +108,7 @@ export function buildProspectusPage2FinancialComparisonSnapshot(input: {
       record_source: year.recordSource,
       statement_type: year.statementType,
       raw_financials: freezeRawFinancials(year.rawFinancials),
+      calculated_values: freezeCalculatedValues(year.calculatedValues),
     })),
     source_footer: source.sourceFooter,
     calculated_at: now.toISOString(),
@@ -109,9 +118,7 @@ export function buildProspectusPage2FinancialComparisonSnapshot(input: {
 }
 
 export function buildProspectusPage2Snapshot(input: {
-  financialStatements: unknown;
-  ctosFinancials?: unknown;
-  referenceDate: Date;
+  approvedFinancialResult: ApprovedFinancialResult;
   now?: Date;
 }): ProspectusPage2Snapshot {
   return {

@@ -3,6 +3,7 @@
  * WHY: Preview without --note-id; prove Stages 1–6 composition and DNA fields
  */
 
+import { approvedFinancialResultFromInputs } from "./prospectus-financial-comparison-test-helpers";
 import { SAMPLE_PROSPECTUS_PAGE_THREE_BALANCE_SHEET_SOURCE } from "./prospectus-page-three-balance-sheet.sample-data";
 import {
   buildProspectusPageThree,
@@ -30,53 +31,55 @@ export const SAMPLE_PROSPECTUS_PAGE_THREE_INPUT: ProspectusPageThreeBuilderInput
     name: "Kementerian Kerja Raya",
     entity_type: "GOVERNMENT",
   },
-  liveFinancialStatements: {
-    questionnaire: { financial_year_end: "2027-12-31" },
-    unaudited_by_year: Object.fromEntries(
-      SAMPLE_PROSPECTUS_PAGE_THREE_BALANCE_SHEET_SOURCE.years.map((year) => [
-        String(year.year),
-        {
-          ...year.rawFinancials,
-          turnover:
-            year.year === 2022
-              ? 13_900_000
-              : year.year === 2023
-                ? 16_200_000
-                : 18_600_000,
-          plnpbt:
-            year.year === 2022 ? 1_400_000 : year.year === 2023 ? 1_700_000 : 2_000_000,
-          plnpat:
-            year.year === 2022 ? 1_200_000 : year.year === 2023 ? 1_500_000 : 1_800_000,
-          bsqpuc: 2_000_000,
-          networth: 2_000_000,
-          return_on_equity:
-            year.year === 2022 ? 60 : year.year === 2023 ? 68.18 : 75,
-        },
-      ])
-    ),
-  },
-  liveCtosFinancials: SAMPLE_PROSPECTUS_PAGE_THREE_BALANCE_SHEET_SOURCE.years.map((year) => ({
-    financial_year: year.year,
-    dates: {
-      pldd: year.financialYearEndIso,
-      bsdd: null as null,
+  approvedFinancialResult: approvedFinancialResultFromInputs({
+    financialStatements: {
+      questionnaire: { financial_year_end: "2027-12-31" },
+      unaudited_by_year: Object.fromEntries(
+        SAMPLE_PROSPECTUS_PAGE_THREE_BALANCE_SHEET_SOURCE.years.map((year) => [
+          String(year.year),
+          {
+            ...year.rawFinancials,
+            turnover:
+              year.year === 2022
+                ? 13_900_000
+                : year.year === 2023
+                  ? 16_200_000
+                  : 18_600_000,
+            plnpbt:
+              year.year === 2022 ? 1_400_000 : year.year === 2023 ? 1_700_000 : 2_000_000,
+            plnpat:
+              year.year === 2022 ? 1_200_000 : year.year === 2023 ? 1_500_000 : 1_800_000,
+            bsqpuc: 2_000_000,
+            networth: 2_000_000,
+            return_on_equity:
+              year.year === 2022 ? 60 : year.year === 2023 ? 68.18 : 75,
+          },
+        ])
+      ),
     },
-    account: {
-      ...year.rawFinancials,
-      turnover:
-        year.year === 2022
-          ? 13_900_000
-          : year.year === 2023
-            ? 16_200_000
-            : 18_600_000,
-      plnpbt: year.year === 2022 ? 1_400_000 : year.year === 2023 ? 1_700_000 : 2_000_000,
-      plnpat: year.year === 2022 ? 1_200_000 : year.year === 2023 ? 1_500_000 : 1_800_000,
-      bsqpuc: 2_000_000,
-      networth: 2_000_000,
-      return_on_equity: year.year === 2022 ? 60 : year.year === 2023 ? 68.18 : 75,
-    },
-  })),
-  financialReferenceDate: new Date("2026-07-17T00:00:00.000Z"),
+    ctosFinancials: SAMPLE_PROSPECTUS_PAGE_THREE_BALANCE_SHEET_SOURCE.years.map((year) => ({
+      financial_year: year.year,
+      dates: {
+        pldd: year.financialYearEndIso,
+        bsdd: null as null,
+      },
+      account: {
+        ...year.rawFinancials,
+        turnover:
+          year.year === 2022
+            ? 13_900_000
+            : year.year === 2023
+              ? 16_200_000
+              : 18_600_000,
+        plnpbt: year.year === 2022 ? 1_400_000 : year.year === 2023 ? 1_700_000 : 2_000_000,
+        plnpat: year.year === 2022 ? 1_200_000 : year.year === 2023 ? 1_500_000 : 1_800_000,
+        bsqpuc: 2_000_000,
+        networth: 2_000_000,
+        return_on_equity: year.year === 2022 ? 60 : year.year === 2023 ? 68.18 : 75,
+      },
+    })),
+    ref: new Date("2026-07-17T00:00:00.000Z"),
+  }),
   frozenFinancialComparison: null,
   publicationContent: PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT,
 };

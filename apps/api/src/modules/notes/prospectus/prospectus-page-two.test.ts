@@ -6,6 +6,7 @@ import {
   MARKETPLACE_MIN_COMMIT_MYR,
 } from "@cashsouk/types";
 import { AppError } from "../../../lib/http/error-handler";
+import { approvedFinancialResultFromInputs } from "./prospectus-financial-comparison-test-helpers";
 import { formatProspectusMoneyMyr } from "./prospectus-main-financial-terms";
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types";
 import { parseProspectusPageTwoSnapshot } from "./prospectus-json-guards";
@@ -193,28 +194,30 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
   describe("publication snapshot freeze", () => {
     it("freezes Stage 4 years and raw values without formatted money", () => {
       const page2 = buildProspectusPage2Snapshot({
-        referenceDate: new Date("2026-07-19T12:00:00.000Z"),
-        financialStatements: {
-          questionnaire: { financial_year_end: "2027-12-31" },
-          unaudited_by_year: {},
-        },
-        ctosFinancials: [
-          {
-            financial_year: 2022,
-            dates: { pldd: "2022-12-31", bsdd: null },
-            account: { turnover: 12_000_000, plnpat: 900_000, bsqpuc: 5_000_000, bscatot: 4_000_000, curlib: 2_000_000 },
+        approvedFinancialResult: approvedFinancialResultFromInputs({
+          financialStatements: {
+            questionnaire: { financial_year_end: "2027-12-31" },
+            unaudited_by_year: {},
           },
-          {
-            financial_year: 2023,
-            dates: { pldd: "2023-12-31", bsdd: null },
-            account: { turnover: 13_900_000, plnpat: 1_100_000, bsqpuc: 5_500_000, bscatot: 4_200_000, curlib: 2_100_000 },
-          },
-          {
-            financial_year: 2024,
-            dates: { pldd: "2024-12-31", bsdd: null },
-            account: { turnover: 15_000_000, plnpat: 1_200_000, bsqpuc: 6_000_000, bscatot: 4_500_000, curlib: 2_200_000 },
-          },
-        ],
+          ctosFinancials: [
+            {
+              financial_year: 2022,
+              dates: { pldd: "2022-12-31", bsdd: null },
+              account: { turnover: 12_000_000, plnpat: 900_000, bsqpuc: 5_000_000, bscatot: 4_000_000, curlib: 2_000_000 },
+            },
+            {
+              financial_year: 2023,
+              dates: { pldd: "2023-12-31", bsdd: null },
+              account: { turnover: 13_900_000, plnpat: 1_100_000, bsqpuc: 5_500_000, bscatot: 4_200_000, curlib: 2_100_000 },
+            },
+            {
+              financial_year: 2024,
+              dates: { pldd: "2024-12-31", bsdd: null },
+              account: { turnover: 15_000_000, plnpat: 1_200_000, bsqpuc: 6_000_000, bscatot: 4_500_000, curlib: 2_200_000 },
+            },
+          ],
+          ref: new Date("2026-07-19T12:00:00.000Z"),
+        }),
         now: new Date("2026-07-19T12:00:00.000Z"),
       });
 
@@ -240,32 +243,34 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
 
     it("extends shared freeze with Page 3 raw keys and preserves zeros", () => {
       const page2 = buildProspectusPage2Snapshot({
-        referenceDate: new Date("2026-07-19T12:00:00.000Z"),
-        financialStatements: {
-          questionnaire: { financial_year_end: "2027-12-31" },
-          unaudited_by_year: {},
-        },
-        ctosFinancials: [
-          {
-            financial_year: 2024,
-            dates: { pldd: "2024-12-31", bsdd: null },
-            account: {
-              turnover: 15_000_000,
-              plnpat: 1_200_000,
-              bsqpuc: 6_000_000,
-              bscatot: 4_500_000,
-              curlib: 2_200_000,
-              plnpbt: 1_400_000,
-              bsfatot: 0,
-              othass: 1_200_000,
-              bsclbank: 1_000_000,
-              bsslltd: 600_000,
-              bsclstd: 300_000,
-              totass: 8_400_000,
-              totlib: 3_100_000,
-            },
+        approvedFinancialResult: approvedFinancialResultFromInputs({
+          financialStatements: {
+            questionnaire: { financial_year_end: "2027-12-31" },
+            unaudited_by_year: {},
           },
-        ],
+          ctosFinancials: [
+            {
+              financial_year: 2024,
+              dates: { pldd: "2024-12-31", bsdd: null },
+              account: {
+                turnover: 15_000_000,
+                plnpat: 1_200_000,
+                bsqpuc: 6_000_000,
+                bscatot: 4_500_000,
+                curlib: 2_200_000,
+                plnpbt: 1_400_000,
+                bsfatot: 0,
+                othass: 1_200_000,
+                bsclbank: 1_000_000,
+                bsslltd: 600_000,
+                bsclstd: 300_000,
+                totass: 8_400_000,
+                totlib: 3_100_000,
+              },
+            },
+          ],
+          ref: new Date("2026-07-19T12:00:00.000Z"),
+        }),
         now: new Date("2026-07-19T12:00:00.000Z"),
       });
       const raw = page2.financial_comparison.selected_years[0]?.raw_financials;
@@ -325,29 +330,31 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(parsed?.financial_comparison.selected_years[0]?.raw_financials.currat).toBeNull();
     });
 
-    it("freezes corrected NPM/ROE inputs; published HTML ignores later CTOS changes", () => {
+    it("freezes corrected NPM/ROE inputs (CTOS-omitted ROE shows the stored fallback); published HTML ignores later CTOS changes", () => {
       const frozen = buildProspectusPage2Snapshot({
-        referenceDate: new Date("2026-07-19T12:00:00.000Z"),
-        financialStatements: {
-          questionnaire: { financial_year_end: "2027-12-31" },
-          unaudited_by_year: {},
-        },
-        ctosFinancials: [
-          {
-            financial_year: 2024,
-            dates: { pldd: "2024-12-31", bsdd: null },
-            account: {
-              turnover: 100,
-              plnpat: 15,
-              profit_margin: 20,
-              networth: 500,
-              bsqpuc: 200,
-              return_on_equity: null,
-              bscatot: 1,
-              curlib: 1,
-            },
+        approvedFinancialResult: approvedFinancialResultFromInputs({
+          financialStatements: {
+            questionnaire: { financial_year_end: "2027-12-31" },
+            unaudited_by_year: {},
           },
-        ],
+          ctosFinancials: [
+            {
+              financial_year: 2024,
+              dates: { pldd: "2024-12-31", bsdd: null },
+              account: {
+                turnover: 100,
+                plnpat: 15,
+                profit_margin: 20,
+                networth: 500,
+                bsqpuc: 200,
+                return_on_equity: null,
+                bscatot: 1,
+                curlib: 1,
+              },
+            },
+          ],
+          ref: new Date("2026-07-19T12:00:00.000Z"),
+        }),
         now: new Date("2026-07-19T12:00:00.000Z"),
       }).financial_comparison;
 
@@ -363,13 +370,11 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(previewMetrics.rows.find((r) => r.key === "netProfitMargin")?.values[0]).toBe(
         formatProspectusFinancialPercentFromPoints(resolveCtosPatMarginPercent({ plnpat: 15, turnover: 100 }))
       );
-      expect(previewMetrics.rows.find((r) => r.key === "roe")?.values[0]).toBe(
-        PROSPECTUS_DATA_NOT_AVAILABLE
-      );
+      // Intended change: CTOS omitted return_on_equity → stored fallback PAT ÷ Net Worth (15 / 500).
+      expect(previewMetrics.rows.find((r) => r.key === "roe")?.values[0]).toBe("3%");
 
       const published = buildProspectusPageTwo(
         mapProspectusPageTwoDataToInput({
-          financialReferenceDate: null,
           note: baseNote({
             status: NoteStatus.PUBLISHED,
             published_at: new Date("2026-07-01T00:00:00.000Z"),
@@ -378,33 +383,36 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
               page_2: { financial_comparison: frozen },
             },
           }),
-          liveFinancialStatements: {
-            questionnaire: { financial_year_end: "2027-12-31" },
-            unaudited_by_year: {
-              "2024": {
-                turnover: 999,
-                plnpat: 1,
-                profit_margin: 99,
-                networth: 1,
-                bsqpuc: 1,
-                bscatot: 1,
-                curlib: 1,
+          approvedFinancialResult: approvedFinancialResultFromInputs({
+            financialStatements: {
+              questionnaire: { financial_year_end: "2027-12-31" },
+              unaudited_by_year: {
+                "2024": {
+                  turnover: 999,
+                  plnpat: 1,
+                  profit_margin: 99,
+                  networth: 1,
+                  bsqpuc: 1,
+                  bscatot: 1,
+                  curlib: 1,
+                },
               },
             },
-          },
-          liveCtosFinancials: [
-            {
-              financial_year: 2024,
-              dates: { pldd: "2024-12-31", bsdd: null },
-              account: {
-                turnover: 999,
-                plnpat: 1,
-                profit_margin: 99,
-                networth: 1,
-                bsqpuc: 1,
+            ctosFinancials: [
+              {
+                financial_year: 2024,
+                dates: { pldd: "2024-12-31", bsdd: null },
+                account: {
+                  turnover: 999,
+                  plnpat: 1,
+                  profit_margin: 99,
+                  networth: 1,
+                  bsqpuc: 1,
+                },
               },
-            },
-          ],
+            ],
+            ref: new Date("2026-07-17T00:00:00.000Z"),
+          }),
         })
       );
 
@@ -423,34 +431,36 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
         )
       );
       expect(published.financialComparisonMetrics.rows.find((r) => r.key === "roe")?.values[2]).toBe(
-        PROSPECTUS_DATA_NOT_AVAILABLE
+        "3%"
       );
     });
 
-    it("freezes totass/totlib raw fields; ROE stays DNA without return_on_equity; published HTML ignores later CTOS changes", () => {
+    it("freezes totass/totlib raw fields; CTOS-omitted ROE shows the stored fallback; published HTML ignores later CTOS changes", () => {
       const frozen = buildProspectusPage2Snapshot({
-        referenceDate: new Date("2026-07-19T12:00:00.000Z"),
-        financialStatements: {
-          questionnaire: { financial_year_end: "2027-12-31" },
-          unaudited_by_year: {},
-        },
-        ctosFinancials: [
-          {
-            financial_year: 2024,
-            dates: { pldd: "2024-12-31", bsdd: null },
-            account: {
-              turnover: 100,
-              plnpat: 100,
-              return_on_equity: null,
-              networth: null,
-              totass: 700,
-              totlib: 200,
-              bsqpuc: 200,
-              bscatot: 1,
-              curlib: 1,
-            },
+        approvedFinancialResult: approvedFinancialResultFromInputs({
+          financialStatements: {
+            questionnaire: { financial_year_end: "2027-12-31" },
+            unaudited_by_year: {},
           },
-        ],
+          ctosFinancials: [
+            {
+              financial_year: 2024,
+              dates: { pldd: "2024-12-31", bsdd: null },
+              account: {
+                turnover: 100,
+                plnpat: 100,
+                return_on_equity: null,
+                networth: null,
+                totass: 700,
+                totlib: 200,
+                bsqpuc: 200,
+                bscatot: 1,
+                curlib: 1,
+              },
+            },
+          ],
+          ref: new Date("2026-07-19T12:00:00.000Z"),
+        }),
         now: new Date("2026-07-19T12:00:00.000Z"),
       }).financial_comparison;
 
@@ -464,13 +474,11 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
 
       const previewSource = buildFinancialComparisonSourceFromFrozen(frozen);
       const previewMetrics = buildProspectusFinancialComparisonMetrics({ source: previewSource });
-      expect(previewMetrics.rows.find((r) => r.key === "roe")?.values[0]).toBe(
-        PROSPECTUS_DATA_NOT_AVAILABLE
-      );
+      // Intended change: CTOS omitted return_on_equity and networth → PAT ÷ (700 − 200).
+      expect(previewMetrics.rows.find((r) => r.key === "roe")?.values[0]).toBe("20%");
 
       const published = buildProspectusPageTwo(
         mapProspectusPageTwoDataToInput({
-          financialReferenceDate: null,
           note: baseNote({
             status: NoteStatus.PUBLISHED,
             published_at: new Date("2026-07-01T00:00:00.000Z"),
@@ -479,36 +487,39 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
               page_2: { financial_comparison: frozen },
             },
           }),
-          liveFinancialStatements: {
-            questionnaire: { financial_year_end: "2027-12-31" },
-            unaudited_by_year: {
-              "2024": {
-                turnover: 999,
-                plnpat: 1,
-                networth: 1,
-                totass: 1,
-                totlib: 1,
-                bsqpuc: 1,
-                bscatot: 1,
-                curlib: 1,
+          approvedFinancialResult: approvedFinancialResultFromInputs({
+            financialStatements: {
+              questionnaire: { financial_year_end: "2027-12-31" },
+              unaudited_by_year: {
+                "2024": {
+                  turnover: 999,
+                  plnpat: 1,
+                  networth: 1,
+                  totass: 1,
+                  totlib: 1,
+                  bsqpuc: 1,
+                  bscatot: 1,
+                  curlib: 1,
+                },
               },
             },
-          },
-          liveCtosFinancials: [
-            {
-              financial_year: 2024,
-              dates: { pldd: "2024-12-31", bsdd: null },
-              account: {
-                turnover: 999,
-                plnpat: 1,
-                networth: 1,
-                totass: 1,
-                totlib: 1,
-                bsqpuc: 1,
-                return_on_equity: 99,
+            ctosFinancials: [
+              {
+                financial_year: 2024,
+                dates: { pldd: "2024-12-31", bsdd: null },
+                account: {
+                  turnover: 999,
+                  plnpat: 1,
+                  networth: 1,
+                  totass: 1,
+                  totlib: 1,
+                  bsqpuc: 1,
+                  return_on_equity: 99,
+                },
               },
-            },
-          ],
+            ],
+            ref: new Date("2026-07-17T00:00:00.000Z"),
+          }),
         })
       );
 
@@ -517,14 +528,17 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(fy2024?.rawFinancials.totlib).toBe(200);
       expect(fy2024?.rawFinancials.networth).toBeNull();
       expect(published.financialComparisonMetrics.rows.find((r) => r.key === "roe")?.values[2]).toBe(
-        PROSPECTUS_DATA_NOT_AVAILABLE
+        "20%"
       );
     });
 
     it("creates a valid empty Page 2 snapshot when financials are missing", () => {
       const page2 = buildProspectusPage2Snapshot({
-        financialStatements: null,
-        referenceDate: new Date(),
+        approvedFinancialResult: approvedFinancialResultFromInputs({
+          financialStatements: null,
+          ctosFinancials: undefined,
+          ref: new Date(),
+        }),
       });
       expect(page2.financial_comparison.selected_years).toEqual([]);
       expect(page2.financial_comparison.calculated_at).toBeTruthy();
@@ -532,8 +546,11 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
 
     it("merges page_2 without overwriting page_1 or unknown branches", () => {
       const page2 = buildProspectusPage2Snapshot({
-        financialStatements: null,
-        referenceDate: new Date(),
+        approvedFinancialResult: approvedFinancialResultFromInputs({
+          financialStatements: null,
+          ctosFinancials: undefined,
+          ref: new Date(),
+        }),
       });
       const merged = wrapProspectusSnapshotWithPageTwo(frozenPage1, page2, {
         page_1: { should_be_replaced: true },
@@ -550,20 +567,22 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
   describe("prospectus source resolution precedence for same FY", () => {
     it("uses reviewed User Input FY value when the same FY exists in CTOS", () => {
       const page2 = buildProspectusPage2Snapshot({
-        referenceDate: new Date("2025-06-01T00:00:00.000Z"),
-        financialStatements: {
-          questionnaire: { financial_year_end: "2025-12-31" },
-          unaudited_by_year: {
-            "2025": { turnover: 1_200_000 },
+        approvedFinancialResult: approvedFinancialResultFromInputs({
+          financialStatements: {
+            questionnaire: { financial_year_end: "2025-12-31" },
+            unaudited_by_year: {
+              "2025": { turnover: 1_200_000 },
+            },
           },
-        },
-        ctosFinancials: [
-          {
-            financial_year: 2025,
-            dates: { pldd: "2025-12-31", bsdd: null },
-            account: { turnover: 1_000_000 },
-          },
-        ],
+          ctosFinancials: [
+            {
+              financial_year: 2025,
+              dates: { pldd: "2025-12-31", bsdd: null },
+              account: { turnover: 1_000_000 },
+            },
+          ],
+          ref: new Date("2025-06-01T00:00:00.000Z"),
+        }),
         now: new Date("2025-06-01T00:00:00.000Z"),
       });
 
@@ -573,31 +592,33 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
 
     it("uses edit_user_input override over reviewed User Input even when CTOS FY exists", () => {
       const page2 = buildProspectusPage2Snapshot({
-        referenceDate: new Date("2025-06-01T00:00:00.000Z"),
-        financialStatements: {
-          questionnaire: { financial_year_end: "2025-12-31" },
-          unaudited_by_year: {
-            "2025": { turnover: 1_200_000 },
-          },
-          admin_field_overrides: {
-            "2025": {
-              turnover: {
-                value: 1_100_000,
-                baseSource: "user_input",
-                action: "edit_user_input",
-                updated_by_user_id: "admin",
-                updated_at: "2026-01-01T00:00:00.000Z",
+        approvedFinancialResult: approvedFinancialResultFromInputs({
+          financialStatements: {
+            questionnaire: { financial_year_end: "2025-12-31" },
+            unaudited_by_year: {
+              "2025": { turnover: 1_200_000 },
+            },
+            admin_field_overrides: {
+              "2025": {
+                turnover: {
+                  value: 1_100_000,
+                  baseSource: "user_input",
+                  action: "edit_user_input",
+                  updated_by_user_id: "admin",
+                  updated_at: "2026-01-01T00:00:00.000Z",
+                },
               },
             },
           },
-        },
-        ctosFinancials: [
-          {
-            financial_year: 2025,
-            dates: { pldd: "2025-12-31", bsdd: null },
-            account: { turnover: 1_000_000 },
-          },
-        ],
+          ctosFinancials: [
+            {
+              financial_year: 2025,
+              dates: { pldd: "2025-12-31", bsdd: null },
+              account: { turnover: 1_000_000 },
+            },
+          ],
+          ref: new Date("2025-06-01T00:00:00.000Z"),
+        }),
         now: new Date("2025-06-01T00:00:00.000Z"),
       });
 
@@ -607,31 +628,33 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
 
     it("resolves latest 3 distinct FYs and does not let CTOS overwrite reviewed User Input for a shared FY", () => {
       const page2 = buildProspectusPage2Snapshot({
-        referenceDate: new Date("2026-03-01T00:00:00.000Z"),
-        financialStatements: {
-          questionnaire: { financial_year_end: "2026-12-31" },
-          unaudited_by_year: {
-            "2025": { turnover: 1_200_000 },
-            "2026": { turnover: 2_400_000 },
+        approvedFinancialResult: approvedFinancialResultFromInputs({
+          financialStatements: {
+            questionnaire: { financial_year_end: "2026-12-31" },
+            unaudited_by_year: {
+              "2025": { turnover: 1_200_000 },
+              "2026": { turnover: 2_400_000 },
+            },
           },
-        },
-        ctosFinancials: [
-          {
-            financial_year: 2023,
-            dates: { pldd: "2023-12-31", bsdd: null },
-            account: { turnover: 10_000_000 },
-          },
-          {
-            financial_year: 2024,
-            dates: { pldd: "2024-12-31", bsdd: null },
-            account: { turnover: 20_000_000 },
-          },
-          {
-            financial_year: 2025,
-            dates: { pldd: "2025-12-31", bsdd: null },
-            account: { turnover: 30_000_000 },
-          },
-        ],
+          ctosFinancials: [
+            {
+              financial_year: 2023,
+              dates: { pldd: "2023-12-31", bsdd: null },
+              account: { turnover: 10_000_000 },
+            },
+            {
+              financial_year: 2024,
+              dates: { pldd: "2024-12-31", bsdd: null },
+              account: { turnover: 20_000_000 },
+            },
+            {
+              financial_year: 2025,
+              dates: { pldd: "2025-12-31", bsdd: null },
+              account: { turnover: 30_000_000 },
+            },
+          ],
+          ref: new Date("2026-03-01T00:00:00.000Z"),
+        }),
         now: new Date("2026-03-01T00:00:00.000Z"),
       });
 
@@ -648,26 +671,28 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
 
     it("uses Admin Input FY value when there is no reviewed User Input/CTOS for that FY", () => {
       const page2 = buildProspectusPage2Snapshot({
-        referenceDate: new Date("2025-06-01T00:00:00.000Z"),
-        financialStatements: {
-          questionnaire: { financial_year_end: "2025-12-31" },
-          unaudited_by_year: {},
-          admin_input_by_year: {
-            "2025": { turnover: 3_300_000, statementType: "MANAGEMENT_ACCOUNTS" },
+        approvedFinancialResult: approvedFinancialResultFromInputs({
+          financialStatements: {
+            questionnaire: { financial_year_end: "2025-12-31" },
+            unaudited_by_year: {},
+            admin_input_by_year: {
+              "2025": { turnover: 3_300_000, statementType: "MANAGEMENT_ACCOUNTS" },
+            },
           },
-        },
-        ctosFinancials: [
-          {
-            financial_year: 2023,
-            dates: { pldd: "2023-12-31", bsdd: null },
-            account: { turnover: 10_000_000 },
-          },
-          {
-            financial_year: 2024,
-            dates: { pldd: "2024-12-31", bsdd: null },
-            account: { turnover: 20_000_000 },
-          },
-        ],
+          ctosFinancials: [
+            {
+              financial_year: 2023,
+              dates: { pldd: "2023-12-31", bsdd: null },
+              account: { turnover: 10_000_000 },
+            },
+            {
+              financial_year: 2024,
+              dates: { pldd: "2024-12-31", bsdd: null },
+              account: { turnover: 20_000_000 },
+            },
+          ],
+          ref: new Date("2025-06-01T00:00:00.000Z"),
+        }),
         now: new Date("2025-06-01T00:00:00.000Z"),
       });
 
@@ -679,16 +704,18 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
   describe("published vs unpublished Stage 4", () => {
     it("uses frozen Stage 4 for published Notes and ignores live Application data", () => {
       const frozen = buildProspectusPage2Snapshot({
-        referenceDate: new Date(),
-        financialStatements: {
-          questionnaire: { financial_year_end: "2027-12-31" },
-          unaudited_by_year: {},
-        },
-        ctosFinancials: [
-          { financial_year: 2022, dates: { pldd: "2022-12-31", bsdd: null }, account: { turnover: 12_000_000, plnpat: 900_000, bsqpuc: 5_000_000, bscatot: 4_000_000, curlib: 2_000_000 } },
-          { financial_year: 2023, dates: { pldd: "2023-12-31", bsdd: null }, account: { turnover: 13_900_000, plnpat: 1_100_000, bsqpuc: 5_500_000, bscatot: 4_200_000, curlib: 2_100_000 } },
-          { financial_year: 2024, dates: { pldd: "2024-12-31", bsdd: null }, account: { turnover: 15_000_000, plnpat: 1_200_000, bsqpuc: 6_000_000, bscatot: 4_500_000, curlib: 2_200_000 } },
-        ],
+        approvedFinancialResult: approvedFinancialResultFromInputs({
+          financialStatements: {
+            questionnaire: { financial_year_end: "2027-12-31" },
+            unaudited_by_year: {},
+          },
+          ctosFinancials: [
+            { financial_year: 2022, dates: { pldd: "2022-12-31", bsdd: null }, account: { turnover: 12_000_000, plnpat: 900_000, bsqpuc: 5_000_000, bscatot: 4_000_000, curlib: 2_000_000 } },
+            { financial_year: 2023, dates: { pldd: "2023-12-31", bsdd: null }, account: { turnover: 13_900_000, plnpat: 1_100_000, bsqpuc: 5_500_000, bscatot: 4_200_000, curlib: 2_100_000 } },
+            { financial_year: 2024, dates: { pldd: "2024-12-31", bsdd: null }, account: { turnover: 15_000_000, plnpat: 1_200_000, bsqpuc: 6_000_000, bscatot: 4_500_000, curlib: 2_200_000 } },
+          ],
+          ref: new Date(),
+        }),
       }).financial_comparison;
       // Mutate "live" data to prove it is ignored
       const changedLive = {
@@ -699,7 +726,6 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       };
 
       const data: ProspectusPageTwoLoadedData = {
-        financialReferenceDate: null,
         note: baseNote({
           status: NoteStatus.PUBLISHED,
           published_at: new Date("2026-07-01T00:00:00.000Z"),
@@ -708,13 +734,16 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
             page_2: { financial_comparison: frozen },
           },
         }),
-        liveFinancialStatements: changedLive,
-        liveCtosFinancials,
+        approvedFinancialResult: approvedFinancialResultFromInputs({
+          financialStatements: changedLive,
+          ctosFinancials: liveCtosFinancials,
+          ref: new Date("2026-07-17T00:00:00.000Z"),
+        }),
       };
 
       const input = mapProspectusPageTwoDataToInput(data);
       expect(input.financialMode).toBe("frozen_publication_snapshot");
-      expect(input.liveFinancialStatements).toBeNull();
+      expect(input.approvedFinancialResult).toBeNull();
 
       const page = buildProspectusPageTwo(input);
       expect(page.financialComparisonSource.years.map((y) => y.year)).toEqual([
@@ -727,24 +756,26 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
 
     it("keeps frozen same-FY precedence (CTOS vs reviewed User Input) even if live data changes later", () => {
       const frozen = buildProspectusPage2Snapshot({
-        referenceDate: new Date("2026-07-19T12:00:00.000Z"),
-        financialStatements: {
-          questionnaire: { financial_year_end: "2027-12-31" },
-          unaudited_by_year: {
-            "2024": {
-              turnover: 1_200_000,
-              plnpat: 1_000,
-              bsqpuc: 1,
-              bscatot: 1,
-              curlib: 1,
+        approvedFinancialResult: approvedFinancialResultFromInputs({
+          financialStatements: {
+            questionnaire: { financial_year_end: "2027-12-31" },
+            unaudited_by_year: {
+              "2024": {
+                turnover: 1_200_000,
+                plnpat: 1_000,
+                bsqpuc: 1,
+                bscatot: 1,
+                curlib: 1,
+              },
             },
           },
-        },
-        ctosFinancials: [
-          { financial_year: 2022, dates: { pldd: "2022-12-31", bsdd: null }, account: { turnover: 12_000_000, plnpat: 900_000, bsqpuc: 5_000_000, bscatot: 4_000_000, curlib: 2_000_000 } },
-          { financial_year: 2023, dates: { pldd: "2023-12-31", bsdd: null }, account: { turnover: 13_900_000, plnpat: 1_100_000, bsqpuc: 5_500_000, bscatot: 4_200_000, curlib: 2_100_000 } },
-          { financial_year: 2024, dates: { pldd: "2024-12-31", bsdd: null }, account: { turnover: 15_000_000, plnpat: 1_200_000, bsqpuc: 6_000_000, bscatot: 4_500_000, curlib: 2_200_000 } },
-        ],
+          ctosFinancials: [
+            { financial_year: 2022, dates: { pldd: "2022-12-31", bsdd: null }, account: { turnover: 12_000_000, plnpat: 900_000, bsqpuc: 5_000_000, bscatot: 4_000_000, curlib: 2_000_000 } },
+            { financial_year: 2023, dates: { pldd: "2023-12-31", bsdd: null }, account: { turnover: 13_900_000, plnpat: 1_100_000, bsqpuc: 5_500_000, bscatot: 4_200_000, curlib: 2_100_000 } },
+            { financial_year: 2024, dates: { pldd: "2024-12-31", bsdd: null }, account: { turnover: 15_000_000, plnpat: 1_200_000, bsqpuc: 6_000_000, bscatot: 4_500_000, curlib: 2_200_000 } },
+          ],
+          ref: new Date("2026-07-19T12:00:00.000Z"),
+        }),
         now: new Date("2026-07-19T12:00:00.000Z"),
       }).financial_comparison;
 
@@ -763,7 +794,6 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       };
 
       const data: ProspectusPageTwoLoadedData = {
-        financialReferenceDate: null,
         note: baseNote({
           status: NoteStatus.PUBLISHED,
           published_at: new Date("2026-07-01T00:00:00.000Z"),
@@ -772,8 +802,11 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
             page_2: { financial_comparison: frozen },
           },
         }),
-        liveFinancialStatements: changedLive,
-        liveCtosFinancials,
+        approvedFinancialResult: approvedFinancialResultFromInputs({
+          financialStatements: changedLive,
+          ctosFinancials: liveCtosFinancials,
+          ref: new Date("2026-07-17T00:00:00.000Z"),
+        }),
       };
 
       const input = mapProspectusPageTwoDataToInput(data);
@@ -790,28 +823,32 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
         { page_1: frozenPage1, page_2: null },
       ]) {
         const input = mapProspectusPageTwoDataToInput({
-          financialReferenceDate: null,
           note: baseNote({
             status: NoteStatus.PUBLISHED,
             published_at: new Date(),
             prospectus_snapshot: snapshot,
           }),
-          liveFinancialStatements,
-          liveCtosFinancials,
+          approvedFinancialResult: approvedFinancialResultFromInputs({
+            financialStatements: liveFinancialStatements,
+            ctosFinancials: liveCtosFinancials,
+            ref: new Date("2026-07-17T00:00:00.000Z"),
+          }),
         });
         expect(input.financialMode).toBe("published_unavailable");
-        expect(input.liveFinancialStatements).toBeNull();
+        expect(input.approvedFinancialResult).toBeNull();
         const page = buildProspectusPageTwo(input);
         expect(page.financialComparisonSource.years).toEqual([]);
       }
     });
 
-    it("uses live Application financials for unpublished preview", () => {
+    it("uses the Note financial snapshot for unpublished preview", () => {
       const input = mapProspectusPageTwoDataToInput({
-        financialReferenceDate: new Date(),
         note: baseNote({ status: NoteStatus.DRAFT, published_at: null }),
-        liveFinancialStatements,
-        liveCtosFinancials,
+        approvedFinancialResult: approvedFinancialResultFromInputs({
+          financialStatements: liveFinancialStatements,
+          ctosFinancials: liveCtosFinancials,
+          ref: new Date(),
+        }),
       });
       expect(input.financialMode).toBe("live_unpublished_preview");
       const page = buildProspectusPageTwo(input);
@@ -823,18 +860,27 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       ).toBe("12");
     });
 
-    it("yields empty Stage 4 when unpublished Application financials are missing", () => {
+    it("yields empty Stage 4 when the approved result has no financial years", () => {
       const page = buildProspectusPageTwo(
         mapProspectusPageTwoDataToInput({
-          financialReferenceDate: new Date(),
           note: baseNote(),
-          liveFinancialStatements: null,
-          liveCtosFinancials: null,
+          approvedFinancialResult: approvedFinancialResultFromInputs({
+            financialStatements: null,
+            ctosFinancials: null,
+            ref: new Date("2026-07-17T00:00:00.000Z"),
+          }),
         })
       );
       expect(page.financialComparisonSource.years).toEqual([]);
       expect(page.issuerProfile).not.toHaveProperty("companyName");
       expect(page.issuerProfile.industry).toBe("Construction");
+    });
+
+    it("throws instead of rendering when an unpublished preview has no approved result", () => {
+      const input = mapProspectusPageTwoDataToInput({ note: baseNote(), approvedFinancialResult: null });
+      expect(() => buildProspectusPageTwo(input)).toThrow(
+        expect.objectContaining({ statusCode: 500, code: "NOTE_FINANCIAL_SNAPSHOT_INVALID" })
+      );
     });
   });
 
@@ -842,10 +888,12 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
     it("maps Stage 1–8 from snapshots and DNA builders", () => {
       const page = buildProspectusPageTwo(
         mapProspectusPageTwoDataToInput({
-          financialReferenceDate: new Date(),
           note: baseNote(),
-          liveFinancialStatements,
-          liveCtosFinancials,
+          approvedFinancialResult: approvedFinancialResultFromInputs({
+            financialStatements: liveFinancialStatements,
+            ctosFinancials: liveCtosFinancials,
+            ref: new Date(),
+          }),
         })
       );
 
@@ -861,10 +909,12 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
 
       const withOfficerSize = buildProspectusPageTwo({
         ...mapProspectusPageTwoDataToInput({
-          financialReferenceDate: new Date(),
           note: baseNote(),
-          liveFinancialStatements,
-          liveCtosFinancials,
+          approvedFinancialResult: approvedFinancialResultFromInputs({
+            financialStatements: liveFinancialStatements,
+            ctosFinancials: liveCtosFinancials,
+            ref: new Date(),
+          }),
         }),
         publicationContent: {
           ...PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT,
@@ -886,10 +936,12 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
 
       const withOfficerInvoice = buildProspectusPageTwo({
         ...mapProspectusPageTwoDataToInput({
-          financialReferenceDate: new Date(),
           note: baseNote(),
-          liveFinancialStatements,
-          liveCtosFinancials,
+          approvedFinancialResult: approvedFinancialResultFromInputs({
+            financialStatements: liveFinancialStatements,
+            ctosFinancials: liveCtosFinancials,
+            ref: new Date(),
+          }),
         }),
         publicationContent: {
           ...PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT,
@@ -920,10 +972,12 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
 
       const withOfficerTrack = buildProspectusPageTwo({
         ...mapProspectusPageTwoDataToInput({
-          financialReferenceDate: new Date(),
           note: baseNote(),
-          liveFinancialStatements,
-          liveCtosFinancials,
+          approvedFinancialResult: approvedFinancialResultFromInputs({
+            financialStatements: liveFinancialStatements,
+            ctosFinancials: liveCtosFinancials,
+            ref: new Date(),
+          }),
         }),
         publicationContent: {
           ...PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT,
@@ -957,10 +1011,12 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
 
       const withFinOverrides = buildProspectusPageTwo({
         ...mapProspectusPageTwoDataToInput({
-          financialReferenceDate: new Date(),
           note: baseNote(),
-          liveFinancialStatements,
-          liveCtosFinancials,
+          approvedFinancialResult: approvedFinancialResultFromInputs({
+            financialStatements: liveFinancialStatements,
+            ctosFinancials: liveCtosFinancials,
+            ref: new Date(),
+          }),
         }),
         publicationContent: {
           ...PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT,
@@ -1015,15 +1071,17 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       for (const rating of ["A-", "AAA", "AA", "BBB", "AA+", "90%"]) {
         const page = buildProspectusPageTwo(
           mapProspectusPageTwoDataToInput({
-            financialReferenceDate: new Date(),
             note: baseNote({
               invoice_snapshot: {
                 details: { value: 100 },
                 offer_details: { risk_rating: rating },
               },
             }),
-            liveFinancialStatements,
-          liveCtosFinancials,
+            approvedFinancialResult: approvedFinancialResultFromInputs({
+              financialStatements: liveFinancialStatements,
+              ctosFinancials: liveCtosFinancials,
+              ref: new Date(),
+            }),
           })
         );
         expect(page.soukscoreRatingScale.grades.every((g) => !g.isSelected)).toBe(true);
@@ -1041,10 +1099,12 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       });
       const page = buildProspectusPageTwo(
         mapProspectusPageTwoDataToInput({
-          financialReferenceDate: new Date(),
           note: frozenNote,
-          liveFinancialStatements,
-          liveCtosFinancials,
+          approvedFinancialResult: approvedFinancialResultFromInputs({
+            financialStatements: liveFinancialStatements,
+            ctosFinancials: liveCtosFinancials,
+            ref: new Date(),
+          }),
         })
       );
       expect(page.soukscoreRatingScale.selectedGrade).toBe("SME-5");
@@ -1083,12 +1143,14 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
     it("keeps Company Size DNA when old issuer snapshot keys are missing", () => {
       const page = buildProspectusPageTwo(
         mapProspectusPageTwoDataToInput({
-          financialReferenceDate: new Date(),
           note: baseNote({
             issuer_snapshot: { name: "Old Issuer" },
           }),
-          liveFinancialStatements,
-          liveCtosFinancials,
+          approvedFinancialResult: approvedFinancialResultFromInputs({
+            financialStatements: liveFinancialStatements,
+            ctosFinancials: liveCtosFinancials,
+            ref: new Date(),
+          }),
         })
       );
       expect(page.issuerProfile).not.toHaveProperty("companyName");
@@ -1104,18 +1166,22 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
     it("keeps the same static CTA regardless of funded amount or remaining capacity", () => {
       const open = buildProspectusPageTwo(
         mapProspectusPageTwoDataToInput({
-          financialReferenceDate: new Date(),
           note: baseNote({ target_amount: 500_000, funded_amount: 0 }),
-          liveFinancialStatements,
-          liveCtosFinancials,
+          approvedFinancialResult: approvedFinancialResultFromInputs({
+            financialStatements: liveFinancialStatements,
+            ctosFinancials: liveCtosFinancials,
+            ref: new Date(),
+          }),
         })
       );
       const closed = buildProspectusPageTwo(
         mapProspectusPageTwoDataToInput({
-          financialReferenceDate: new Date(),
           note: baseNote({ target_amount: 500_000, funded_amount: 500_000 }),
-          liveFinancialStatements,
-          liveCtosFinancials,
+          approvedFinancialResult: approvedFinancialResultFromInputs({
+            financialStatements: liveFinancialStatements,
+            ctosFinancials: liveCtosFinancials,
+            ref: new Date(),
+          }),
         })
       );
 
@@ -1240,16 +1306,18 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
 
     it("reconstructs frozen Stage 4A without live year reselection", () => {
       const frozen = buildProspectusPage2Snapshot({
-        referenceDate: new Date(),
-        financialStatements: {
-          questionnaire: { financial_year_end: "2027-12-31" },
-          unaudited_by_year: {},
-        },
-        ctosFinancials: [
-          { financial_year: 2022, dates: { pldd: "2022-12-31", bsdd: null }, account: { turnover: 12_000_000, plnpat: 900_000, bsqpuc: 5_000_000, bscatot: 4_000_000, curlib: 2_000_000 } },
-          { financial_year: 2023, dates: { pldd: "2023-12-31", bsdd: null }, account: { turnover: 13_900_000, plnpat: 1_100_000, bsqpuc: 5_500_000, bscatot: 4_200_000, curlib: 2_100_000 } },
-          { financial_year: 2024, dates: { pldd: "2024-12-31", bsdd: null }, account: { turnover: 15_000_000, plnpat: 1_200_000, bsqpuc: 6_000_000, bscatot: 4_500_000, curlib: 2_200_000 } },
-        ],
+        approvedFinancialResult: approvedFinancialResultFromInputs({
+          financialStatements: {
+            questionnaire: { financial_year_end: "2027-12-31" },
+            unaudited_by_year: {},
+          },
+          ctosFinancials: [
+            { financial_year: 2022, dates: { pldd: "2022-12-31", bsdd: null }, account: { turnover: 12_000_000, plnpat: 900_000, bsqpuc: 5_000_000, bscatot: 4_000_000, curlib: 2_000_000 } },
+            { financial_year: 2023, dates: { pldd: "2023-12-31", bsdd: null }, account: { turnover: 13_900_000, plnpat: 1_100_000, bsqpuc: 5_500_000, bscatot: 4_200_000, curlib: 2_100_000 } },
+            { financial_year: 2024, dates: { pldd: "2024-12-31", bsdd: null }, account: { turnover: 15_000_000, plnpat: 1_200_000, bsqpuc: 6_000_000, bscatot: 4_500_000, curlib: 2_200_000 } },
+          ],
+          ref: new Date(),
+        }),
       }).financial_comparison;
       const source = buildFinancialComparisonSourceFromFrozen(frozen);
       expect(source.years.map((y) => y.yearLabel)).toEqual(["FY2022", "FY2023", "FY2024"]);
@@ -1278,7 +1346,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(db.application.findUnique).not.toHaveBeenCalled();
     });
 
-    it("does not load Application financials for published Notes", async () => {
+    it("does not read financial inputs for published Notes (even without a financial snapshot)", async () => {
       const db = {
         note: {
           findUnique: jest.fn().mockResolvedValue(
@@ -1296,8 +1364,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
         },
       };
       const loaded = await loadProspectusPageTwoData(db as never, "n1");
-      expect(loaded.liveFinancialStatements).toBeNull();
-      expect(loaded.liveCtosFinancials).toBeNull();
+      expect(loaded.approvedFinancialResult).toBeNull();
       expect(db.application.findUnique).not.toHaveBeenCalled();
       expect(db.ctosReport.findFirst).not.toHaveBeenCalled();
     });

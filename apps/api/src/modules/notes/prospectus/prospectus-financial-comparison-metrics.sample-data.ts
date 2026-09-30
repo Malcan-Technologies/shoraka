@@ -3,7 +3,7 @@
  * WHY: Realistic turnover/PAT/BS fields via CTOS years; unsupported rows remain DNA
  */
 
-import { buildProspectusFinancialComparisonSource } from "./prospectus-financial-comparison-source";
+import { buildProspectusFinancialComparisonSourceFromInputs } from "./prospectus-financial-comparison-test-helpers";
 import { buildProspectusFinancialComparisonMetrics } from "./prospectus-financial-comparison-metrics";
 import type { ProspectusFinancialComparisonMetrics } from "./prospectus-financial-comparison-metrics.types";
 
@@ -36,7 +36,7 @@ function account(fields: Record<string, number | null>) {
 }
 
 export const SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_METRICS_SOURCE =
-  buildProspectusFinancialComparisonSource({
+  buildProspectusFinancialComparisonSourceFromInputs({
     financialStatements: {
       questionnaire: { financial_year_end: "2027-12-31" },
       unaudited_by_year: {},

@@ -40,15 +40,20 @@ jest.mock("./repository", () => ({
   noteInclude: {},
 }));
 
-jest.mock("../admin/review-section-approval", () => ({
-  loadApplicationReviewApproval: jest.fn(async () => ({
-    status: "COMPLETED",
-    unapprovedRequiredSections: [],
+jest.mock("../admin/financial-approved-result", () => ({
+  loadCurrentApprovedFinancialResult: jest.fn(async () => ({
+    version: 1,
+    application_id: "app_1",
+    review_cycle: 1,
+    approved_at: "2026-08-01T00:00:00.000Z",
+    reviewer_user_id: "admin_1",
+    ctos_report: null,
+    reference_date: "2026-07-01T00:00:00.000Z",
+    years: [],
+    source_footer: "",
+    missing_ssm_unaudited_years: [],
+    ops_warning: null,
   })),
-}));
-
-jest.mock("./note-financial-snapshot", () => ({
-  buildNoteFinancialSnapshot: jest.fn(async () => ({ version: 1 })),
 }));
 
 jest.mock("./mapper", () => ({

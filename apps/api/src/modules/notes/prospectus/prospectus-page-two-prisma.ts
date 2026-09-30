@@ -3,11 +3,12 @@
  * WHY: Keep Prisma queries out of HTML; select only Page 2 fields
  */
 
+import type { ApprovedFinancialResult, MarcAssessmentSnapshot } from "@cashsouk/types";
 import { NoteStatus, type PrismaClient } from "@prisma/client";
 import { AppError } from "../../../lib/http/error-handler";
 import { isProspectusNotePublished } from "./prospectus-page-one-prisma";
 import { resolveMarcSnapshotForProspectus } from "./prospectus-marc-snapshot";
-import { loadProspectusNoteFinancialInputs } from "./prospectus-note-financial-inputs";
+import { readProspectusNoteFinancialSnapshot } from "./prospectus-note-financial-inputs";
 
 export { isProspectusNotePublished };
 
@@ -64,19 +65,11 @@ export type ProspectusPageTwoNoteRecord = {
 export type ProspectusPageTwoLoadedData = {
   note: ProspectusPageTwoNoteRecord;
   /**
-   * Application financial_statements for unpublished Stage 4 preview only: the Note financial
-   * snapshot when present, else the live Application (legacy Note).
-   * Null when published (must not be used) or when Application is missing.
+   * Approved Financial Review result from the Note financial snapshot — unpublished preview only.
+   * Null when published: published Notes render from their frozen Prospectus snapshot.
    */
-  liveFinancialStatements: unknown | null;
-  /**
-   * Application-owned CTOS financials for unpublished Stage 4 preview only: the Note financial
-   * snapshot when present, else the report that existed at first submission (legacy Note).
-   */
-  liveCtosFinancials: unknown | null;
-  /** Financial-year selection reference date; null only when published (frozen years are used). */
-  financialReferenceDate: Date | null;
-  marcSnapshot?: import("@cashsouk/types").MarcAssessmentSnapshot | null;
+  approvedFinancialResult: ApprovedFinancialResult | null;
+  marcSnapshot?: MarcAssessmentSnapshot | null;
 };
 
 export async function loadProspectusPageTwoNote(
@@ -96,34 +89,19 @@ export async function loadProspectusPageTwoNote(
 }
 
 /**
- * Load Note + financial inputs (Note financial snapshot, else live Application + owned CTOS)
- * for unpublished preview. Published Notes never receive financial inputs from this loader.
+ * Load Note + the approved Financial Review result from its financial snapshot for unpublished
+ * preview. A missing or invalid snapshot throws; the application and CTOS are never read.
+ * Published Notes never receive a financial result from this loader.
  */
 export async function loadProspectusPageTwoData(
   db: PrismaClient,
   noteId: string
 ): Promise<ProspectusPageTwoLoadedData> {
   const note = await loadProspectusPageTwoNote(db, noteId);
-  const published = isProspectusNotePublished(note);
+  const approvedFinancialResult = isProspectusNotePublished(note)
+    ? null
+    : readProspectusNoteFinancialSnapshot(note).approved_financial_result;
   const marcSnapshot = await resolveMarcSnapshotForProspectus(note);
 
-  if (published) {
-    return {
-      note,
-      liveFinancialStatements: null,
-      liveCtosFinancials: null,
-      financialReferenceDate: null,
-      marcSnapshot,
-    };
-  }
-
-  const financialInputs = await loadProspectusNoteFinancialInputs({ db, note });
-
-  return {
-    note,
-    liveFinancialStatements: financialInputs.financialStatements,
-    liveCtosFinancials: financialInputs.ctosFinancials,
-    financialReferenceDate: financialInputs.referenceDate,
-    marcSnapshot,
-  };
+  return { note, approvedFinancialResult, marcSnapshot };
 }

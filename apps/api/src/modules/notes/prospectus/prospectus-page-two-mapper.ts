@@ -1,12 +1,18 @@
 /**
  * SECTION: Map Page 2 Prisma data → Stage 1–8 builders → assembled Page 2
- * WHY: Prefer frozen Stage 4 snapshot when published; never live-fallback published
+ * WHY: Unpublished preview displays the Note financial snapshot; published renders the frozen
+ * Stage 4 snapshot and never falls back
  */
 
+import type { ApprovedFinancialResult, FinancialReviewCalculatedValues } from "@cashsouk/types";
 import { AppError } from "../../../lib/http/error-handler";
 import { buildProspectusCreditInsights } from "./prospectus-credit-insights";
 import { buildProspectusFinancialComparisonMetrics } from "./prospectus-financial-comparison-metrics";
-import { buildProspectusFinancialComparisonSource } from "./prospectus-financial-comparison-source";
+import {
+  buildProspectusFinancialComparisonSourceFromResult,
+  statementTypeFromRecordSource,
+} from "./prospectus-financial-comparison-source";
+import { legacyFrozenCalculatedValues } from "./prospectus-legacy-frozen-financials";
 import { withProspectusThreeYearDisplay } from "./prospectus-three-year-display";
 import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
@@ -52,12 +58,8 @@ export type ProspectusPageTwoBuilderInput = {
   invoiceSnapshot: unknown;
   paymasterSnapshot: unknown;
   maturityDate: Date | null;
-  /** Live Application financials — only for unpublished preview. */
-  liveFinancialStatements: unknown | null;
-  /** Live organization CTOS financials_json — only for unpublished preview. */
-  liveCtosFinancials: unknown | null;
-  /** Financial-year selection reference date — required for unpublished preview, else null. */
-  financialReferenceDate: Date | null;
+  /** Approved Financial Review result from the Note financial snapshot — unpublished preview only. */
+  approvedFinancialResult: ApprovedFinancialResult | null;
   /** Parsed frozen Stage 4 — only when published + valid. */
   frozenFinancialComparison: ProspectusPage2FinancialComparisonSnapshot | null;
   marcSnapshot?: import("@cashsouk/types").MarcAssessmentSnapshot | null;
@@ -107,6 +109,20 @@ function legacyFrozenRawFinancials(
   };
 }
 
+/** A version-2 freeze always carries the stored calculated values (the strict parser enforces it). */
+function completeFrozenCalculatedValues(
+  year: ProspectusPage2FinancialYearSnapshot
+): FinancialReviewCalculatedValues {
+  if (!year.calculated_values) {
+    throw new AppError(
+      500,
+      "PROSPECTUS_FINANCIAL_FREEZE_INVALID",
+      "Prospectus financial freeze has no calculated values"
+    );
+  }
+  return { ...year.calculated_values };
+}
+
 function frozenYearToSourceYear(
   year: ProspectusPage2FinancialYearSnapshot,
   complete: boolean
@@ -116,29 +132,33 @@ function frozenYearToSourceYear(
     (year.financial_year_end_label && /^\d{4}-\d{2}-\d{2}$/.test(year.financial_year_end_label)
       ? year.financial_year_end_label
       : `${year.year}-12-31`);
+  const recordSource = year.record_source ?? "unaudited_management";
   // Old freezes did not store the statement type; they derive it from the record source.
-  const derivedStatementType =
-    year.record_source === "ctos_audited" ? "AUDITED" : "MANAGEMENT_ACCOUNTS";
+  const derivedStatementType = statementTypeFromRecordSource(year.record_source ?? null);
   return {
     year: year.year,
     yearLabel: year.year_label,
     financialYearEndIso,
     financialYearEndLabel: year.financial_year_end_label ?? PROSPECTUS_DATA_NOT_AVAILABLE,
-    recordSource: year.record_source ?? "unaudited_management",
+    recordSource,
     statementType: complete
       ? (year.statement_type ?? derivedStatementType)
       : derivedStatementType,
     rawFinancials: complete
       ? { ...year.raw_financials }
       : legacyFrozenRawFinancials(year.raw_financials),
+    calculatedValues: complete
+      ? completeFrozenCalculatedValues(year)
+      : legacyFrozenCalculatedValues(year.raw_financials),
   };
 }
 
 /**
  * Reconstruct Stage 4A view-model from frozen publication snapshot.
- * Does not re-run live year selection.
- * Version 2: every frozen raw key, the stored statement type and missing-year state, so the
- * render equals the live render it was frozen from. Older freezes render as they always have.
+ * Does not re-run year selection.
+ * Version 2: the frozen raw values, stored calculated values, statement type and missing-year
+ * state, so the render equals the preview it was frozen from. Older freezes render as they
+ * always have (their metrics come from prospectus-legacy-frozen-financials).
  */
 export function buildFinancialComparisonSourceFromFrozen(
   frozen: ProspectusPage2FinancialComparisonSnapshot
@@ -154,7 +174,7 @@ export function buildFinancialComparisonSourceFromFrozen(
     // Old freezes did not carry the ops state; the warning never reaches investor HTML.
     missingSsmUnauditedYears,
     opsWarning: complete ? (frozen.ops_warning ?? null) : null,
-    // Admin Input eligibility is a live editing affordance, not part of the approved result.
+    // Admin Input eligibility is a Financial Review editing affordance, not part of the approved result.
     adminFallbackEligibleYears: [],
     audit: PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_AUDIT,
   };
@@ -174,18 +194,11 @@ function resolveFinancialComparisonSource(
     return emptyFinancialComparisonSource();
   }
 
-  if (!input.financialReferenceDate) {
-    throw new AppError(
-      500,
-      "PROSPECTUS_FINANCIAL_REFERENCE_DATE_MISSING",
-      "Prospectus preview has no financial reference date"
-    );
+  // Unpublished preview: the Note financial snapshot (the loader throws when it is missing).
+  if (!input.approvedFinancialResult) {
+    throw new AppError(500, "NOTE_FINANCIAL_SNAPSHOT_INVALID", "Note financial snapshot is invalid");
   }
-  return buildProspectusFinancialComparisonSource({
-    financialStatements: input.liveFinancialStatements,
-    ctosFinancials: input.liveCtosFinancials,
-    ref: input.financialReferenceDate,
-  });
+  return buildProspectusFinancialComparisonSourceFromResult(input.approvedFinancialResult);
 }
 
 export function mapProspectusPageTwoDataToInput(
@@ -197,9 +210,7 @@ export function mapProspectusPageTwoDataToInput(
 
   let financialMode: ProspectusPageTwoFinancialMode;
   let frozenFinancialComparison: ProspectusPage2FinancialComparisonSnapshot | null = null;
-  let liveFinancialStatements: unknown | null = null;
-  let liveCtosFinancials: unknown | null = null;
-  let financialReferenceDate: Date | null = null;
+  let approvedFinancialResult: ApprovedFinancialResult | null = null;
 
   if (isPublished) {
     if (parsedPage2) {
@@ -209,10 +220,9 @@ export function mapProspectusPageTwoDataToInput(
       financialMode = "published_unavailable";
     }
   } else {
+    // Unpublished preview reads the Note financial snapshot (mode name kept for callers).
     financialMode = "live_unpublished_preview";
-    liveFinancialStatements = data.liveFinancialStatements;
-    liveCtosFinancials = data.liveCtosFinancials;
-    financialReferenceDate = data.financialReferenceDate;
+    approvedFinancialResult = data.approvedFinancialResult;
   }
 
   return {
@@ -224,9 +234,7 @@ export function mapProspectusPageTwoDataToInput(
     invoiceSnapshot: note.invoice_snapshot,
     paymasterSnapshot: note.paymaster_snapshot,
     maturityDate: note.maturity_date,
-    liveFinancialStatements,
-    liveCtosFinancials,
-    financialReferenceDate,
+    approvedFinancialResult,
     frozenFinancialComparison,
     marcSnapshot: data.marcSnapshot ?? null,
     /** Published Notes: frozen officer content only — never mutable draft / placeholders. */
@@ -238,7 +246,7 @@ export function mapProspectusPageTwoDataToInput(
 
 /**
  * Page 2 input for an approved Prospectus: Stage 4 from the approval freeze whatever the Note's
- * publish state. Never receives or reads Application / CTOS financials.
+ * publish state. Never receives the Note financial snapshot or Application / CTOS financials.
  */
 export function mapProspectusPageTwoApprovedInput(input: {
   note: ProspectusPageTwoNoteRecord;
@@ -248,17 +256,13 @@ export function mapProspectusPageTwoApprovedInput(input: {
 }): ProspectusPageTwoBuilderInput {
   const base = mapProspectusPageTwoDataToInput({
     note: input.note,
-    liveFinancialStatements: null,
-    liveCtosFinancials: null,
-    financialReferenceDate: null,
+    approvedFinancialResult: null,
     marcSnapshot: input.marcSnapshot,
   });
   return {
     ...base,
     financialMode: "frozen_publication_snapshot",
-    liveFinancialStatements: null,
-    liveCtosFinancials: null,
-    financialReferenceDate: null,
+    approvedFinancialResult: null,
     frozenFinancialComparison: input.frozenFinancialComparison,
     publicationContent: input.publicationContent,
   };

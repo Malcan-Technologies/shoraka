@@ -7,8 +7,8 @@ Local product-review seed and checklist: [prospectus-review-local-product-review
 ## Position
 
 ```
-Application COMPLETED (all required review sections approved)
-→ Note created (DRAFT) with notes.financial_snapshot
+Financial section APPROVED: result stored on application_reviews.approved_snapshot
+→ Note created (DRAFT): result copied to notes.financial_snapshot
 → Prospectus Review Draft
 → Officer selections + Save Draft
 → Approve (READY_FOR_PUBLISH): complete Prospectus frozen on note_prospectus_reviews.approved_snapshot
@@ -17,32 +17,62 @@ Application COMPLETED (all required review sections approved)
 
 A Note created on/after `PROSPECTUS_REVIEW_REQUIRED_FROM` (`2026-07-19T00:00:00.000Z`) cannot publish without an approved `NoteProspectusReview`. Historical Notes without a review row remain publishable. Opening Prospectus Review on an old Note creates a review row and opts that Note into the requirement.
 
-## Note financial snapshot
+## Financial data
 
-Both Note creation paths (from an invoice, from an application) require an `APPROVED` invoice, a `COMPLETED` application (`409 APPLICATION_NOT_COMPLETED`) and every required review section approved (`409 REVIEW_SECTIONS_NOT_APPROVED`, `details.sections` lists the rest). The required sections come from the same policy the Admin review uses: `apps/api/src/modules/admin/review-section-approval.ts`.
+Financial Review owns the review decision. Each later stage copies the result; none resolves or recalculates it.
 
-`createFromInvoiceSource` (`apps/api/src/modules/notes/service.ts`) then writes `notes.financial_snapshot` (nullable JSON) in the same transaction as the Note. It is written once and never refreshed. It holds:
+### 1. Financial Review resolves and calculates
 
-- the application's `financial_statements` verbatim: issuer User Input, Admin edits to User Input, whole-year Admin Input, Admin CTOS gap-fills, questionnaire
-- the application-owned CTOS report: id, fetch time, financials payload
-- `reference_date` for year selection
-- traceability: application id, review cycle, Financial review status / reviewed time / reviewer id
+`resolveFinancialReviewResult` (`packages/types/src/financial-review-result.ts`) is the one shared resolver and calculator, built only from the existing formula helpers. The Admin Financial Review screen displays from it (`apps/admin/src/components/application-financial-review-content.tsx`). For every reviewed or selected financial year it returns:
 
-Type: `apps/api/src/modules/notes/note-financial-snapshot.types.ts`. Builder: `apps/api/src/modules/notes/note-financial-snapshot.ts`.
+- effective raw values, after Admin edits and CTOS gap-fills
+- a per-field source trace: User Input, User Input edited by Admin, CTOS, CTOS gap-fill, Admin Input
+- calculated metrics (`FINANCIAL_REVIEW_CALCULATED_KEYS`, 18 keys; percent metrics in percent points)
+- the selected-years flag: latest three years, one source per year (reviewed User Input, else CTOS, else Admin Input)
 
-The Prospectus reads financial inputs through `apps/api/src/modules/notes/prospectus/prospectus-note-financial-inputs.ts`:
+Precedence per metric: CTOS direct figure, else CTOS stylesheet formula, else CashSouk formula. Missing input means "cannot calculate" (`null`), never 0.
 
-- **Snapshot-backed Note**: reads only the snapshot, never the live application or CTOS.
-- **Note without a snapshot** (created before the column existed): reads the source application and its owned CTOS report.
-- A snapshot that is present but does not parse is an error (`500 NOTE_FINANCIAL_SNAPSHOT_INVALID`); it never falls back to live data.
+### 2. Financial approval stores the result
 
-Year selection uses an explicit reference date, never the current date: the snapshot's `reference_date` (the application's `submitted_at`, i.e. first submission, else the Note creation time); for a Note without a snapshot, the application's `submitted_at`, else the Note's `created_at`. It is the date the issuer's financial-year tabs were validated against, so every submitted year stays selectable and the result is stable for the life of the Note.
+`apps/api/src/modules/admin/financial-approved-result.ts`: approving the Financial section locks the application row, builds the result (year-selection reference date = the application's first submission date), limits numbers to 15 significant digits and writes status `APPROVED` plus `application_reviews.approved_snapshot` in one row write.
 
-Source priority per financial year (`apps/api/src/modules/notes/prospectus/prospectus-financial-comparison-source.ts`): reviewed User Input (including Admin edits) → CTOS plus explicit Admin CTOS gap-fills → active Admin Input → blank.
+- Every path that moves Financial out of `APPROVED` clears the stored result: reject, request amendment, remove draft amendment, reset to pending, automatic CTOS/AML reset, issuer resubmit.
+- `loadCurrentApprovedFinancialResult` returns a result only while the row is `APPROVED`.
+- Admin financial edits are allowed only while the application is reviewable and Financial is not `APPROVED` (`FINANCIAL_REVIEW_LOCKED`), re-checked inside the write transaction.
 
-Admin can edit application financials only while the application is in a reviewable status and the Financial section is not approved (`isAdminFinancialEditOpen` in `packages/types/src/financial-field-resolution.ts`, enforced by `assertAdminFinancialEditsOpen` in `apps/api/src/modules/applications/service.ts`).
+### 3. Note creation copies it
 
-Notes without a snapshot: `pnpm --filter @cashsouk/api notes:classify-financial-snapshots` classifies them (dry run by default). With `-- --apply --confirm-class-a-only` it writes a snapshot only for Notes with no approved or published Prospectus whose source application is completed with Financial approved. Notes with an approved or published Prospectus are reported and never written. Script: `apps/api/scripts/classify-note-financial-snapshots.ts`.
+`createFromApplication` needs a `COMPLETED` application (`409 APPLICATION_NOT_COMPLETED`); both creation paths need an `APPROVED` invoice (`409 INVOICE_NOT_APPROVED`). After these checks, `createFromInvoiceSource` (`apps/api/src/modules/notes/service.ts`) requires a current approved result (`409 FINANCIAL_APPROVED_RESULT_REQUIRED`) and stores it with the Note:
+
+```
+notes.financial_snapshot = { version: 2, captured_at, approved_financial_result }
+```
+
+Type: `apps/api/src/modules/notes/note-financial-snapshot.types.ts`. Written once, never refreshed.
+
+### 4. Prospectus reads only the Note snapshot
+
+`readProspectusNoteFinancialSnapshot` (`apps/api/src/modules/notes/prospectus/prospectus-note-financial-inputs.ts`):
+
+- missing snapshot: `409 NOTE_FINANCIAL_SNAPSHOT_MISSING`
+- malformed snapshot: `500 NOTE_FINANCIAL_SNAPSHOT_INVALID`
+- no fallback to the application or CTOS
+
+Pages 2 and 3 display the stored calculated values (`prospectus-financial-comparison-metrics.ts`, `prospectus-page-three-*.ts`). Nothing under `notes/prospectus/` calculates, except `prospectus-legacy-frozen-financials.ts`, which renders Prospectus freezes made before this design from their own frozen data. Published Notes render from their frozen Prospectus snapshot.
+
+Prospectus Review never fetches CTOS. CTOS reaches the Prospectus only through the approved Financial Review result.
+
+### Seeds
+
+`apps/api/scripts/lib/seed-note-financial-snapshot.ts` approves Financial through the real approval function and copies the result onto seeded Notes. Used by the Prospectus seeds (`seed-prospectus-demo`, `seed-prospectus-lifecycle`, `seed-prospectus-review-note`) and `seed-approved-invoices-for-notes`. Other seed scripts that insert Notes directly do not; their Notes fail in the Prospectus with `NOTE_FINANCIAL_SNAPSHOT_MISSING`.
+
+### Existing data
+
+No backfill.
+
+- Financial sections approved before this design have no stored result: re-approve while the application is reviewable.
+- Notes without a financial snapshot must be recreated.
+- Prospectus approvals made before this design are invalidated once on GET (the fingerprint sources changed) and must be approved again.
 
 ## Status transitions
 
@@ -115,34 +145,31 @@ Steps mirror prospectus pages. Preview uses the same page builders.
 
 ## Approval freeze
 
-Approve, not publish, builds the complete approved snapshot (`buildCompleteApprovedProspectusSnapshot` in `apps/api/src/modules/notes/prospectus-review/prospectus-approved-snapshot.ts`):
+Prospectus approval is the second freeze. Approve, not publish, builds the complete approved snapshot (`buildCompleteApprovedProspectusSnapshot` in `apps/api/src/modules/notes/prospectus-review/prospectus-approved-snapshot.ts`):
 
 - `page_1`: issuer track record
-- `page_2.financial_comparison` with `freeze_version: 2` (`apps/api/src/modules/notes/prospectus/prospectus-page-two-snapshot.ts`): every raw key of each selected year, the statement type, the reference date, the source footer and the missing-year state
+- `page_2.financial_comparison` with `freeze_version: 2` (`apps/api/src/modules/notes/prospectus/prospectus-page-two-snapshot.ts`): every selected year's raw values and `calculated_values`, the statement type, the reference date and the missing-year state, all taken from the Note financial snapshot
 - `publication_content`: option keys (`content`) and resolved wording (`resolvedPublicationContent`)
-- `note_identity` and the rendered HTML for all pages; Pages 2 and 3 are rendered from the frozen `page_2` as read back from storage (`apps/api/src/modules/notes/prospectus-review/prospectus-approved-render.ts`)
+- `note_identity` and the rendered HTML for all pages
 
 Numbers in the frozen pages are limited to 15 significant digits (`canonicalizeJsonNumbers`) before they are hashed and stored: a Prisma Json column keeps 16, and a longer value would hash differently after storage.
 
+The render fingerprint is `sha256({ draft, sources: { note_identity, financial_snapshot }, page_1, page_2 })`.
+
 After approval (`apps/api/src/modules/notes/prospectus-review/prospectus-review.service.ts`):
 
-- GET review and preview of an approved review with a version-2 freeze render from the frozen snapshot, not live sources.
-- Publish and extend-listing (`generateFinalProspectusPdfForPublish`) keep the approved HTML for Pages 2–5 and re-render only Page 1 with the listing dates, from the frozen track record. The result is copied to `notes.prospectus_snapshot`.
-- A freeze made before version 2 still renders from its 18 stored keys.
+- GET review and preview of an approved review render from the frozen result, not live sources.
+- Publish and extend-listing keep the approved `html.page2`–`page5` and re-render only Page 1 with the real listing dates, from the frozen track record. The result is copied to `notes.prospectus_snapshot`.
 
 Published renderers prefer frozen `resolvedPublicationContent` and must not re-resolve from the live catalogue when that branch exists.
 
 ## Approval invalidation
 
-- **Source drift**: on GET of an approved review on an unlisted Note, the render fingerprint is recomputed from the current sources plus the stored pages. A mismatch returns the review to `DRAFT` and records `PROSPECTUS_APPROVAL_INVALIDATED_SOURCE`. The invalidation is a compare-and-set, so concurrent GETs perform it once. Publish rejects the same mismatch (`409 PROSPECTUS_REVIEW_REQUIRED`).
+- **Source drift**: on GET of an approved review on an unlisted Note, the render fingerprint is recomputed from the current sources plus the stored pages. A mismatch returns the review to `DRAFT` and records `PROSPECTUS_APPROVAL_INVALIDATED_SOURCE`. The invalidation is a compare-and-set, so concurrent GETs transition once. Publish rejects the same mismatch (`409 PROSPECTUS_REVIEW_REQUIRED`).
 - **Edit**: saving changed content over an approval records `PROSPECTUS_APPROVAL_INVALIDATED_EDIT`.
 - **Unpublish**: records `PROSPECTUS_APPROVAL_INVALIDATED_UNPUBLISH` (below).
 
-For a snapshot-backed Note the financial sources cannot drift; the remaining fingerprinted inputs are the Note's own fields and the issuer's MARC assessment.
-
-## CTOS
-
-The application-owned CTOS report feeds the financial comparison: it is copied into the Note financial snapshot at Note creation and used as the second source in the per-year priority. Prospectus Review never fetches CTOS itself.
+The Note financial snapshot never changes after Note creation, so genuine drift comes only from the Note's own fields and the issuer's MARC assessment (`note_identity`).
 
 ## Reopen / unpublish
 

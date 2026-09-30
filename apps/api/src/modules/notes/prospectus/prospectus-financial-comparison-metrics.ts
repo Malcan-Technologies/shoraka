@@ -1,14 +1,13 @@
 /**
  * SECTION: Build Page 2 financial comparison metrics (Stage 4B)
- * WHY: Consume Stage 4A years; reuse shared calculators; officer fills for unsupported rows
+ * WHY: Consume Stage 4A years; raw rows from reviewed raw values, metrics from the calculated
+ * values stored with the Financial Review result (never recalculated here)
  */
 
-import {
-  resolveCtosCurrentRatio,
-  resolveCtosPatMarginPercent,
-  resolveCtosReturnOnEquityPercent,
-  type ProspectusFrozenFinancialRaw,
-  type ProspectusFrozenFinancialYear,
+import type {
+  FinancialReviewCalculatedValues,
+  ProspectusFrozenFinancialRaw,
+  ProspectusFrozenFinancialYear,
 } from "@cashsouk/types";
 import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
@@ -172,7 +171,8 @@ void officerMetricValue;
 
 function metricValueForYear(
   key: ProspectusFinancialComparisonMetricKey,
-  raw: Record<string, unknown>
+  raw: Record<string, unknown>,
+  calculated: FinancialReviewCalculatedValues
 ): string {
   switch (key) {
     case "revenue": {
@@ -183,53 +183,21 @@ function metricValueForYear(
       const plnpat = fieldFromRaw(raw, "plnpat");
       return formatProspectusMyrMillions(plnpat);
     }
-    case "netProfitMargin": {
-      // CTOS ENQWS v5.11.0 Financial Highlights XSL — PAT Margin (never profit_margin / PBT).
-      return formatProspectusFinancialPercentFromPoints(
-        resolveCtosPatMarginPercent({
-          plnpat: fieldFromRaw(raw, "plnpat"),
-          turnover: fieldFromRaw(raw, "turnover"),
-        })
-      );
-    }
-    case "roe": {
-      // CTOS ENQWS v5.11.0 Financial Highlights XSL — direct r:return_on_equity only.
-      return formatProspectusFinancialPercentFromPoints(
-        resolveCtosReturnOnEquityPercent({
-          return_on_equity: fieldFromRaw(raw, "return_on_equity"),
-        })
-      );
-    }
-    case "currentRatio": {
-      // CTOS ENQWS v5.11.0 Financial Highlights XSL — direct r:currat only.
-      return formatProspectusFinancialMultiple(
-        resolveCtosCurrentRatio({
-          currat: fieldFromRaw(raw, "currat"),
-        })
-      );
-    }
+    case "netProfitMargin":
+      // Stored PAT Margin (percent points) — never profit_margin (CTOS raw PBT margin).
+      return formatProspectusFinancialPercentFromPoints(calculated.profit_margin);
+    case "roe":
+      return formatProspectusFinancialPercentFromPoints(calculated.return_on_equity);
+    case "currentRatio":
+      return formatProspectusFinancialMultiple(calculated.currat);
     case "netDebtEquity":
+      return formatProspectusFinancialMultiple(calculated.netDebtEquity);
     case "interestCoverage":
+      return formatProspectusFinancialMultiple(calculated.interestCoverage);
     case "dscr":
-    case "receivablesDays": {
-      switch (key) {
-        case "netDebtEquity":
-          return formatProspectusFinancialMultiple(fieldFromRaw(raw, "netDebtEquity"));
-        case "interestCoverage":
-          return formatProspectusFinancialMultiple(
-            fieldFromRaw(raw, "interestCoverage")
-          );
-        case "dscr":
-          return formatProspectusFinancialMultiple(fieldFromRaw(raw, "dscr"));
-        case "receivablesDays": {
-          return formatReceivablesDays(fieldFromRaw(raw, "receivablesDays"));
-        }
-        default: {
-          const _exhaustive: never = key;
-          return _exhaustive;
-        }
-      }
-    }
+      return formatProspectusFinancialMultiple(calculated.dscr);
+    case "receivablesDays":
+      return formatReceivablesDays(calculated.receivablesDays);
     default: {
       const _exhaustive: never = key;
       return _exhaustive;
@@ -251,10 +219,7 @@ export function buildProspectusFinancialComparisonMetrics(
       values: source.years.map((year) =>
         year.isPlaceholder
           ? PROSPECTUS_DATA_NOT_AVAILABLE
-          : metricValueForYear(
-              key,
-              year.rawFinancials
-            )
+          : metricValueForYear(key, year.rawFinancials, year.calculatedValues)
       ),
     }));
 
@@ -348,7 +313,7 @@ function toFrozenRaw(raw: Record<string, unknown>): ProspectusFrozenFinancialRaw
 
 /**
  * Admin working-area years — same Stage 4A records as Page 2 table / publish freeze.
- * Oldest → newest; raw fields shared by Page 2 + Page 3 resolvers.
+ * Oldest → newest; `raw` from the reviewed raw values, `calculated` from the stored metrics.
  */
 export function toAdminFrozenFinancialYears(
   years: ProspectusFinancialComparisonYear[]
@@ -366,6 +331,7 @@ export function toAdminFrozenFinancialYears(
           : "ADMIN_INPUT",
     statementType: year.statementType,
     raw: toFrozenRaw(year.rawFinancials),
+    calculated: { ...year.calculatedValues },
     isPlaceholder: year.isPlaceholder === true,
     adminFallbackEligible: year.adminFallbackEligible === true,
   }));

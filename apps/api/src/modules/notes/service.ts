@@ -169,8 +169,8 @@ import {
   resolveIssuerIndustryFromCorporateData,
 } from "./note-issuer-snapshot";
 import { noteInclude, noteRepository } from "./repository";
-import { buildNoteFinancialSnapshot } from "./note-financial-snapshot";
-import { loadApplicationReviewApproval } from "../admin/review-section-approval";
+import { buildNoteFinancialSnapshot } from "./note-financial-snapshot.types";
+import { loadCurrentApprovedFinancialResult } from "../admin/financial-approved-result";
 import {
   AUDIT_PORTAL,
   AUDIT_SOURCE,
@@ -2618,27 +2618,6 @@ export class NoteService {
     const existing = await noteRepository.findBySource(application.id, invoice.id);
     if (existing) return await mapNoteDetail(existing);
 
-    // Both creation paths land here. Review state is frozen once the application is COMPLETED.
-    const reviewApproval = await loadApplicationReviewApproval(prisma, application.id);
-    if (!reviewApproval) {
-      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
-    }
-    if (reviewApproval.status !== ApplicationStatus.COMPLETED) {
-      throw new AppError(
-        409,
-        "APPLICATION_NOT_COMPLETED",
-        "Only completed applications can become notes"
-      );
-    }
-    if (reviewApproval.unapprovedRequiredSections.length > 0) {
-      throw new AppError(
-        409,
-        "REVIEW_SECTIONS_NOT_APPROVED",
-        "All required review sections must be approved before creating a note.",
-        { sections: reviewApproval.unapprovedRequiredSections }
-      );
-    }
-
     const invoiceDetails = asRecord(invoice.details) ?? {};
     const invoiceOffer = asRecord(invoice.offer_details) ?? {};
     const tenureDays = resolveFinancingTenureDays(invoice.offer_details, invoice.details);
@@ -2739,19 +2718,23 @@ export class NoteService {
       application,
     });
 
-    // The application is COMPLETED (checked above), so its financials are frozen: build the
-    // snapshot outside the transaction and only write it there with the Note.
-    const noteCreatedAt = new Date();
-    const financialSnapshot = await buildNoteFinancialSnapshot({
-      db: prisma,
-      applicationId: application.id,
-      capturedAt: noteCreatedAt,
-    });
+    const approvedFinancialResult = await loadCurrentApprovedFinancialResult(
+      prisma,
+      application.id
+    );
+    if (!approvedFinancialResult) {
+      throw new AppError(
+        409,
+        "FINANCIAL_APPROVED_RESULT_REQUIRED",
+        "The application's Financial review must be approved before a note can be created."
+      );
+    }
 
     const note = await prisma
       .$transaction(async (tx) => {
         await assertSourceFacilityEnabled(tx, sourceFacilityId);
         const noteId = generateNoteEntityId();
+        const noteCreatedAt = new Date();
         const canonicalReference = await allocateDisplayReference(
           {
             moduleCode: "NOTE",
@@ -2789,7 +2772,9 @@ export class NoteService {
               product_code: productCode,
             }),
             purpose_snapshot: purposeSnapshot ? json(purposeSnapshot) : undefined,
-            financial_snapshot: json(financialSnapshot),
+            financial_snapshot: json(
+              buildNoteFinancialSnapshot(approvedFinancialResult, noteCreatedAt)
+            ),
             contract_snapshot: json(
               sourceContract
                 ? {

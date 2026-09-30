@@ -5,10 +5,15 @@
  *
  * The review row lives in an in-memory store that behaves like the Postgres column:
  * jsonb key ordering and @updatedAt on every update. The approved snapshot module is
- * real, so the render fingerprint is the production one.
+ * real, so the render fingerprint is the production one. Financial input is the Note
+ * financial snapshot; the application and CTOS mocks exist only to prove they are never read.
  */
 
 import { NoteStatus, Prisma, ProspectusReviewStatus } from "@prisma/client";
+import {
+  approvedFinancialResultFromInputs,
+  noteFinancialSnapshotOf,
+} from "../prospectus/prospectus-financial-comparison-test-helpers";
 import { buildCompleteProspectusReviewDraft } from "./prospectus-review.demo-fixtures";
 import { ProspectusReviewService } from "./prospectus-review.service";
 
@@ -54,6 +59,12 @@ jest.mock("../../../lib/prisma", () => ({
     noteAdminAction: { create: (...args: unknown[]) => mockAdminActionCreate(...args) },
     noteEvent: { create: (...args: unknown[]) => mockNoteEventCreate(...args) },
   },
+}));
+
+// After approve the service copies admin financial supplements onto the org (a write, not a
+// Prospectus input); it is the only code here allowed to read the application.
+jest.mock("../../applications/issuer-organization-financial-statements", () => ({
+  mergeApplicationAdminFinancialSupplementsIntoOrg: jest.fn(async () => undefined),
 }));
 
 jest.mock("../../paymaster/service", () => ({
@@ -164,6 +175,26 @@ const actor = {
 
 const otherAdmin = { ...actor, userId: "admin-2" };
 
+function ctosRow(year: number, turnover: number, currat: number) {
+  return {
+    financial_year: year,
+    dates: { pldd: `${year}-12-31`, bsdd: null },
+    account: { turnover, plnpat: turnover / 10, bscatot: turnover / 2, currat },
+  };
+}
+
+/** Financial Review result approved for these inputs, as Note creation copied it. */
+const noteFinancialSnapshot = noteFinancialSnapshotOf(
+  approvedFinancialResultFromInputs({
+    financialStatements: {
+      questionnaire: { financial_year_end: "2024-12-31" },
+      unaudited_by_year: {},
+    },
+    ctosFinancials: [ctosRow(2023, 10_500_000.5, 1.37), ctosRow(2024, 12_250_000.25, 1.8)],
+    ref: new Date("2026-08-01T00:00:00.000Z"),
+  })
+);
+
 /** Fixed values only: the render fingerprint is computed from this row. */
 const note = {
   id: noteId,
@@ -186,6 +217,7 @@ const note = {
     contract_details: { description: "civil engineering and infrastructure works" },
   },
   prospectus_snapshot: null,
+  financial_snapshot: noteFinancialSnapshot,
   target_amount: 625000,
   funded_amount: 0,
   profit_rate_percent: 12,
@@ -193,29 +225,6 @@ const note = {
   platform_fee_rate_percent: 2,
   maturity_date: new Date("2026-12-31T00:00:00.000Z"),
   listing: { opens_at: null, closes_at: null },
-};
-
-function ctosRow(year: number, turnover: number, currat: number) {
-  return {
-    financial_year: year,
-    dates: { pldd: `${year}-12-31`, bsdd: null },
-    account: { turnover, plnpat: turnover / 10, bscatot: turnover / 2, currat },
-  };
-}
-
-const application = {
-  issuer_organization_id: "issuer-1",
-  submitted_at: new Date("2026-08-01T00:00:00.000Z"),
-  financial_statements: {
-    questionnaire: { financial_year_end: "2024-12-31" },
-    unaudited_by_year: {},
-  },
-};
-
-const ctosReport = {
-  id: "ctos-1",
-  fetched_at: new Date("2026-07-15T00:00:00.000Z"),
-  financials_json: [ctosRow(2023, 10_500_000.5, 1.37), ctosRow(2024, 12_250_000.25, 1.8)],
 };
 
 const JSON_COLUMNS = new Set(["draft_content", "approved_content", "approved_snapshot"]);
@@ -330,8 +339,12 @@ describe("prospectus review GET is read-only for unchanged content", () => {
     mockNoteEventCreate.mockResolvedValue({});
     mockPublicationCreate.mockResolvedValue({ id: "pub-1" });
     mockNoteFindUnique.mockResolvedValue(note);
-    mockApplicationFindUnique.mockResolvedValue(application);
-    mockCtosFindFirst.mockResolvedValue(ctosReport);
+  });
+
+  afterEach(() => {
+    // The Prospectus reads the Note financial snapshot only.
+    expect(mockApplicationFindUnique).not.toHaveBeenCalled();
+    expect(mockCtosFindFirst).not.toHaveBeenCalled();
   });
 
   it("does not write when the stored draft equals the normalized draft in a different key order", async () => {

@@ -5602,7 +5602,8 @@ export class ApplicationService {
    */
   private async assertAdminFinancialEditsOpen(
     applicationId: string,
-    applicationStatus: string | null | undefined
+    applicationStatus: string | null | undefined,
+    db: Prisma.TransactionClient = prisma
   ): Promise<void> {
     // Same application boundary as every other review action; checked first so a closed
     // application reports this reason even when Financial is also approved.
@@ -5613,7 +5614,7 @@ export class ApplicationService {
         "Financials are read-only because this application is no longer under review."
       );
     }
-    const review = await prisma.applicationReview.findUnique({
+    const review = await db.applicationReview.findUnique({
       where: {
         application_id_section: { application_id: applicationId, section: "financial" },
       },
@@ -5626,6 +5627,25 @@ export class ApplicationService {
         "Financial review is approved. Financials are read-only until that section is reopened."
       );
     }
+  }
+
+  /**
+   * First statement of an Admin financial edit transaction: lock the application row (the same
+   * lock Financial approval takes) and re-check against the locked status, so an edit cannot
+   * land after Financial approval has built and stored its result.
+   */
+  private async lockAndAssertAdminFinancialEditsOpen(
+    tx: Prisma.TransactionClient,
+    applicationId: string
+  ): Promise<void> {
+    const locked = await tx.$queryRaw<{ status: string }[]>`
+      SELECT status::text AS status
+      FROM applications
+      WHERE id = ${applicationId}
+      FOR UPDATE
+    `;
+    if (!locked[0]) throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    await this.assertAdminFinancialEditsOpen(applicationId, locked[0].status, tx);
   }
 
   async upsertAdminFinancialStatementFallbackYear(params: {
@@ -5772,6 +5792,7 @@ export class ApplicationService {
     }
 
     await prisma.$transaction(async (tx) => {
+      await this.lockAndAssertAdminFinancialEditsOpen(tx, applicationId);
       await tx.application.update({
         where: { id: applicationId },
         data: {
@@ -5903,6 +5924,7 @@ export class ApplicationService {
     }
 
     await prisma.$transaction(async (tx) => {
+      await this.lockAndAssertAdminFinancialEditsOpen(tx, applicationId);
       await tx.application.update({
         where: { id: applicationId },
         data: { financial_statements: nextFS as Prisma.InputJsonValue },

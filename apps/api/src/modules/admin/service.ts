@@ -101,7 +101,9 @@ import {
   parseItemScopeKey,
   REVIEW_SECTION_ORDER,
   getReviewSectionOrder,
+  getReviewSectionPrerequisites,
   arePrerequisiteSectionsSatisfied,
+  getStepKeyFromStepId,
   workflowHasAcceptanceDocuments,
   collectAcceptanceDocumentReviewKeys,
   collectAuthorizedRepresentativeReviewKeys,
@@ -110,7 +112,10 @@ import {
   isOfferAcceptanceResendBlocked,
   isPhaseDeadlineExpired,
   workflowUsesOfferAcceptanceFlow,
+  workflowShowsAcceptanceReviewSection,
   isAcceptanceHubCompleteFromOffer,
+  shouldShowAcceptanceDocumentsReviewSection,
+  isFacilityOnlyNewContract,
   isInvoiceOnlyFinancingStructure,
   isCommercialOfferSendUnlocked,
   INHERITED_FACILITY_GUARANTORS_AML_BLOCKED,
@@ -268,7 +273,7 @@ type OfferAcceptancePhaseSyncApplication = {
   }>;
 };
 import { ProductRepository } from "../products/repository";
-import { resolveReviewSectionPolicy, type ReviewSectionPolicy } from "./review-section-approval";
+import { approveFinancialReviewWithResult } from "./financial-approved-result";
 import {
   resolveContractValue,
   resolveRequestedFacility,
@@ -372,6 +377,11 @@ export class AdminService {
   private organizationRepository: OrganizationRepository;
   private notificationService: NotificationService;
   private productRepository: ProductRepository;
+
+  /** Sections that are workflow-step-driven (financial is always required separately). */
+  private static readonly WORKFLOW_REVIEW_SECTION_KEYS: ReadonlySet<string> = new Set(
+    REVIEW_SECTION_ORDER.filter((section) => section !== "financial")
+  );
 
   constructor() {
     this.repository = new AdminRepository();
@@ -1257,8 +1267,110 @@ export class AdminService {
     financing_type?: unknown;
     financing_structure?: unknown;
     product_version?: number | null;
-  }): Promise<ReviewSectionPolicy> {
-    return resolveReviewSectionPolicy(application, this.productRepository);
+  }): Promise<{
+    requiredSections: Set<ReviewSection>;
+    visibleSections: Set<ReviewSection>;
+    prerequisitesBySection: Partial<Record<ReviewSection, ReviewSection[]>>;
+    /** Frozen product.workflow for application.product_version (null when unresolved). */
+    productWorkflow: unknown[] | null;
+  }> {
+    const requiredSections = new Set<ReviewSection>(["financial"]);
+    const financingType =
+      application.financing_type && typeof application.financing_type === "object"
+        ? (application.financing_type as Record<string, unknown>)
+        : null;
+    const productId =
+      typeof financingType?.product_id === "string" ? financingType.product_id : null;
+
+    const structureType =
+      application.financing_structure && typeof application.financing_structure === "object"
+        ? ((application.financing_structure as Record<string, unknown>).structure_type as
+            | string
+            | undefined)
+        : undefined;
+    const prerequisitesBySection = getReviewSectionPrerequisites(structureType);
+    const sectionOrder = getReviewSectionOrder(structureType);
+
+    if (!productId) {
+      const fallback = new Set(sectionOrder);
+      if (
+        isFacilityOnlyNewContract({
+          structureType,
+          financingType: application.financing_type,
+        })
+      ) {
+        fallback.delete("invoice_details");
+      }
+      return {
+        requiredSections: fallback,
+        visibleSections: new Set(fallback),
+        prerequisitesBySection,
+        productWorkflow: null,
+      };
+    }
+
+    // Use frozen application.product_version so Acceptance visibility matches issuer + sync.
+    const product =
+      application.product_version != null
+        ? await this.productRepository.findByBaseAndVersion(productId, application.product_version)
+        : await this.productRepository.findById(productId);
+    if (!product) {
+      const fallback = new Set(sectionOrder);
+      if (
+        isFacilityOnlyNewContract({
+          structureType,
+          financingType: application.financing_type,
+        })
+      ) {
+        fallback.delete("invoice_details");
+      }
+      return {
+        requiredSections: fallback,
+        visibleSections: new Set(fallback),
+        prerequisitesBySection,
+        productWorkflow: null,
+      };
+    }
+
+    const workflow = Array.isArray(product.workflow) ? product.workflow : [];
+    for (const rawStep of workflow) {
+      const step = rawStep as { id?: unknown };
+      const stepId = typeof step.id === "string" ? step.id : "";
+      if (!stepId) continue;
+      const stepKey = getStepKeyFromStepId(stepId);
+      if (!stepKey) continue;
+      if (stepKey === "financial_statements") {
+        requiredSections.add("financial");
+        continue;
+      }
+      if (!AdminService.WORKFLOW_REVIEW_SECTION_KEYS.has(stepKey)) continue;
+      requiredSections.add(stepKey as ReviewSection);
+    }
+
+    if (
+      isFacilityOnlyNewContract({
+        structureType,
+        financingType: application.financing_type,
+      })
+    ) {
+      requiredSections.delete("invoice_details");
+    }
+
+    const visibleSections = new Set(requiredSections);
+    if (
+      shouldShowAcceptanceDocumentsReviewSection(
+        structureType,
+        workflowShowsAcceptanceReviewSection(workflow)
+      )
+    ) {
+      visibleSections.add("acceptance_documents");
+    }
+    return {
+      requiredSections,
+      visibleSections,
+      prerequisitesBySection,
+      productWorkflow: workflow,
+    };
   }
 
   /**
@@ -10252,12 +10364,19 @@ export class AdminService {
     );
     const oldStatus = existing?.status ?? "PENDING";
 
-    await repository.updateSectionReviewStatus(
-      applicationId,
-      section,
-      ReviewStepStatus.APPROVED,
-      reviewerUserId
-    );
+    if (section === "financial") {
+      // Status APPROVED and the approved Financial Review result are written together.
+      await prisma.$transaction((tx) =>
+        approveFinancialReviewWithResult(tx, { applicationId, reviewerUserId })
+      );
+    } else {
+      await repository.updateSectionReviewStatus(
+        applicationId,
+        section,
+        ReviewStepStatus.APPROVED,
+        reviewerUserId
+      );
+    }
     const remarkValue = remark?.trim() || null;
     if (remarkValue) {
       await repository.upsertReviewRemark(

@@ -5,9 +5,11 @@
 
 import { createHash } from "node:crypto";
 import type { Prisma } from "@prisma/client";
+import type { ApprovedFinancialResult } from "@cashsouk/types";
+import { canonicalizeJsonNumbers } from "../../../lib/canonical-json-numbers";
 import { prisma } from "../../../lib/prisma";
 import { getCurrentMarcAssessment } from "../../paymaster/service";
-import { loadProspectusNoteFinancialInputs } from "../prospectus/prospectus-note-financial-inputs";
+import { readProspectusNoteFinancialSnapshot } from "../prospectus/prospectus-note-financial-inputs";
 import { buildProspectusPage1TrackRecordSnapshot } from "../prospectus/prospectus-track-record-query";
 import {
   buildProspectusPage2Snapshot,
@@ -53,32 +55,7 @@ function stableStringify(value: unknown): string {
   return `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify(obj[k])}`).join(",")}}`;
 }
 
-/**
- * Deterministic JSON numbers for values that are both hashed and stored in a Prisma Json column.
- * WHY: Prisma rounds 17-significant-digit numbers to 16 on write, so a hash of the in-memory
- * value would not match a hash of the stored value. 15 significant digits round-trip exactly.
- * Safe integers, non-numbers and non-finite numbers are unchanged; plain objects and arrays are
- * copied recursively (input is not mutated); other objects (Date, Decimal) pass through as-is.
- */
-export function canonicalizeJsonNumbers<T>(value: T): T {
-  return canonicalizeJsonValue(value) as T;
-}
-
-function canonicalizeJsonValue(value: unknown): unknown {
-  if (typeof value === "number") {
-    if (!Number.isFinite(value) || Number.isSafeInteger(value)) return value;
-    return Number(value.toPrecision(15));
-  }
-  if (Array.isArray(value)) return value.map(canonicalizeJsonValue);
-  if (value !== null && typeof value === "object") {
-    const proto = Object.getPrototypeOf(value);
-    if (proto !== Object.prototype && proto !== null) return value;
-    const out: Record<string, unknown> = {};
-    for (const [key, item] of Object.entries(value)) out[key] = canonicalizeJsonValue(item);
-    return out;
-  }
-  return value;
-}
+export { canonicalizeJsonNumbers };
 
 export function hashProspectusFingerprint(parts: unknown): string {
   return createHash("sha256").update(stableStringify(parts)).digest("hex");
@@ -92,16 +69,14 @@ export function hashDraftContent(content: ProspectusReviewStoredContent): string
 /**
  * Load Note identity fields that affect prospectus rendering.
  * Frozen into approved_snapshot so published render needs no live Note queries.
- * Financial inputs come from the Note financial snapshot when present, else the live
- * application + owned CTOS (legacy Note); `financialReferenceDate` drives year selection.
+ * The financial input is the Note financial snapshot only (the approved Financial Review result);
+ * the application and CTOS are never read. A Note without a snapshot throws 409.
  */
 export async function loadProspectusNoteIdentityFreeze(noteId: string): Promise<{
   noteIdentity: Record<string, unknown>;
   fingerprintSource: Record<string, unknown>;
   issuerOrganizationId: string;
-  financialStatements: unknown;
-  ctosFinancials: unknown;
-  financialReferenceDate: Date;
+  approvedFinancialResult: ApprovedFinancialResult;
 }> {
   const note = await prisma.note.findUnique({
     where: { id: noteId },
@@ -132,10 +107,9 @@ export async function loadProspectusNoteIdentityFreeze(noteId: string): Promise<
     throw new Error(`Note ${noteId} not found for prospectus freeze`);
   }
 
-  const [financialInputs, marcSnapshot] = await Promise.all([
-    loadProspectusNoteFinancialInputs({ db: prisma, note }),
-    getCurrentMarcAssessment(note.issuer_organization_id),
-  ]);
+  // Throws before the MARC read so a Note without a snapshot fails fast with 409.
+  const financialSnapshot = readProspectusNoteFinancialSnapshot(note);
+  const marcSnapshot = await getCurrentMarcAssessment(note.issuer_organization_id);
 
   const noteIdentity: Record<string, unknown> = {
     note_id: note.id,
@@ -168,19 +142,17 @@ export async function loadProspectusNoteIdentityFreeze(noteId: string): Promise<
     listing_closes_at: null,
   };
 
+  // The Note snapshot is written once at Note creation, so it only changes if the Note is rebuilt.
   const fingerprintSource = {
     note_identity: fingerprintNoteIdentity,
-    financial_statements: financialInputs.financialStatements,
-    ctos_financials: financialInputs.ctosFinancials,
+    financial_snapshot: financialSnapshot,
   };
 
   return {
     noteIdentity,
     fingerprintSource,
     issuerOrganizationId: note.issuer_organization_id,
-    financialStatements: financialInputs.financialStatements,
-    ctosFinancials: financialInputs.ctosFinancials,
-    financialReferenceDate: financialInputs.referenceDate,
+    approvedFinancialResult: financialSnapshot.approved_financial_result,
   };
 }
 
@@ -197,14 +169,8 @@ export async function buildCompleteApprovedProspectusSnapshot(input: {
   optionCatalogueVersion: string;
 }): Promise<ProspectusApprovedSnapshot> {
   const now = input.approvedAt;
-  const {
-    noteIdentity,
-    fingerprintSource,
-    issuerOrganizationId,
-    financialStatements,
-    ctosFinancials,
-    financialReferenceDate,
-  } = await loadProspectusNoteIdentityFreeze(input.noteId);
+  const { noteIdentity, fingerprintSource, issuerOrganizationId, approvedFinancialResult } =
+    await loadProspectusNoteIdentityFreeze(input.noteId);
 
   // Canonical once: the same page objects are hashed below and persisted in approved_snapshot.
   const page1 = canonicalizeJsonNumbers(
@@ -215,13 +181,8 @@ export async function buildCompleteApprovedProspectusSnapshot(input: {
     })
   );
   const page2 = canonicalizeJsonNumbers(
-    // calculated_at is the approval time; year selection uses the Note's financial reference date.
-    buildProspectusPage2Snapshot({
-      financialStatements,
-      ctosFinancials,
-      referenceDate: financialReferenceDate,
-      now,
-    })
+    // calculated_at is the approval time; years and values are the approved Financial Review result.
+    buildProspectusPage2Snapshot({ approvedFinancialResult, now })
   );
 
   const publicationContent: ProspectusFrozenPublicationContent = {
@@ -270,7 +231,7 @@ export function withApprovedSnapshotHtml(
   return { ...snapshot, html };
 }
 
-/** Recompute fingerprint from current live sources + stored approved officer content. */
+/** Recompute fingerprint from the current Note sources + stored approved officer content. */
 export async function computeCurrentRenderFingerprint(input: {
   noteId: string;
   approvedContent: ProspectusReviewStoredContent;

@@ -8,7 +8,9 @@ import {
   classifyProspectusIncomeTrendState,
 } from "./prospectus-income-trend-insight";
 import { PROSPECTUS_INCOME_TREND_INSIGHT_MESSAGES } from "./prospectus-income-trend-insight.types";
+import { emptyProspectusCalculatedValues } from "./prospectus-financial-comparison-source";
 import type { ProspectusFinancialComparisonSource } from "./prospectus-financial-comparison-source.types";
+import { approvedFinancialResultFromInputs } from "./prospectus-financial-comparison-test-helpers";
 import { PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_AUDIT } from "./prospectus-financial-comparison-source.types";
 import { buildProspectusPageThreeHtml } from "./prospectus-page-three.html";
 import { buildProspectusPageThree } from "./prospectus-page-three-mapper";
@@ -34,8 +36,11 @@ function sourceFromSeries(input: {
         turnover: input.revenue[index],
         plnpat: input.pat[index],
       },
+      calculatedValues: emptyProspectusCalculatedValues(),
       recordSource: "ctos_audited" as const,
+      statementType: "AUDITED" as const,
     })),
+    adminFallbackEligibleYears: [],
     missingSsmUnauditedYears: [],
     opsWarning: null,
     audit: PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_AUDIT,
@@ -180,34 +185,36 @@ describe("buildProspectusIncomeTrendInsight", () => {
 describe("Page 3 income trend insight HTML", () => {
   it("always renders the card below the Income Statement table with one message", () => {
     const page = buildProspectusPageThree({
-      financialReferenceDate: new Date(),
       noteId: "insight-render-1",
       isPublished: false,
       financialMode: "live_unpublished_preview",
       issuerSnapshot: { name: "Issuer", industry: "Construction" },
       invoiceSnapshot: { offer_details: { risk_rating: "B" } },
       paymasterSnapshot: { name: "Paymaster" },
-      liveFinancialStatements: {
-        questionnaire: { financial_year_end: "2027-12-31" },
-        unaudited_by_year: {},
-      },
-      liveCtosFinancials: [
-        {
-          financial_year: 2022,
-          dates: { pldd: "2022-12-31", bsdd: null },
-          account: { turnover: 10_000_000, plnpat: 1_000_000, bscatot: 1, curlib: 1 },
+      approvedFinancialResult: approvedFinancialResultFromInputs({
+        financialStatements: {
+          questionnaire: { financial_year_end: "2027-12-31" },
+          unaudited_by_year: {},
         },
-        {
-          financial_year: 2023,
-          dates: { pldd: "2023-12-31", bsdd: null },
-          account: { turnover: 12_000_000, plnpat: 2_000_000, bscatot: 1, curlib: 1 },
-        },
-        {
-          financial_year: 2024,
-          dates: { pldd: "2024-12-31", bsdd: null },
-          account: { turnover: 15_000_000, plnpat: 3_000_000, bscatot: 1, curlib: 1 },
-        },
-      ],
+        ctosFinancials: [
+          {
+            financial_year: 2022,
+            dates: { pldd: "2022-12-31", bsdd: null },
+            account: { turnover: 10_000_000, plnpat: 1_000_000, bscatot: 1, curlib: 1 },
+          },
+          {
+            financial_year: 2023,
+            dates: { pldd: "2023-12-31", bsdd: null },
+            account: { turnover: 12_000_000, plnpat: 2_000_000, bscatot: 1, curlib: 1 },
+          },
+          {
+            financial_year: 2024,
+            dates: { pldd: "2024-12-31", bsdd: null },
+            account: { turnover: 15_000_000, plnpat: 3_000_000, bscatot: 1, curlib: 1 },
+          },
+        ],
+        ref: new Date(),
+      }),
       frozenFinancialComparison: null,
     });
 
@@ -250,34 +257,36 @@ describe("Page 3 income trend insight HTML", () => {
   it("renders negative tone class for both-down and neutral for insufficient data", () => {
     const decline = buildProspectusPageThreeHtml(
       buildProspectusPageThree({
-        financialReferenceDate: new Date(),
         noteId: "insight-tone-down",
         isPublished: false,
         financialMode: "live_unpublished_preview",
         issuerSnapshot: { name: "Issuer", industry: "Construction" },
         invoiceSnapshot: { offer_details: { risk_rating: "B" } },
         paymasterSnapshot: { name: "Paymaster" },
-        liveFinancialStatements: {
-          questionnaire: { financial_year_end: "2027-12-31" },
-          unaudited_by_year: {},
-        },
-        liveCtosFinancials: [
-          {
-            financial_year: 2022,
-            dates: { pldd: "2022-12-31", bsdd: null },
-            account: { turnover: 15_000_000, plnpat: 3_000_000, bscatot: 1, curlib: 1 },
+        approvedFinancialResult: approvedFinancialResultFromInputs({
+          financialStatements: {
+            questionnaire: { financial_year_end: "2027-12-31" },
+            unaudited_by_year: {},
           },
-          {
-            financial_year: 2023,
-            dates: { pldd: "2023-12-31", bsdd: null },
-            account: { turnover: 12_000_000, plnpat: 2_000_000, bscatot: 1, curlib: 1 },
-          },
-          {
-            financial_year: 2024,
-            dates: { pldd: "2024-12-31", bsdd: null },
-            account: { turnover: 10_000_000, plnpat: 1_000_000, bscatot: 1, curlib: 1 },
-          },
-        ],
+          ctosFinancials: [
+            {
+              financial_year: 2022,
+              dates: { pldd: "2022-12-31", bsdd: null },
+              account: { turnover: 15_000_000, plnpat: 3_000_000, bscatot: 1, curlib: 1 },
+            },
+            {
+              financial_year: 2023,
+              dates: { pldd: "2023-12-31", bsdd: null },
+              account: { turnover: 12_000_000, plnpat: 2_000_000, bscatot: 1, curlib: 1 },
+            },
+            {
+              financial_year: 2024,
+              dates: { pldd: "2024-12-31", bsdd: null },
+              account: { turnover: 10_000_000, plnpat: 1_000_000, bscatot: 1, curlib: 1 },
+            },
+          ],
+          ref: new Date(),
+        }),
         frozenFinancialComparison: null,
       })
     );
@@ -295,24 +304,26 @@ describe("Page 3 income trend insight HTML", () => {
 
     const insufficient = buildProspectusPageThreeHtml(
       buildProspectusPageThree({
-        financialReferenceDate: new Date(),
         noteId: "insight-tone-missing",
         isPublished: false,
         financialMode: "live_unpublished_preview",
         issuerSnapshot: { name: "Issuer", industry: "Construction" },
         invoiceSnapshot: { offer_details: { risk_rating: "B" } },
         paymasterSnapshot: { name: "Paymaster" },
-        liveFinancialStatements: {
-          questionnaire: { financial_year_end: "2027-12-31" },
-          unaudited_by_year: {},
-        },
-        liveCtosFinancials: [
-          {
-            financial_year: 2024,
-            dates: { pldd: "2024-12-31", bsdd: null },
-            account: { turnover: 15_000_000, plnpat: 3_000_000, bscatot: 1, curlib: 1 },
+        approvedFinancialResult: approvedFinancialResultFromInputs({
+          financialStatements: {
+            questionnaire: { financial_year_end: "2027-12-31" },
+            unaudited_by_year: {},
           },
-        ],
+          ctosFinancials: [
+            {
+              financial_year: 2024,
+              dates: { pldd: "2024-12-31", bsdd: null },
+              account: { turnover: 15_000_000, plnpat: 3_000_000, bscatot: 1, curlib: 1 },
+            },
+          ],
+          ref: new Date(),
+        }),
         frozenFinancialComparison: null,
       })
     );
@@ -331,64 +342,68 @@ describe("Page 3 income trend insight HTML", () => {
 
   it("freezes the insight message and tone class in published HTML and ignores later live financial changes", () => {
     const frozen = buildProspectusPage2Snapshot({
-      referenceDate: new Date("2026-08-02T00:00:00.000Z"),
-      financialStatements: {
-        questionnaire: { financial_year_end: "2027-12-31" },
-        unaudited_by_year: {},
-      },
-      ctosFinancials: [
-        {
-          financial_year: 2022,
-          dates: { pldd: "2022-12-31", bsdd: null },
-          account: { turnover: 10_000_000, plnpat: 1_000_000, bscatot: 1, curlib: 1 },
+      approvedFinancialResult: approvedFinancialResultFromInputs({
+        financialStatements: {
+          questionnaire: { financial_year_end: "2027-12-31" },
+          unaudited_by_year: {},
         },
-        {
-          financial_year: 2023,
-          dates: { pldd: "2023-12-31", bsdd: null },
-          account: { turnover: 12_000_000, plnpat: 2_000_000, bscatot: 1, curlib: 1 },
-        },
-        {
-          financial_year: 2024,
-          dates: { pldd: "2024-12-31", bsdd: null },
-          account: { turnover: 15_000_000, plnpat: 3_000_000, bscatot: 1, curlib: 1 },
-        },
-      ],
+        ctosFinancials: [
+          {
+            financial_year: 2022,
+            dates: { pldd: "2022-12-31", bsdd: null },
+            account: { turnover: 10_000_000, plnpat: 1_000_000, bscatot: 1, curlib: 1 },
+          },
+          {
+            financial_year: 2023,
+            dates: { pldd: "2023-12-31", bsdd: null },
+            account: { turnover: 12_000_000, plnpat: 2_000_000, bscatot: 1, curlib: 1 },
+          },
+          {
+            financial_year: 2024,
+            dates: { pldd: "2024-12-31", bsdd: null },
+            account: { turnover: 15_000_000, plnpat: 3_000_000, bscatot: 1, curlib: 1 },
+          },
+        ],
+        ref: new Date("2026-08-02T00:00:00.000Z"),
+      }),
       now: new Date("2026-08-02T00:00:00.000Z"),
     }).financial_comparison;
 
     const published = buildProspectusPageThree({
-      financialReferenceDate: null,
       noteId: "insight-freeze-1",
       isPublished: true,
       financialMode: "frozen_publication_snapshot",
       issuerSnapshot: { name: "Issuer", industry: "Construction" },
       invoiceSnapshot: { offer_details: { risk_rating: "B" } },
       paymasterSnapshot: { name: "Paymaster" },
-      liveFinancialStatements: {
-        questionnaire: { financial_year_end: "2027-12-31" },
-        unaudited_by_year: {
-          "2022": { turnover: 99_000_000, plnpat: 9_000_000, bscatot: 1, curlib: 1 },
-          "2023": { turnover: 98_000_000, plnpat: 8_000_000, bscatot: 1, curlib: 1 },
-          "2024": { turnover: 97_000_000, plnpat: 7_000_000, bscatot: 1, curlib: 1 },
+      approvedFinancialResult: approvedFinancialResultFromInputs({
+        financialStatements: {
+          questionnaire: { financial_year_end: "2027-12-31" },
+          unaudited_by_year: {
+            "2022": { turnover: 99_000_000, plnpat: 9_000_000, bscatot: 1, curlib: 1 },
+            "2023": { turnover: 98_000_000, plnpat: 8_000_000, bscatot: 1, curlib: 1 },
+            "2024": { turnover: 97_000_000, plnpat: 7_000_000, bscatot: 1, curlib: 1 },
+          },
         },
-      },
-      liveCtosFinancials: [
-        {
-          financial_year: 2022,
-          dates: { pldd: "2022-12-31", bsdd: null },
-          account: { turnover: 1, plnpat: 9 },
-        },
-        {
-          financial_year: 2023,
-          dates: { pldd: "2023-12-31", bsdd: null },
-          account: { turnover: 1, plnpat: 8 },
-        },
-        {
-          financial_year: 2024,
-          dates: { pldd: "2024-12-31", bsdd: null },
-          account: { turnover: 1, plnpat: 7 },
-        },
-      ],
+        ctosFinancials: [
+          {
+            financial_year: 2022,
+            dates: { pldd: "2022-12-31", bsdd: null },
+            account: { turnover: 1, plnpat: 9 },
+          },
+          {
+            financial_year: 2023,
+            dates: { pldd: "2023-12-31", bsdd: null },
+            account: { turnover: 1, plnpat: 8 },
+          },
+          {
+            financial_year: 2024,
+            dates: { pldd: "2024-12-31", bsdd: null },
+            account: { turnover: 1, plnpat: 7 },
+          },
+        ],
+        ref: new Date("2026-07-17T00:00:00.000Z"),
+      }),
       frozenFinancialComparison: frozen,
     });
 

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { buildProspectusFinancialComparisonSource } from "./prospectus-financial-comparison-source";
+import { buildProspectusFinancialComparisonSourceFromInputs } from "./prospectus-financial-comparison-test-helpers";
 import { financialSourceFromYearBlocks } from "./prospectus-financial-comparison-test-helpers";
 import {
   buildProspectusFinancialComparisonMetrics,
@@ -70,7 +70,7 @@ describe("prospectus Page 2 Financial Comparison Metrics (DATA STAGE 4B)", () =>
   });
 
   it("does not use revenue aliases and DNA when turnover missing", () => {
-    const source = buildProspectusFinancialComparisonSource({
+    const source = buildProspectusFinancialComparisonSourceFromInputs({
       financialStatements: {
         questionnaire: { financial_year_end: "2025-12-31" },
         unaudited_by_year: {
@@ -87,7 +87,7 @@ describe("prospectus Page 2 Financial Comparison Metrics (DATA STAGE 4B)", () =>
   it("formats PAT from plnpat and does not fall back to PBT", () => {
     expect(row(sample, "profitAfterTax")?.values[0]).toBe("1.2");
 
-    const source = buildProspectusFinancialComparisonSource({
+    const source = buildProspectusFinancialComparisonSourceFromInputs({
       financialStatements: {
         questionnaire: { financial_year_end: "2025-12-31" },
         unaudited_by_year: {
@@ -101,14 +101,15 @@ describe("prospectus Page 2 Financial Comparison Metrics (DATA STAGE 4B)", () =>
     expect(row(metrics, "profitAfterTax")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
   });
 
-  it("reuses shared margin/ROE/current-ratio helpers and never substitutes gearing", () => {
+  it("displays stored margin/ROE/current-ratio values (no formula helpers) and never substitutes gearing", () => {
     const moduleSource = readFileSync(
       join(__dirname, "prospectus-financial-comparison-metrics.ts"),
       "utf8"
     );
-    expect(moduleSource).toContain("resolveCtosPatMarginPercent");
-    expect(moduleSource).toContain("resolveCtosReturnOnEquityPercent");
-    expect(moduleSource).toContain("resolveCtosCurrentRatio");
+    expect(moduleSource).not.toMatch(/\bresolveCtos\w+|\bcompute[A-Z]\w*\(/);
+    expect(moduleSource).toContain("calculated.profit_margin");
+    expect(moduleSource).toContain("calculated.return_on_equity");
+    expect(moduleSource).toContain("calculated.currat");
     expect(moduleSource).not.toContain("calculateGearing");
     expect(moduleSource).toContain("formatProspectusMyrMillions");
 
@@ -258,23 +259,23 @@ describe("prospectus Page 2 Financial Comparison Metrics (DATA STAGE 4B)", () =>
     expect(idx2024).toBeGreaterThanOrEqual(0);
     const y2024 = source.years[idx2024]!;
 
-    expect(y2024.rawFinancials.interestCoverage).not.toBeNull();
-    expect(y2024.rawFinancials.receivablesDays).not.toBeNull();
-    expect(y2024.rawFinancials.dscr).not.toBeNull();
-    expect(y2024.rawFinancials.netDebtEquity).not.toBeNull();
+    expect(y2024.calculatedValues.interestCoverage).not.toBeNull();
+    // Financial Review prior-year rule: FY2023 is not a Review column here, so FY2024 has no
+    // prior-year receivables and the stored Receivables Days is null.
+    expect(y2024.calculatedValues.receivablesDays).toBeNull();
+    expect(y2024.calculatedValues.dscr).not.toBeNull();
+    expect(y2024.calculatedValues.netDebtEquity).not.toBeNull();
 
     const expectedInterestCoverage = formatProspectusFinancialMultiple(
-      y2024.rawFinancials.interestCoverage as number
+      y2024.calculatedValues.interestCoverage as number
     );
     const expectedDscr = formatProspectusFinancialMultiple(
-      y2024.rawFinancials.dscr as number
+      y2024.calculatedValues.dscr as number
     );
     const expectedNetDebtEquity = formatProspectusFinancialMultiple(
-      y2024.rawFinancials.netDebtEquity as number
+      y2024.calculatedValues.netDebtEquity as number
     );
-    const expectedReceivablesDays = String(
-      Math.trunc(y2024.rawFinancials.receivablesDays as number)
-    );
+    const expectedReceivablesDays = PROSPECTUS_DATA_NOT_AVAILABLE;
 
     const withOverrides = buildProspectusFinancialComparisonMetrics({
       source,
@@ -346,10 +347,10 @@ describe("prospectus Page 2 Financial Comparison Metrics (DATA STAGE 4B)", () =>
     const idx2024 = source.years.findIndex((y) => y.year === 2024);
     const y2024 = source.years[idx2024]!;
 
-    expect(y2024.rawFinancials.interestCoverage).toBeNull();
-    expect(y2024.rawFinancials.receivablesDays).toBeNull();
-    expect(y2024.rawFinancials.dscr).toBeNull();
-    expect(y2024.rawFinancials.netDebtEquity).toBeNull();
+    expect(y2024.calculatedValues.interestCoverage).toBeNull();
+    expect(y2024.calculatedValues.receivablesDays).toBeNull();
+    expect(y2024.calculatedValues.dscr).toBeNull();
+    expect(y2024.calculatedValues.netDebtEquity).toBeNull();
 
     const withOverrides = buildProspectusFinancialComparisonMetrics({
       source,
@@ -426,7 +427,7 @@ describe("prospectus Page 2 Financial Comparison Metrics (DATA STAGE 4B)", () =>
     const y2024 = source.years[idx2024]!;
     // CTOS flattening represents missing values as "" (not null).
     expect(typeof y2024.rawFinancials.netOperatingIncome).not.toBe("number");
-    expect(y2024.rawFinancials.dscr).toBeNull();
+    expect(y2024.calculatedValues.dscr).toBeNull();
 
     const metrics = buildProspectusFinancialComparisonMetrics({ source });
     expect(row(metrics, "dscr")?.values[idx2024]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);

@@ -277,7 +277,7 @@ describe("prospectus Page 3 income statement (DATA STAGE 2)", () => {
     expect(row(invalid, "profit_after_tax")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
   });
 
-  it("uses resolveCtosPatMarginPercent and matches Page 2 for identical inputs", () => {
+  it("displays the stored PAT margin and matches Page 2 for identical inputs", () => {
     const source = SAMPLE_PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_SOURCE;
     const page3 = buildProspectusPageThreeIncomeStatement({ financialSource: source });
     const page2 = buildProspectusFinancialComparisonMetrics({ source });
@@ -337,7 +337,8 @@ describe("prospectus Page 3 income statement (DATA STAGE 2)", () => {
       join(__dirname, "prospectus-page-three-income-statement.ts"),
       "utf8"
     );
-    expect(moduleSource).toMatch(/resolveCtosPatMarginPercent/);
+    expect(moduleSource).not.toMatch(/resolveCtosPatMarginPercent/);
+    expect(moduleSource).toMatch(/calculated\.profit_margin/);
     expect(moduleSource).toMatch(/never profit_margin/);
     expect(moduleSource).not.toMatch(/fieldFromRaw\(raw,\s*"profit_margin"\)/);
   });

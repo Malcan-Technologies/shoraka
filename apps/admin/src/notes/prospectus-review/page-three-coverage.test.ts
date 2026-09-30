@@ -6,9 +6,11 @@ jest.mock("@cashsouk/config", () => ({
     })}`,
 }));
 
-import {
-  resolveCtosTotalLiabilities,
-  type NoteDetail,
+import type {
+  FinancialReviewCalculatedValues,
+  NoteDetail,
+  ProspectusFrozenFinancialRaw,
+  ProspectusFrozenFinancialYear,
 } from "@cashsouk/types";
 import {
   buildBalanceSheetResolvedRows,
@@ -108,7 +110,7 @@ function sampleNote(overrides: Partial<NoteDetail> = {}): NoteDetail {
   } as NoteDetail;
 }
 
-const yearRaw: import("@cashsouk/types").ProspectusFrozenFinancialRaw = {
+const yearRaw: ProspectusFrozenFinancialRaw = {
   turnover: 1_000_000,
   plnpbt: 120_000,
   plnpat: 100_000,
@@ -146,10 +148,33 @@ const yearRaw: import("@cashsouk/types").ProspectusFrozenFinancialRaw = {
   freeCashFlow: 1_100_000,
 };
 
+/** Stored Financial result metrics for `yearRaw` (percent metrics are percent points). */
+const yearCalculated: FinancialReviewCalculatedValues = {
+  totass: 1_000_000,
+  totlib: 250_000,
+  networth: 500_000,
+  ebit: 180_000,
+  turnover_growth: null,
+  profit_margin: 10,
+  return_on_equity: null,
+  currat: null,
+  quickRatio: 1.25,
+  workcap: 250_000,
+  roa: 10,
+  assetTurnover: 1,
+  gear: 0.5,
+  netDebtEquity: 0.5,
+  interestCoverage: null,
+  receivablesDays: null,
+  payablesDays: null,
+  dscr: null,
+};
+
 function frozenYear(
   calendarYear: number,
-  raw: import("@cashsouk/types").ProspectusFrozenFinancialRaw = yearRaw
-): import("@cashsouk/types").ProspectusFrozenFinancialYear {
+  raw: ProspectusFrozenFinancialRaw = yearRaw,
+  calculated: FinancialReviewCalculatedValues = yearCalculated
+): ProspectusFrozenFinancialYear {
   return {
     financialYearEndIso: `${calendarYear}-12-31`,
     calendarYear,
@@ -158,14 +183,26 @@ function frozenYear(
     sourceType: "CTOS",
     statementType: "NOT_AUDITED",
     raw: { ...raw },
+    calculated: { ...calculated },
+  };
+}
+
+/** One year's raw + stored calculated values for the single-year row builders. */
+function yearValues(
+  calculated: Partial<FinancialReviewCalculatedValues> = {},
+  raw: Partial<ProspectusFrozenFinancialRaw> = {}
+) {
+  return {
+    raw: { ...yearRaw, ...raw },
+    calculated: { ...yearCalculated, ...calculated },
   };
 }
 
 const sampleFrozenYears = [
   frozenYear(2022),
   frozenYear(2023),
-  frozenYear(2024, {
-    ...yearRaw,
+  frozenYear(2024, yearRaw, {
+    ...yearCalculated,
     interestCoverage: 12.1,
     dscr: 1.42,
     receivablesDays: 74,
@@ -262,10 +299,12 @@ describe("page three coverage verification", () => {
       "Net Profit Margin",
     ]);
     expect(table.rows.find((r) => r.metric === "Gross Profit")?.values[2]).toContain("300,000");
+    expect(table.rows.find((r) => r.metric === "EBIT")?.values[2]).toBe("RM 180,000.00");
+    expect(table.rows.find((r) => r.metric === "Net Profit Margin")?.values[2]).toBe("10%");
     expect(table.rows.every((r) => r.trend == null)).toBe(true);
   });
 
-  it("builds Balance Sheet table with Total Liabilities from direct totlib only", () => {
+  it("builds Balance Sheet table with Total Liabilities from the stored value", () => {
     const table = buildPageThreeBalanceSheetTable(sampleFrozenYears, undefined);
     expect(table.rows.map((r) => r.metric)).toEqual([
       "Cash & Bank",
@@ -279,92 +318,54 @@ describe("page three coverage verification", () => {
       "Current Ratio",
       "Quick Ratio",
     ]);
-    expect(computePageThreeTotalLiabilities({ ...yearRaw })).toBe(
-      resolveCtosTotalLiabilities({ totlib: yearRaw.totlib })
-    );
+    expect(computePageThreeTotalLiabilities(frozenYear(2024))).toBe(250_000);
     expect(table.rows.find((r) => r.metric === "Total Liabilities")?.values[0]).toContain(
       "250,000"
     );
+    expect(table.rows.find((r) => r.metric === "Total Equity")?.values[0]).toBe("RM 500,000.00");
+    expect(table.rows.find((r) => r.metric === "Quick Ratio")?.values[0]).toBe("1.25x");
   });
 
-  it("does not reconstruct Total Assets / Liabilities from components when flat totals missing", () => {
-    const incomplete = [
-      frozenYear(2024, {
-        turnover: null,
-        plnpbt: null,
-        plnpat: null,
-        grossProfit: null,
-        ebitda: null,
-        netOperatingIncome: null,
-        ebit: null,
-        bscatot: 400_000,
-        bsfatot: null,
-        othass: null,
-        bsclbank: null,
-        cashAndBank: null,
-        tradeReceivables: null,
-        curlib: 150_000,
-        bsslltd: null,
-        bsclstd: null,
-        tradePayables: null,
-        bsqpuc: null,
-        costOfSales: null,
-        annualDebtService: null,
-        totass: null,
-        totlib: null,
-        networth: null,
-        profit_margin: null,
-        return_on_equity: null,
-        currat: null,
-        gear: null,
-        quickRatio: null,
-        interestCoverage: null,
-        receivablesDays: null,
-        payablesDays: null,
-        netDebtEquity: null,
-        dscr: null,
-        operatingCashFlow: null,
-        freeCashFlow: null,
-      }),
+  it("reads totals and ratios from stored calculated values, never from raw figures", () => {
+    const stored = [
+      frozenYear(
+        2024,
+        { ...yearRaw, totass: 1, totlib: 2, networth: 3, currat: 4, quickRatio: 5, ebit: 6 },
+        {
+          ...yearCalculated,
+          totass: 999_000,
+          totlib: 111_000,
+          networth: 888_000,
+          currat: 1.75,
+          quickRatio: 0.5,
+          ebit: 42_000,
+        }
+      ),
     ];
-    const table = buildPageThreeBalanceSheetTable(incomplete, undefined);
+    const balance = buildPageThreeBalanceSheetTable(stored, undefined);
+    expect(balance.rows.find((r) => r.metric === "Total Assets")?.values[0]).toBe("RM 999,000.00");
+    expect(balance.rows.find((r) => r.metric === "Total Liabilities")?.values[0]).toBe(
+      "RM 111,000.00"
+    );
+    expect(balance.rows.find((r) => r.metric === "Total Equity")?.values[0]).toBe("RM 888,000.00");
+    expect(balance.rows.find((r) => r.metric === "Current Ratio")?.values[0]).toBe("1.75x");
+    expect(balance.rows.find((r) => r.metric === "Quick Ratio")?.values[0]).toBe("0.5x");
+    const income = buildPageThreeIncomeStatementTable(stored, undefined);
+    expect(income.rows.find((r) => r.metric === "EBIT")?.values[0]).toBe("RM 42,000.00");
+  });
+
+  it("missing stored totals show — even when raw components are present", () => {
+    const missing = [
+      frozenYear(2024, yearRaw, { ...yearCalculated, totass: null, totlib: null, networth: null }),
+    ];
+    const table = buildPageThreeBalanceSheetTable(missing, undefined);
     expect(table.rows.find((r) => r.metric === "Total Assets")?.values[0]).toBe("—");
-    expect(table.rows.find((r) => r.metric === "Current Assets")?.values[0]).toContain(
-      "400,000"
-    );
     expect(table.rows.find((r) => r.metric === "Total Liabilities")?.values[0]).toBe("—");
+    expect(table.rows.find((r) => r.metric === "Total Equity")?.values[0]).toBe("—");
+    expect(table.rows.find((r) => r.metric === "Current Assets")?.values[0]).toContain("400,000");
   });
 
-  it("prefers flat totass / totlib when present; missing flat totals show —", () => {
-    const withFlat = [frozenYear(2024, { ...yearRaw, totass: 999_000, totlib: 111_000 })];
-    const table = buildPageThreeBalanceSheetTable(withFlat, undefined);
-    expect(table.rows.find((r) => r.metric === "Total Assets")?.values[0]).toContain(
-      "999,000"
-    );
-    expect(table.rows.find((r) => r.metric === "Total Liabilities")?.values[0]).toContain(
-      "111,000"
-    );
-
-    const missingFlat = [
-      frozenYear(2024, {
-        ...yearRaw,
-        totass: null,
-        totlib: null,
-        bsfatot: 200_000,
-        othass: 50_000,
-        bscatot: 400_000,
-        bsclbank: 25_000,
-        curlib: 150_000,
-        bsslltd: 80_000,
-        bsclstd: 20_000,
-      }),
-    ];
-    const dna = buildPageThreeBalanceSheetTable(missingFlat, undefined);
-    expect(dna.rows.find((r) => r.metric === "Total Assets")?.values[0]).toBe("—");
-    expect(dna.rows.find((r) => r.metric === "Total Liabilities")?.values[0]).toBe("—");
-  });
-
-  it("builds Coverage table with Page 2 reuse, CTOS system rows, and DNA trend", () => {
+  it("builds Coverage table with stored metrics and raw cash-flow rows", () => {
     const table = buildPageThreeCoverageTable(
       sampleFrozenYears,
       {
@@ -411,19 +412,17 @@ describe("page three coverage verification", () => {
       "RM 1,000,000.00"
     );
     expect(table.rows.find((r) => r.metric === "DSCR")?.values[fy2024]).toBe("1.42x");
-    // CTOS ENQWS v5.11.0: plnpat/totass*100 = 100000/1000000*100 = 10
     expect(table.rows.find((r) => r.metric === "Return on Assets")?.values[fy2024]).toBe("10%");
-    // CTOS: totlib/networth = 250000/500000 = 0.5x (no gear)
     expect(table.rows.find((r) => r.metric === "Debt / Equity")?.values[fy2024]).toBe("0.5x");
-    // CTOS: turnover/totass = 1x
     expect(table.rows.find((r) => r.metric === "Asset Turnover")?.values[fy2024]).toBe("1x");
     expect(table.rows.find((r) => r.metric === "Receivables Days")?.values[fy2024]).toBe("74");
     expect(table.rows.find((r) => r.metric === "Payables Days")?.values[fy2024]).toBe("48");
   });
 
-  it("prefers official CTOS gear for Debt / Equity when present", () => {
-    // netDebtEquity is an unrelated metric; Debt / Equity must follow CTOS gear.
-    const withGear = [frozenYear(2024, { ...yearRaw, gear: 4.4, netDebtEquity: 1.1 })];
+  it("Debt / Equity reads stored gear, not raw gear or Net Debt / Equity", () => {
+    const withGear = [
+      frozenYear(2024, { ...yearRaw, gear: 9.9, netDebtEquity: 1.1 }, { ...yearCalculated, gear: 4.4 }),
+    ];
     const table = buildPageThreeCoverageTable(withGear, undefined, undefined);
     expect(table.rows.find((r) => r.metric === "Debt / Equity")?.values[0]).toBe("4.4x");
   });
@@ -469,152 +468,75 @@ describe("page three coverage verification", () => {
     );
   });
 
-  it("renders unavailable calculated DNA metrics as `—` (no diagnostic hints)", () => {
-    const dnaRoa = buildCoverageResolvedRows(
-      { ...yearRaw, plnpat: null },
-      undefined,
-      undefined
-    ).find((r) => r.label === "Return on Assets");
-    expect(dnaRoa?.value).toBe("—");
-    expect(dnaRoa?.hint).toBeNull();
-
-    const dnaRoaTotAssets = buildCoverageResolvedRows(
-      { ...yearRaw, totass: null },
-      undefined,
-      undefined
-    ).find((r) => r.label === "Return on Assets");
-    expect(dnaRoaTotAssets?.value).toBe("—");
-    expect(dnaRoaTotAssets?.hint).toBeNull();
-
-    const dnaAssetTurnoverMissingRevenue = buildCoverageResolvedRows(
-      { ...yearRaw, turnover: null },
-      undefined,
-      undefined
-    ).find((r) => r.label === "Asset Turnover");
-    expect(dnaAssetTurnoverMissingRevenue?.value).toBe("—");
-    expect(dnaAssetTurnoverMissingRevenue?.hint).toBeNull();
-
-    const dnaAssetTurnoverMissingAssets = buildCoverageResolvedRows(
-      { ...yearRaw, totass: null },
-      undefined,
-      undefined
-    ).find((r) => r.label === "Asset Turnover");
-    expect(dnaAssetTurnoverMissingAssets?.value).toBe("—");
-    expect(dnaAssetTurnoverMissingAssets?.hint).toBeNull();
-
-    const dnaDebtEqMissingLiabilities = buildCoverageResolvedRows(
-      { ...yearRaw, totlib: null },
-      undefined,
-      undefined
-    ).find((r) => r.label === "Debt / Equity");
-    expect(dnaDebtEqMissingLiabilities?.value).toBe("—");
-    expect(dnaDebtEqMissingLiabilities?.hint).toBeNull();
-
-    const dnaPayablesMissingCost = buildCoverageResolvedRows(
-      { ...yearRaw, costOfSales: null },
-      undefined,
-      undefined
-    ).find((r) => r.label === "Payables Days");
-    expect(dnaPayablesMissingCost?.value).toBe("—");
-    expect(dnaPayablesMissingCost?.hint).toBeNull();
-
-    const dnaDscrMissingNoi = buildCoverageResolvedRows(
-      { ...yearRaw, netOperatingIncome: null, dscr: null },
-      undefined,
-      undefined
-    ).find((r) => r.label === "DSCR");
-    expect(dnaDscrMissingNoi?.value).toBe("—");
-    expect(dnaDscrMissingNoi?.hint).toBeNull();
-
-    const dnaReceivablesMissingEndingTradeReceivables = buildCoverageResolvedRows(
-      { ...yearRaw, tradeReceivables: null, receivablesDays: null },
-      undefined,
-      { tradeReceivables: 14_000 } as Record<string, unknown>
-    ).find((r) => r.label === "Receivables Days");
-    expect(dnaReceivablesMissingEndingTradeReceivables?.value).toBe("—");
-    expect(dnaReceivablesMissingEndingTradeReceivables?.hint).toBeNull();
+  it.each([
+    ["Return on Assets", { roa: null }],
+    ["Asset Turnover", { assetTurnover: null }],
+    ["Debt / Equity", { gear: null }],
+    ["Payables Days", { payablesDays: null }],
+    ["DSCR", { dscr: null }],
+    ["Receivables Days", { receivablesDays: null }],
+    ["Interest Coverage", { interestCoverage: null }],
+    ["Return on Equity", { return_on_equity: null }],
+  ] as const)("renders a null stored %s as `—` (no diagnostic hints)", (label, calculated) => {
+    const row = buildCoverageResolvedRows(yearValues(calculated), undefined, undefined).find(
+      (r) => r.label === label
+    );
+    expect(row?.value).toBe("—");
+    expect(row?.hint).toBeNull();
   });
 
-  it("Payables Days: unavailable values render as `—` (no diagnostic hints)", () => {
-    const missingTradePayables = buildCoverageResolvedRows(
-      { ...yearRaw, tradePayables: null },
+  it("does not recalculate a coverage metric from raw inputs when the stored value is null", () => {
+    // Every raw input for ROA / Asset Turnover / Debt/Equity / Payables Days is present.
+    const rows = buildCoverageResolvedRows(
+      yearValues({ roa: null, assetTurnover: null, gear: null, payablesDays: null }),
       undefined,
       undefined
-    ).find((r) => r.label === "Payables Days");
-    expect(missingTradePayables?.value).toBe("—");
-    expect(missingTradePayables?.hint).toBeNull();
-
-    const missingCostOfSales = buildCoverageResolvedRows(
-      { ...yearRaw, costOfSales: null },
-      undefined,
-      undefined
-    ).find((r) => r.label === "Payables Days");
-    expect(missingCostOfSales?.value).toBe("—");
-    expect(missingCostOfSales?.hint).toBeNull();
-
-    const invalidZeroDenominator = buildCoverageResolvedRows(
-      { ...yearRaw, costOfSales: 0 },
-      undefined,
-      undefined
-    ).find((r) => r.label === "Payables Days");
-    expect(invalidZeroDenominator?.value).toBe("—");
-    expect(invalidZeroDenominator?.hint).toBeNull();
+    );
+    for (const label of ["Return on Assets", "Asset Turnover", "Debt / Equity", "Payables Days"]) {
+      expect(rows.find((r) => r.label === label)?.value).toBe("—");
+    }
   });
 
   it("keeps single-year resolved helpers for Total Liabilities parity", () => {
-    const rows = buildBalanceSheetResolvedRows({ ...yearRaw }, { quickRatio: 1.25 });
+    const rows = buildBalanceSheetResolvedRows(yearValues(), { quickRatio: 1.25 });
     expect(rows.find((r) => r.label === "Total Liabilities")?.value).toContain("250,000");
-    expect(buildIncomeStatementResolvedRows({ ...yearRaw }, undefined)).toHaveLength(8);
-    expect(buildCoverageResolvedRows({ ...yearRaw }, undefined, undefined)).toHaveLength(11);
+    expect(buildIncomeStatementResolvedRows(yearValues(), undefined)).toHaveLength(8);
+    expect(buildCoverageResolvedRows(yearValues(), undefined, undefined)).toHaveLength(11);
   });
 
-  it("uses direct CTOS return_on_equity only for ROE (no PAT/networth fallback)", () => {
+  it("ROE reads the stored percent points (not × 100) and ignores raw return_on_equity", () => {
     const rows = buildCoverageResolvedRows(
-      { ...yearRaw, return_on_equity: 15.2, plnpat: 1, bsqpuc: 100 },
+      yearValues({ return_on_equity: 15.2 }, { return_on_equity: 99 }),
       undefined,
       undefined
     );
     expect(rows.find((r) => r.label === "Return on Equity")?.value).toBe("15.2%");
-
-    const missingFlat = buildCoverageResolvedRows(
-      {
-        ...yearRaw,
-        return_on_equity: null,
-        plnpat: 100_000,
-        networth: 500_000,
-        totass: 1_000_000,
-        totlib: 250_000,
-      },
-      undefined,
-      undefined
-    );
-    const missingRoe = missingFlat.find((r) => r.label === "Return on Equity");
-    expect(missingRoe?.value).toBe("—");
-    expect(missingRoe?.hint).toBeNull();
   });
 
-  it("uses direct CTOS currat only for Current Ratio (no CA÷CL fallback)", () => {
-    const withFlat = buildBalanceSheetResolvedRows(
-      { ...yearRaw, currat: 1.75, bscatot: 400_000, curlib: 150_000 },
+  it("Current Ratio reads the stored currat and ignores raw currat", () => {
+    const withValue = buildBalanceSheetResolvedRows(
+      yearValues({ currat: 1.75 }, { currat: 9 }),
       undefined
     );
-    expect(withFlat.find((r) => r.label === "Current Ratio")?.value).toBe("1.75x");
+    expect(withValue.find((r) => r.label === "Current Ratio")?.value).toBe("1.75x");
 
-    const missingCurrat = buildBalanceSheetResolvedRows(
-      { ...yearRaw, currat: null, bscatot: 400_000, curlib: 200_000 },
+    const missing = buildBalanceSheetResolvedRows(
+      yearValues({ currat: null }, { currat: 9, bscatot: 400_000, curlib: 200_000 }),
       undefined
     );
-    const currentRatioMissing = missingCurrat.find((r) => r.label === "Current Ratio");
+    const currentRatioMissing = missing.find((r) => r.label === "Current Ratio");
     expect(currentRatioMissing?.value).toBe("—");
     expect(currentRatioMissing?.hint).toBeNull();
   });
 
-  it("does not return diagnostic EBIT helper hints in Prospectus tables", () => {
+  it("Net Profit Margin and EBIT read stored values without diagnostic hints", () => {
     const rows = buildIncomeStatementResolvedRows(
-      { ...yearRaw, ebit: null, plnpbt: 120_000, plnpat: 100_000 },
+      yearValues({ ebit: null, profit_margin: 12.5 }, { ebit: 180_000 }),
       undefined
     );
+    expect(rows.find((r) => r.label === "EBIT")?.value).toBe("—");
     expect(rows.find((r) => r.label === "EBIT")?.hint).toBeNull();
+    expect(rows.find((r) => r.label === "Net Profit Margin")?.value).toBe("12.5%");
   });
 
   it("uses frozen year order without independent Application selection", () => {
@@ -640,46 +562,9 @@ describe("page three coverage verification", () => {
     ]);
   });
 
-  it("renders display placeholder years as — without using officer manuals", () => {
-    const empty: import("@cashsouk/types").ProspectusFrozenFinancialRaw = {
-      turnover: null,
-      plnpbt: null,
-      plnpat: null,
-      grossProfit: null,
-      ebitda: null,
-      netOperatingIncome: null,
-      ebit: null,
-      bscatot: null,
-      bsfatot: null,
-      othass: null,
-      bsclbank: null,
-      cashAndBank: null,
-      costOfSales: null,
-      curlib: null,
-      bsslltd: null,
-      bsclstd: null,
-      bsqpuc: null,
-      tradeReceivables: null,
-      tradePayables: null,
-      receivablesDays: null,
-      payablesDays: null,
-      totass: null,
-      totlib: null,
-      networth: null,
-      profit_margin: null,
-      return_on_equity: null,
-      currat: null,
-      gear: null,
-      quickRatio: null,
-      annualDebtService: null,
-      interestCoverage: null,
-      netDebtEquity: null,
-      dscr: null,
-      operatingCashFlow: null,
-      freeCashFlow: null,
-    };
+  it("renders display placeholder years as — without using officer manuals or stored values", () => {
     const years = [
-      { ...frozenYear(2024, empty), isPlaceholder: true },
+      { ...frozenYear(2024), isPlaceholder: true },
       frozenYear(2025),
       frozenYear(2026),
     ];
@@ -695,8 +580,13 @@ describe("page three coverage verification", () => {
       "FY2026",
     ]);
     expect(income.yearHeaders[0]?.isPlaceholder).toBe(true);
-    const gp = income.rows.find((r) => r.metric === "Gross Profit");
-    expect(gp?.values[0]).toBe("—");
+    for (const table of [
+      income,
+      buildPageThreeBalanceSheetTable(years, undefined),
+      buildPageThreeCoverageTable(years, undefined),
+    ]) {
+      for (const row of table.rows) expect(row.values[0]).toBe("—");
+    }
   });
 
   it("does not render diagnostic helper text in Prospectus tables", () => {

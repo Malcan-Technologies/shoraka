@@ -1,10 +1,8 @@
 import { formatCurrency } from "@cashsouk/config";
-import {
-  resolveCtosCurrentRatio,
-  resolveCtosPatMarginPercent,
-  resolveCtosReturnOnEquityPercent,
-  fyEndDateForYear,
-  type NoteDetail,
+import type {
+  FinancialReviewCalculatedKey,
+  NoteDetail,
+  ProspectusFrozenFinancialYear,
 } from "@cashsouk/types";
 import type { CoreTermRow } from "./core-terms";
 import type { FinancialMetricTableModel } from "./financial-metric-table";
@@ -73,33 +71,12 @@ function formatMultiple(value: number | null): string {
   return `${fixed}x`;
 }
 
-export function selectComparisonYears(yearKeys: string[]): string[] {
-  const years = yearKeys
-    .filter((key) => /^\d{4}$/.test(key))
-    .map(Number)
-    .filter((year) => Number.isInteger(year))
-    .sort((a, b) => b - a)
-    .slice(0, 3)
-    .sort((a, b) => a - b);
-  return years.map(String);
-}
+type PageTwoYearValues = Pick<ProspectusFrozenFinancialYear, "raw" | "calculated">;
 
-function readFinancialYearEndIso(financialStatements: unknown): string | null {
-  const root = asRecord(financialStatements);
-  const questionnaire = asRecord(root?.questionnaire);
-  const value = questionnaire?.financial_year_end;
-  return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function formatFyeLabel(financialYearEndIso: string | null, year: string): string {
-  if (!financialYearEndIso) return DATA_NOT_AVAILABLE;
-  const end = fyEndDateForYear({ financial_year_end: financialYearEndIso }, Number(year));
-  if (!end) return DATA_NOT_AVAILABLE;
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(end);
+/** Stored calculated metric from the approved Financial result (never recalculated here). */
+function calculatedValue(year: PageTwoYearValues, key: FinancialReviewCalculatedKey): number | null {
+  const value = year.calculated?.[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 function metricForYear(
@@ -113,55 +90,29 @@ function metricForYear(
     | "interestCoverage"
     | "dscr"
     | "receivablesDays",
-  raw: Record<string, unknown>
+  year: PageTwoYearValues
 ): string {
   switch (key) {
     case "revenue":
-      return formatMoneyOrDna(parseMoney(raw.turnover));
+      return formatMoneyOrDna(parseMoney(year.raw.turnover));
     case "profitAfterTax":
-      return formatMoneyOrDna(parseMoney(raw.plnpat));
-    case "netProfitMargin": {
-      // CTOS ENQWS v5.11.0 Financial Highlights XSL — PAT Margin (never profit_margin / PBT).
-      return formatPercentFromPoints(
-        resolveCtosPatMarginPercent({
-          plnpat: parseMoney(raw.plnpat),
-          turnover: parseMoney(raw.turnover),
-        })
-      );
-    }
-    case "roe": {
-      // CTOS ENQWS v5.11.0 Financial Highlights XSL — direct r:return_on_equity only.
-      return formatPercentFromPoints(
-        resolveCtosReturnOnEquityPercent({
-          return_on_equity: parseMoney(raw.return_on_equity),
-        })
-      );
-    }
-    case "currentRatio": {
-      // CTOS ENQWS v5.11.0 Financial Highlights XSL — direct r:currat only.
-      return formatMultiple(
-        resolveCtosCurrentRatio({
-          currat: parseMoney(raw.currat),
-        })
-      );
-    }
+      return formatMoneyOrDna(parseMoney(year.raw.plnpat));
+    case "netProfitMargin":
+      // Stored PAT Margin (never CTOS profit_margin / PBT).
+      return formatPercentFromPoints(calculatedValue(year, "profit_margin"));
+    case "roe":
+      return formatPercentFromPoints(calculatedValue(year, "return_on_equity"));
+    case "currentRatio":
+      return formatMultiple(calculatedValue(year, "currat"));
     case "netDebtEquity":
     case "interestCoverage":
     case "dscr":
     case "receivablesDays":
       if (key === "receivablesDays") {
-        const days = parseMoney(raw.receivablesDays);
+        const days = calculatedValue(year, "receivablesDays");
         return days == null ? DATA_NOT_AVAILABLE : String(Math.trunc(days));
       }
-      return formatMultiple(
-        parseMoney(
-          key === "netDebtEquity"
-            ? raw.netDebtEquity
-            : key === "interestCoverage"
-              ? raw.interestCoverage
-              : raw.dscr
-        )
-      );
+      return formatMultiple(calculatedValue(year, key));
     default:
       return DATA_NOT_AVAILABLE;
   }
@@ -232,20 +183,12 @@ export function buildInvoicePaymasterVerificationRows(note: NoteDetail): CoreTer
 }
 
 /**
- * Compact 3-year financial comparison table using Application unaudited years.
- * Same supported helpers as Page 2; unsupported rows stay —.
+ * Compact 3-year financial comparison table from the frozen Prospectus years.
+ * Raw rows read `raw`; calculated rows read the stored `calculated` values; missing stays —.
  */
 export function buildPageTwoFinancialComparisonTable(
-  financialStatements: unknown
+  frozenYears: ProspectusFrozenFinancialYear[]
 ): FinancialMetricTableModel {
-  const root = asRecord(financialStatements);
-  const unaudited = asRecord(root?.unaudited_by_year) ?? {};
-  const years = selectComparisonYears(Object.keys(unaudited));
-  const fyeIso = readFinancialYearEndIso(financialStatements);
-  const byYear: Record<string, Record<string, unknown>> = {};
-  for (const year of years) {
-    byYear[year] = asRecord(unaudited[year]) ?? {};
-  }
 
   const calculatedKeys = new Set<Parameters<typeof metricForYear>[0]>([
     "roe",
@@ -257,19 +200,18 @@ export function buildPageTwoFinancialComparisonTable(
   ]);
 
   return {
-    yearHeaders: years.map((year) => ({
-      key: year,
-      yearLabel: `FY${year}`,
-      fyeLabel: formatFyeLabel(fyeIso, year),
+    yearHeaders: frozenYears.map((year) => ({
+      key: String(year.calendarYear),
+      yearLabel: year.label,
+      fyeLabel: year.fyeLabel,
     })),
     rows: PAGE_TWO_METRICS.map(({ label, key }) => {
       const values: string[] = [];
       const cellHints: Array<string | null> = [];
 
-      for (let i = 0; i < years.length; i++) {
-        const year = years[i]!;
-        const raw = byYear[year] ?? {};
-        const rawValue = metricForYear(key, raw);
+      for (const year of frozenYears) {
+        // Display-only placeholder column — never resolve metrics.
+        const rawValue = year.isPlaceholder ? DATA_NOT_AVAILABLE : metricForYear(key, year);
         const isCalculatedMissing = calculatedKeys.has(key) && rawValue === DATA_NOT_AVAILABLE;
 
         if (isCalculatedMissing) {
@@ -288,9 +230,9 @@ export function buildPageTwoFinancialComparisonTable(
 
 /** @deprecated Prefer buildPageTwoFinancialComparisonTable for admin display. */
 export function buildPageTwoFinancialComparisonRows(
-  financialStatements: unknown
+  frozenYears: ProspectusFrozenFinancialYear[]
 ): CoreTermRow[] {
-  const table = buildPageTwoFinancialComparisonTable(financialStatements);
+  const table = buildPageTwoFinancialComparisonTable(frozenYears);
   if (table.yearHeaders.length === 0) {
     return PAGE_TWO_METRICS.map(({ label }) => ({
       label,

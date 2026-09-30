@@ -1,15 +1,9 @@
 /**
  * SECTION: Build Page 3 Cash Flow, Coverage and Efficiency rows
- * WHY: Official CTOS fields/XSL for Debt/Equity, ROA, Asset Turnover; Page 2 reuse; officer OCF/FCF/Payables
+ * WHY: Cash flow rows from reviewed raw values; coverage and efficiency metrics are stored
+ * Financial Review values (never recalculated here); Page 2 formatting reuse
  */
 
-import {
-  resolveCtosGearingRatio,
-  resolveCtosReturnOnAssetsPercent,
-  resolveCtosReturnOnEquityPercent,
-  resolveCtosTotalAssetTurnover,
-  type CtosFinancialHighlightAccount,
-} from "@cashsouk/types";
 import {
   formatProspectusFinancialDays,
   formatProspectusFinancialMultiple,
@@ -34,22 +28,6 @@ import {
 function fieldFromRaw(raw: Record<string, unknown>, key: string): number | null {
   if (!Object.prototype.hasOwnProperty.call(raw, key)) return null;
   return parseProspectusFinancialNumber(raw[key]);
-}
-
-/** Account slice for official CTOS Financial Highlights resolvers. */
-function highlightAccount(raw: Record<string, unknown>): CtosFinancialHighlightAccount {
-  return {
-    turnover: fieldFromRaw(raw, "turnover"),
-    plnpat: fieldFromRaw(raw, "plnpat"),
-    totass: fieldFromRaw(raw, "totass"),
-    totlib: fieldFromRaw(raw, "totlib"),
-    networth: fieldFromRaw(raw, "networth"),
-    bscatot: fieldFromRaw(raw, "bscatot"),
-    curlib: fieldFromRaw(raw, "curlib"),
-    gear: fieldFromRaw(raw, "gear"),
-    return_on_equity: fieldFromRaw(raw, "return_on_equity"),
-    currat: fieldFromRaw(raw, "currat"),
-  };
 }
 
 /** Same formatting as Page 2 Financial Comparison officer multiples. */
@@ -100,7 +78,7 @@ export function numericValueForCoverageRow(
   >
 ): number | null {
   if (year.isPlaceholder) return null;
-  const account = highlightAccount(raw);
+  const calculated = year.calculatedValues;
 
   switch (key) {
     case "operating_cash_flow":
@@ -108,25 +86,21 @@ export function numericValueForCoverageRow(
     case "free_cash_flow":
       return fieldFromRaw(raw, "freeCashFlow");
     case "interest_coverage":
-      return fieldFromRaw(raw, "interestCoverage");
+      return calculated.interestCoverage;
     case "dscr":
-      return fieldFromRaw(raw, "dscr");
+      return calculated.dscr;
     case "debt_equity":
-      // Debt / Equity follows CTOS gearing (gear first, else totlib/networth).
-      return resolveCtosGearingRatio(account);
+      return calculated.gear;
     case "return_on_assets":
-      // CTOS ENQWS v5.11.0 Financial Highlights XSL — plnpat/totass*100 (percent points).
-      return resolveCtosReturnOnAssetsPercent(account);
+      return calculated.roa;
     case "receivables_days":
-      return fieldFromRaw(raw, "receivablesDays");
+      return calculated.receivablesDays;
     case "payables_days":
-      return fieldFromRaw(raw, "payablesDays");
+      return calculated.payablesDays;
     case "asset_turnover":
-      // CTOS ENQWS v5.11.0 Financial Highlights XSL — turnover/totass (x).
-      return resolveCtosTotalAssetTurnover(account);
+      return calculated.assetTurnover;
     case "return_on_equity":
-      // CTOS ENQWS v5.11.0 Financial Highlights XSL — direct r:return_on_equity only.
-      return resolveCtosReturnOnEquityPercent(account);
+      return calculated.return_on_equity;
     default: {
       const _exhaustive: never = key;
       return _exhaustive;
@@ -141,7 +115,7 @@ function valueForRow(
   _input: ProspectusPageThreeCoverageEfficiencyInput
 ): string {
   if (year.isPlaceholder) return PROSPECTUS_DATA_NOT_AVAILABLE;
-  const account = highlightAccount(raw);
+  const calculated = year.calculatedValues;
 
   switch (key) {
     case "operating_cash_flow":
@@ -153,7 +127,7 @@ function valueForRow(
         year,
         {
           [year.financialYearEndIso]: {
-            interestCoverage: fieldFromRaw(raw, "interestCoverage"),
+            interestCoverage: calculated.interestCoverage,
           },
         } as any,
         "interestCoverage"
@@ -163,37 +137,30 @@ function valueForRow(
         year,
         {
           [year.financialYearEndIso]: {
-            dscr: fieldFromRaw(raw, "dscr"),
+            dscr: calculated.dscr,
           },
         } as any,
         "dscr"
       );
     case "debt_equity":
-      return formatProspectusFinancialMultiple(
-        resolveCtosGearingRatio(account)
-      );
+      return formatProspectusFinancialMultiple(calculated.gear);
     case "return_on_assets":
-      return formatProspectusFinancialPercentFromPoints(
-        resolveCtosReturnOnAssetsPercent(account)
-      );
+      return formatProspectusFinancialPercentFromPoints(calculated.roa);
     case "receivables_days":
       return page2ReceivablesDaysOrDna(
         year,
         {
           [year.financialYearEndIso]: {
-            receivablesDays: fieldFromRaw(raw, "receivablesDays"),
+            receivablesDays: calculated.receivablesDays,
           },
         } as any
       );
     case "payables_days":
-      return formatProspectusFinancialDays(fieldFromRaw(raw, "payablesDays"));
+      return formatProspectusFinancialDays(calculated.payablesDays);
     case "asset_turnover":
-      return formatProspectusFinancialMultiple(resolveCtosTotalAssetTurnover(account));
-    case "return_on_equity": {
-      return formatProspectusFinancialPercentFromPoints(
-        resolveCtosReturnOnEquityPercent(account)
-      );
-    }
+      return formatProspectusFinancialMultiple(calculated.assetTurnover);
+    case "return_on_equity":
+      return formatProspectusFinancialPercentFromPoints(calculated.return_on_equity);
     default: {
       const _exhaustive: never = key;
       return _exhaustive;

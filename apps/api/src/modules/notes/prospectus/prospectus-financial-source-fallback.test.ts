@@ -3,7 +3,10 @@
  * Profile / new-application prefill is a different order and is not covered here.
  */
 
-import { buildProspectusFinancialComparisonSource } from "./prospectus-financial-comparison-source";
+import {
+  approvedFinancialResultFromInputs,
+  buildProspectusFinancialComparisonSourceFromInputs,
+} from "./prospectus-financial-comparison-test-helpers";
 import { buildProspectusPageThree } from "./prospectus-page-three-mapper";
 import { buildProspectusPageTwo } from "./prospectus-page-two-mapper";
 import { buildProspectusPage2FinancialComparisonSnapshot } from "./prospectus-page-two-snapshot";
@@ -29,7 +32,7 @@ function sourceFor(params: {
   ctos?: ReturnType<typeof ctosRow>[];
   ref?: Date;
 }) {
-  return buildProspectusFinancialComparisonSource({
+  return buildProspectusFinancialComparisonSourceFromInputs({
     financialStatements: {
       questionnaire: { financial_year_end: "2026-12-31" },
       unaudited_by_year: params.unaudited ?? {},
@@ -82,7 +85,7 @@ describe("prospectus financial source fallback", () => {
     expect(fy?.recordSource).toBe("admin_input");
     expect(fy?.statementType).toBe("AUDITED");
     expect(fy?.rawFinancials.turnover).toBe(5_000_000);
-    expect(fy?.rawFinancials.ebit).toBe(120);
+    expect(fy?.calculatedValues.ebit).toBe(120);
   });
 
   it("Scenario D: a year with no User Input, CTOS, or Admin Input stays blank", () => {
@@ -185,9 +188,11 @@ describe("prospectus financial source fallback", () => {
       issuerSnapshot: { name: "Co" },
       invoiceSnapshot: {},
       paymasterSnapshot: {},
-      liveFinancialStatements: financialStatements,
-      liveCtosFinancials: [],
-      financialReferenceDate: new Date(),
+      approvedFinancialResult: approvedFinancialResultFromInputs({
+        financialStatements,
+        ctosFinancials: [],
+        ref: new Date(),
+      }),
       frozenFinancialComparison: null,
     };
     const page2 = buildProspectusPageTwo({
@@ -233,9 +238,11 @@ describe("prospectus financial source fallback", () => {
     ]);
 
     const frozen = buildProspectusPage2FinancialComparisonSnapshot({
-      referenceDate: AFTER_DEADLINE,
-      financialStatements,
-      ctosFinancials: [],
+      approvedFinancialResult: approvedFinancialResultFromInputs({
+        financialStatements,
+        ctosFinancials: [],
+        ref: AFTER_DEADLINE,
+      }),
       now: AFTER_DEADLINE,
     });
     expect(frozen.selected_years.map((year) => year.year)).toEqual([2023, 2025, 2026]);
@@ -250,12 +257,16 @@ describe("prospectus financial source fallback", () => {
       maturityDate: null,
       isPublished: true,
       financialMode: "frozen_publication_snapshot",
-      liveFinancialStatements: {
-        ...financialStatements,
-        admin_input_by_year: {
-          "2025": { turnover: 1, pldd: "2025-12-31" },
+      approvedFinancialResult: approvedFinancialResultFromInputs({
+        financialStatements: {
+          ...financialStatements,
+          admin_input_by_year: {
+            "2025": { turnover: 1, pldd: "2025-12-31" },
+          },
         },
-      },
+        ctosFinancials: [],
+        ref: AFTER_DEADLINE,
+      }),
       frozenFinancialComparison: frozen,
     });
     expect(

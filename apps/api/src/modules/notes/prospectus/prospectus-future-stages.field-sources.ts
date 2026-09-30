@@ -340,8 +340,8 @@
  * - Note snapshots: issuer_snapshot, invoice_snapshot, paymaster_snapshot, prospectus_snapshot
  * - Note fields: id, note_reference, status, published_at, source_application_id,
  *   maturity_date, target_amount, funded_amount, listing opens_at/closes_at/status
- * - Application.financial_statements loaded ONLY for unpublished Stage 4 preview
- * - No CTOS; no live organization fields; no live invoice/paymaster fallbacks
+ * - Note financial_snapshot (approved Financial Review result) read ONLY for unpublished Stage 4 preview
+ * - No application or CTOS read; no live organization fields; no live invoice/paymaster fallbacks
  *
  * Publication rule (same as Page 1):
  * published_at != null && status !== DRAFT
@@ -363,13 +363,13 @@
  *
  * Publish merge (NoteService.publish):
  * - Build page_1 track-record snapshot as before
- * - Build page_2 financial_comparison from Application financial_statements
+ * - Build page_2 financial_comparison from the Note financial snapshot (raw + calculated values)
  * - Merge via wrapProspectusSnapshotWithPageTwo (preserve unknown branches; replace page_1/page_2)
  * - Missing financials → valid empty selected_years (publication continues)
  *
  * Snapshot preference:
  * - Published + valid page_2 → frozen Stage 4 only (no live Application read)
- * - Unpublished → live Application → Stage 4A → Stage 4B
+ * - Unpublished → Note financial snapshot → Stage 4A → Stage 4B (display only, no recalculation)
  * - Published missing/malformed page_2 → empty Stage 4 (no live fallback; no repair)
  *
  * CTA: static heading + platform minimum only (no live capacity / routes)
@@ -414,7 +414,7 @@
  *
  * Shared financial source (internal only — not a visible prospectus field):
  * - Page 2 Stage 4A years/FYE/raw via prospectus_snapshot.page_2.financial_comparison
- * - Live unpublished preview may read applications.financial_statements.unaudited_by_year
+ * - Unpublished preview reads the Note financial snapshot (never the application or CTOS)
  * - No independent Page 3 year selection; no CTOS; no published live Application fallback
  * - Extended freeze keys: plnpbt, bsfatot, othass, bsclbank, bsslltd, bsclstd
  * - bsclbank = Non-Current Assets (never Cash & Bank); bsqpuc ≠ Total Equity

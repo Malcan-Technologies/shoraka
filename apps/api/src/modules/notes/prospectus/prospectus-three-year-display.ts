@@ -4,6 +4,7 @@
  */
 
 import {
+  emptyProspectusCalculatedValues,
   formatProspectusFinancialYearEndLabel,
   formatProspectusFinancialYearLabel,
 } from "./prospectus-financial-comparison-source";
@@ -67,6 +68,7 @@ function placeholderYear(
     recordSource: "unaudited_management",
     statementType: "MANAGEMENT_ACCOUNTS",
     rawFinancials: {},
+    calculatedValues: emptyProspectusCalculatedValues(),
     isPlaceholder: true,
   };
 }

@@ -75,32 +75,6 @@ export function isInheritedContractAcceptanceReview(
   return structureType === "existing_contract";
 }
 
-/** Sections an existing_contract application inherits as approved from the originating application. */
-const INHERITED_APPROVED_REVIEW_SECTIONS: ReadonlySet<string> = new Set([
-  "contract_details",
-  "acceptance_documents",
-]);
-
-/**
- * Review section status as the Admin review page shows it and as Note creation checks it:
- * the application_reviews row (PENDING when there is none), except that an existing_contract
- * application shows Facility and Acceptance as APPROVED because they were approved on the
- * originating application.
- */
-export function resolveEffectiveReviewSectionStatus(input: {
-  section: string;
-  structureType: string | null | undefined;
-  reviewStatus: string | null | undefined;
-}): string {
-  if (
-    isInheritedContractAcceptanceReview(input.structureType) &&
-    INHERITED_APPROVED_REVIEW_SECTIONS.has(input.section)
-  ) {
-    return "APPROVED";
-  }
-  return input.reviewStatus ?? "PENDING";
-}
-
 /**
  * Drawdowns on an approved facility inherit guarantors from the originating
  * facility application instead of collecting a second, possibly conflicting set.

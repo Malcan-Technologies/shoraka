@@ -1,13 +1,18 @@
 /**
  * Integration-style regression:
  * Approved/READY_FOR_PUBLISH Preview must render Page 2/3 financials from
- * review.approved_snapshot.page_2.financial_comparison (frozen), not from LIVE CTOS/Application.
+ * review.approved_snapshot.page_2.financial_comparison (frozen), not from the Note financial
+ * snapshot. Draft Preview renders the Note financial snapshot. Neither reads the application or CTOS.
  *
  * WHY:
- * - Live CTOS can drift between approval and note publish.
  * - Final investor PDF uses frozen approved snapshot; Preview must match.
  */
 
+import {
+  approvedFinancialResultFromInputs,
+  noteFinancialSnapshotOf,
+} from "../prospectus/prospectus-financial-comparison-test-helpers";
+import { prisma as mockedPrisma } from "../../../lib/prisma";
 import { ProspectusReviewService } from "./prospectus-review.service";
 import { buildCompleteProspectusReviewDraft } from "./prospectus-review.demo-fixtures";
 
@@ -228,6 +233,7 @@ describe("approved Preview financial freeze (Page 2/3)", () => {
 
   const fy = 2025;
 
+  /** Values in the Note financial snapshot (the approved Financial Review result). */
   const live = {
     turnover: 12_000_000,
     plnpat: 1_000_000 * 2,
@@ -251,14 +257,34 @@ describe("approved Preview financial freeze (Page 2/3)", () => {
 
     const prisma = require("../../../lib/prisma").prisma as any;
 
+    // Financial Review approved these inputs; Note creation copied the result (RM12m values).
+    const financialSnapshot = noteFinancialSnapshotOf(
+      approvedFinancialResultFromInputs({
+        financialStatements: mkApplicationFinancialStatements({
+          year: fy,
+          turnover: live.turnover,
+          plnpat: live.plnpat,
+          bscatot: live.bscatot,
+        }),
+        ctosFinancials: [
+          mkCtosRow({
+            year: fy,
+            turnover: live.turnover,
+            plnpat: live.plnpat,
+            bscatot: live.bscatot,
+            totlib: live.totlib,
+            return_on_equity: live.return_on_equity,
+            currat: live.currat,
+          }),
+        ],
+        ref: new Date("2026-07-19T00:00:00.000Z"),
+      })
+    );
+
     // Note: keep it unpublished.
     prisma.note.findUnique.mockImplementation((query: any) => {
       if (query?.select?.id && Object.keys(query.select).length === 1) {
         return { id: noteId };
-      }
-      if (query?.select?.financial_statements !== undefined) {
-        // Not expected in this suite.
-        return null;
       }
 
       // Called by Page 1 loader and Page 2/3 loaders (PROSPECTUS_*_NOTE_SELECT).
@@ -289,7 +315,7 @@ describe("approved Preview financial freeze (Page 2/3)", () => {
         service_fee_rate_percent: 1,
         platform_fee_rate_percent: 1,
         maturity_date: null,
-        financial_snapshot: null,
+        financial_snapshot: financialSnapshot,
         created_at: new Date(),
         listing: { opens_at: new Date(), closes_at: new Date() },
       };
@@ -331,31 +357,11 @@ describe("approved Preview financial freeze (Page 2/3)", () => {
         updated_at: new Date("2026-07-19T00:00:00.000Z"),
       };
     });
+  });
 
-    // Live Application financials (RM12m values).
-    prisma.application.findUnique.mockImplementation(() => ({
-      financial_statements: mkApplicationFinancialStatements({
-        year: fy,
-        turnover: live.turnover,
-        plnpat: live.plnpat,
-        bscatot: live.bscatot,
-      }),
-    }));
-
-    // Live CTOS financials_json (RM12m values).
-    prisma.ctosReport.findFirst.mockImplementation(() => ({
-      financials_json: [
-        mkCtosRow({
-          year: fy,
-          turnover: live.turnover,
-          plnpat: live.plnpat,
-          bscatot: live.bscatot,
-          totlib: live.totlib,
-          return_on_equity: live.return_on_equity,
-          currat: live.currat,
-        }),
-      ],
-    }));
+  afterEach(() => {
+    expect(mockedPrisma.application.findUnique).not.toHaveBeenCalled();
+    expect(mockedPrisma.ctosReport.findFirst).not.toHaveBeenCalled();
   });
 
   function setReviewStatus(status: "DRAFT" | "APPROVED" | "READY_FOR_PUBLISH") {
@@ -435,7 +441,7 @@ describe("approved Preview financial freeze (Page 2/3)", () => {
     return service.preview(noteId, { userId: "admin-1", role: "ADMIN", portal: "ADMIN" } as any);
   }
 
-  it("DRAFT Preview shows LIVE (RM12m)", async () => {
+  it("DRAFT Preview shows the Note financial snapshot (RM12m)", async () => {
     const result = await renderPreview("DRAFT");
     const page2 = result.html.page2;
     const page3 = result.html.page3;
@@ -444,7 +450,7 @@ describe("approved Preview financial freeze (Page 2/3)", () => {
     expect(page2).toContain("<td>12</td>");
     expect(page2).toContain("<td>2</td>");
 
-    // Page 3 current assets come from the live application year.
+    // Page 3 current assets come from the snapshot's User Input year.
     // That year is reviewed User Input, so CTOS-only total liabilities are not mixed in.
     expect(page3).toContain("<td>6</td>");
     expect(page3).toContain("Source: Management Accounts");

@@ -5,8 +5,8 @@ import {
   FINANCIAL_STATEMENT_SOURCE_FOOTER,
   selectLatestNormalizedFinancialStatementYears,
 } from "@cashsouk/types";
+import { buildProspectusFinancialComparisonSourceFromInputs } from "./prospectus-financial-comparison-test-helpers";
 import {
-  buildProspectusFinancialComparisonSource,
   formatProspectusFinancialYearEndLabel,
   formatProspectusFinancialYearLabel,
   selectProspectusFinancialComparisonYears,
@@ -29,7 +29,7 @@ function ctosRow(year: number, turnover: number) {
 
 describe("prospectus Page 2 Financial Comparison Source (DATA STAGE 4A)", () => {
   it("uses static section heading with MYR mil.", () => {
-    const data = buildProspectusFinancialComparisonSource(
+    const data = buildProspectusFinancialComparisonSourceFromInputs(
       SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_INPUT
     );
     expect(data.sectionHeading).toBe("3-YEAR FINANCIAL COMPARISON (MYR mil.)");
@@ -38,7 +38,7 @@ describe("prospectus Page 2 Financial Comparison Source (DATA STAGE 4A)", () => 
   });
 
   it("uses the same normalized Admin Financial Statements year set", () => {
-    const data = buildProspectusFinancialComparisonSource(
+    const data = buildProspectusFinancialComparisonSourceFromInputs(
       SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_INPUT
     );
     expect(data.audit.source.selectedSource).toBe("admin_financial_statements_normalized");
@@ -59,7 +59,7 @@ describe("prospectus Page 2 Financial Comparison Source (DATA STAGE 4A)", () => 
   });
 
   it("uses reviewed User Input precedence when the same FY appears in unaudited", () => {
-    const data = buildProspectusFinancialComparisonSource({
+    const data = buildProspectusFinancialComparisonSourceFromInputs({
       financialStatements: {
         questionnaire: { financial_year_end: "2025-12-31" },
         unaudited_by_year: {
@@ -76,7 +76,7 @@ describe("prospectus Page 2 Financial Comparison Source (DATA STAGE 4A)", () => 
   });
 
   it("fills a missing CTOS raw field from admin_field_overrides and ignores a CTOS overwrite", () => {
-    const data = buildProspectusFinancialComparisonSource({
+    const data = buildProspectusFinancialComparisonSourceFromInputs({
       financialStatements: {
         questionnaire: { financial_year_end: "2024-12-31" },
         unaudited_by_year: {},
@@ -126,7 +126,7 @@ describe("prospectus Page 2 Financial Comparison Source (DATA STAGE 4A)", () => 
       },
     });
 
-    const data = buildProspectusFinancialComparisonSource({
+    const data = buildProspectusFinancialComparisonSourceFromInputs({
       financialStatements: {
         questionnaire: { financial_year_end: "2027-12-31" },
         unaudited_by_year: {
@@ -151,7 +151,7 @@ describe("prospectus Page 2 Financial Comparison Source (DATA STAGE 4A)", () => 
   });
 
   it("does not overlay issuer unaudited values into Admin-input-backed FYs", () => {
-    const data = buildProspectusFinancialComparisonSource({
+    const data = buildProspectusFinancialComparisonSourceFromInputs({
       financialStatements: {
         questionnaire: { financial_year_end: "2026-12-31" },
         unaudited_by_year: {
@@ -227,7 +227,7 @@ describe("prospectus Page 2 Financial Comparison Source (DATA STAGE 4A)", () => 
   });
 
   it("supports one-year and two-year cases", () => {
-    const one = buildProspectusFinancialComparisonSource({
+    const one = buildProspectusFinancialComparisonSourceFromInputs({
       financialStatements: {
         questionnaire: { financial_year_end: "2025-12-31" },
         unaudited_by_year: { "2025": { turnover: 1, pldd: "2025-12-31" } },
@@ -237,7 +237,7 @@ describe("prospectus Page 2 Financial Comparison Source (DATA STAGE 4A)", () => 
     });
     expect(one.years.map((y) => y.year)).toEqual([2025]);
 
-    const two = buildProspectusFinancialComparisonSource({
+    const two = buildProspectusFinancialComparisonSourceFromInputs({
       financialStatements: {
         questionnaire: { financial_year_end: "2025-12-31" },
         unaudited_by_year: {
@@ -252,7 +252,7 @@ describe("prospectus Page 2 Financial Comparison Source (DATA STAGE 4A)", () => 
   });
 
   it("skips missing SSM year, keeps latest three with data, and sets Ops warning", () => {
-    const data = buildProspectusFinancialComparisonSource({
+    const data = buildProspectusFinancialComparisonSourceFromInputs({
       financialStatements: {
         questionnaire: { financial_year_end: "2026-12-31" },
         unaudited_by_year: {
@@ -276,7 +276,7 @@ describe("prospectus Page 2 Financial Comparison Source (DATA STAGE 4A)", () => 
   });
 
   it("builds accurate source footers", () => {
-    const audited = buildProspectusFinancialComparisonSource({
+    const audited = buildProspectusFinancialComparisonSourceFromInputs({
       ref: new Date(),
       financialStatements: {
         questionnaire: { financial_year_end: "2027-12-31" },
@@ -286,7 +286,7 @@ describe("prospectus Page 2 Financial Comparison Source (DATA STAGE 4A)", () => 
     });
     expect(audited.sourceFooter).toBe(FINANCIAL_STATEMENT_SOURCE_FOOTER.audited);
 
-    const management = buildProspectusFinancialComparisonSource({
+    const management = buildProspectusFinancialComparisonSourceFromInputs({
       financialStatements: {
         questionnaire: { financial_year_end: "2025-12-31" },
         unaudited_by_year: {
@@ -299,7 +299,7 @@ describe("prospectus Page 2 Financial Comparison Source (DATA STAGE 4A)", () => 
     });
     expect(management.sourceFooter).toBe(FINANCIAL_STATEMENT_SOURCE_FOOTER.management);
 
-    const mixed = buildProspectusFinancialComparisonSource({
+    const mixed = buildProspectusFinancialComparisonSourceFromInputs({
       financialStatements: {
         questionnaire: { financial_year_end: "2025-12-31" },
         unaudited_by_year: {
@@ -311,7 +311,7 @@ describe("prospectus Page 2 Financial Comparison Source (DATA STAGE 4A)", () => 
     });
     expect(mixed.sourceFooter).toBe(FINANCIAL_STATEMENT_SOURCE_FOOTER.mixed);
 
-    const empty = buildProspectusFinancialComparisonSource({
+    const empty = buildProspectusFinancialComparisonSourceFromInputs({
       ref: new Date(),
       financialStatements: {
         questionnaire: { financial_year_end: "2027-12-31" },
@@ -322,7 +322,7 @@ describe("prospectus Page 2 Financial Comparison Source (DATA STAGE 4A)", () => 
     expect(empty.sourceFooter).toBe(FINANCIAL_STATEMENT_SOURCE_FOOTER.neutral);
   });
 
-  it("documents field sources for the shared resolver", () => {
+  it("documents field sources and reads years selected by the Financial Review result", () => {
     expect(PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_FIELD_SOURCES.years.canonicalSource).toBe(
       "admin_financial_statements_normalized"
     );
@@ -330,13 +330,15 @@ describe("prospectus Page 2 Financial Comparison Source (DATA STAGE 4A)", () => 
       join(__dirname, "prospectus-financial-comparison-source.ts"),
       "utf8"
     );
-    expect(moduleSource).toContain("buildNormalizedFinancialStatementYearSet");
-    expect(moduleSource).toContain("selectLatestNormalizedFinancialStatementYears");
+    // Year selection belongs to the Financial Review result; the source only keeps `selected` years.
+    expect(moduleSource).not.toContain("buildNormalizedFinancialStatementYearSet");
+    expect(moduleSource).not.toContain("selectLatestNormalizedFinancialStatementYears");
+    expect(moduleSource).toContain("year.selected");
   });
 
   it("renders a source preview document", () => {
     const html = buildProspectusFinancialComparisonSourceDocument(
-      buildProspectusFinancialComparisonSource(SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_INPUT)
+      buildProspectusFinancialComparisonSourceFromInputs(SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_INPUT)
     );
     expect(html).toContain("FY2022");
     expect(html).toContain("FY2024");

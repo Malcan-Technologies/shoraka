@@ -1,15 +1,17 @@
 /**
  * SECTION: Complete Page 2 financial freeze (version 2)
- * WHY: An approved Prospectus must render from its freeze exactly as it rendered from live data.
- * Every raw key, the statement type and the missing-year state are frozen; trends are
- * recomputed from the frozen raw values by the same deterministic builders. Legacy freezes
- * (no freeze_version) must keep rendering as they always have.
+ * WHY: An approved Prospectus must render from its freeze exactly as the preview rendered from the
+ * Note financial snapshot. The selected years' raw values, stored calculated values, statement
+ * type and missing-year state are frozen; trends are derived from the frozen values by the same
+ * deterministic builders. Legacy freezes (no freeze_version) must keep rendering as they always have.
  */
 
-import { canonicalizeJsonNumbers } from "../prospectus-review/prospectus-approved-snapshot";
+import { FINANCIAL_REVIEW_CALCULATED_KEYS, type ApprovedFinancialResult } from "@cashsouk/types";
+import { canonicalizeJsonNumbers } from "../../../lib/canonical-json-numbers";
 import { parseProspectusFinancialNumber } from "./prospectus-financial-comparison-metrics";
 import * as sourceModule from "./prospectus-financial-comparison-source";
-import { buildProspectusFinancialComparisonSource } from "./prospectus-financial-comparison-source";
+import { buildProspectusFinancialComparisonSourceFromResult } from "./prospectus-financial-comparison-source";
+import { approvedFinancialResultFromInputs } from "./prospectus-financial-comparison-test-helpers";
 import { parseProspectusPageTwoFinancialComparison } from "./prospectus-json-guards";
 import { buildProspectusPageThree, type ProspectusPageThreeBuilderInput } from "./prospectus-page-three-mapper";
 import { buildProspectusPageThreeHtml } from "./prospectus-page-three.html";
@@ -138,13 +140,16 @@ const NOTE = {
   paymasterSnapshot: { name: "Paymaster Sdn Bhd", entity_type: "Corporate" },
 };
 
+function approvedResult(inputs: FinancialInputs): ApprovedFinancialResult {
+  return approvedFinancialResultFromInputs({ ...inputs, ref: REF });
+}
+
+/** Unpublished preview: the Note financial snapshot's approved result. */
 function livePages(inputs: FinancialInputs) {
   const input: ProspectusPageThreeBuilderInput = {
     ...NOTE,
     financialMode: "live_unpublished_preview",
-    liveFinancialStatements: inputs.financialStatements,
-    liveCtosFinancials: inputs.ctosFinancials,
-    financialReferenceDate: REF,
+    approvedFinancialResult: approvedResult(inputs),
     frozenFinancialComparison: null,
   };
   return pagesFor(input);
@@ -154,9 +159,7 @@ function frozenPages(frozen: ProspectusPage2FinancialComparisonSnapshot) {
   return pagesFor({
     ...NOTE,
     financialMode: "frozen_publication_snapshot",
-    liveFinancialStatements: null,
-    liveCtosFinancials: null,
-    financialReferenceDate: null,
+    approvedFinancialResult: null,
     frozenFinancialComparison: frozen,
   });
 }
@@ -179,7 +182,7 @@ function pagesFor(input: ProspectusPageThreeBuilderInput) {
 /** Freeze as approve stores it: canonical numbers, then a JSON round trip, then the strict parser. */
 function storedFreeze(inputs: FinancialInputs): ProspectusPage2FinancialComparisonSnapshot {
   const page2 = canonicalizeJsonNumbers(
-    buildProspectusPage2Snapshot({ ...inputs, referenceDate: REF, now: REF })
+    buildProspectusPage2Snapshot({ approvedFinancialResult: approvedResult(inputs), now: REF })
   );
   const stored = JSON.parse(JSON.stringify(page2)) as { financial_comparison: unknown };
   const parsed = parseProspectusPageTwoFinancialComparison(stored.financial_comparison);
@@ -188,8 +191,9 @@ function storedFreeze(inputs: FinancialInputs): ProspectusPage2FinancialComparis
 }
 
 const OMIT_KEYS = new Set([
-  // Raw inputs are compared separately (canonical numbers, serialized values).
+  // Raw and calculated values are compared separately (canonical numbers, serialized values).
   "rawFinancials",
+  "calculatedValues",
   // Live-only Admin editing affordance; not part of the approved result.
   "adminFallbackEligible",
   "adminFallbackEligibleYears",
@@ -209,7 +213,7 @@ function comparable(value: unknown): unknown {
   return value;
 }
 
-/** What a live raw value becomes in the stored freeze (serialize, then canonical numbers). */
+/** What a preview raw value becomes in the stored freeze (serialize, then canonical numbers). */
 function expectedFrozenScalar(value: unknown): string | number | null {
   if (typeof value === "number") {
     if (!Number.isFinite(value)) return null;
@@ -221,7 +225,7 @@ function expectedFrozenScalar(value: unknown): string | number | null {
 
 describe("complete Page 2 financial freeze (version 2)", () => {
   describe.each(Object.entries(FIXTURES))("%s", (_name, inputs) => {
-    it("renders Page 2 and Page 3 from the stored freeze exactly as from the live source", () => {
+    it("renders Page 2 and Page 3 from the stored freeze exactly as the snapshot preview", () => {
       const live = livePages(inputs);
       const frozen = frozenPages(storedFreeze(inputs));
 
@@ -231,10 +235,11 @@ describe("complete Page 2 financial freeze (version 2)", () => {
       expect(comparable(frozen.page3)).toEqual(comparable(live.page3));
     });
 
-    it("carries every raw key of every resolved year, the statement type and missing-year state", () => {
-      const source = buildProspectusFinancialComparisonSource({ ...inputs, ref: REF });
+    it("carries every raw key and every calculated value of each selected year, the statement type and missing-year state", () => {
+      const source = buildProspectusFinancialComparisonSourceFromResult(approvedResult(inputs));
       const freeze = storedFreeze(inputs);
 
+      expect(source.years.length).toBeGreaterThan(0);
       expect(freeze.freeze_version).toBe(2);
       expect(freeze.reference_date).toBe(REF.toISOString());
       expect(freeze.missing_ssm_unaudited_years).toEqual(source.missingSsmUnauditedYears);
@@ -252,6 +257,10 @@ describe("complete Page 2 financial freeze (version 2)", () => {
         for (const [key, value] of Object.entries(liveYear.rawFinancials)) {
           expect([key, frozenYear.raw_financials[key]]).toEqual([key, expectedFrozenScalar(value)]);
         }
+        expect(Object.keys(frozenYear.calculated_values ?? {})).toEqual([
+          ...FINANCIAL_REVIEW_CALCULATED_KEYS,
+        ]);
+        expect(frozenYear.calculated_values).toEqual(canonicalizeJsonNumbers(liveYear.calculatedValues));
       });
 
       const rebuilt = buildFinancialComparisonSourceFromFrozen(freeze);
@@ -330,7 +339,7 @@ describe("complete Page 2 financial freeze (version 2)", () => {
     }
   });
 
-  it("recomputes trends from frozen raw values (not stored separately)", () => {
+  it("derives trends from the frozen values (trends are not stored separately)", () => {
     const inputs = FIXTURES["User Input year after CTOS years"]!;
     const freeze = storedFreeze(inputs);
     expect(JSON.stringify(freeze)).not.toMatch(/trend/i);
@@ -348,7 +357,7 @@ describe("complete Page 2 financial freeze (version 2)", () => {
     const freeze = storedFreeze(inputs);
     const atApproval = frozenPages(freeze);
 
-    const resolverSpy = jest.spyOn(sourceModule, "buildProspectusFinancialComparisonSource");
+    const resolverSpy = jest.spyOn(sourceModule, "buildProspectusFinancialComparisonSourceFromResult");
     jest.useFakeTimers({ now: new Date("2031-06-30T00:00:00.000Z") });
     try {
       const later = frozenPages(freeze);
@@ -366,7 +375,7 @@ describe("complete Page 2 financial freeze (version 2)", () => {
   });
 });
 
-/** The pre-version-2 shape of a freeze: 18 raw keys, no statement type, no missing-year state. */
+/** The pre-version-2 shape of a freeze: 18 raw keys, no statement type, calculated values or missing-year state. */
 function legacyFreezeOf(
   freeze: ProspectusPage2FinancialComparisonSnapshot
 ): ProspectusPage2FinancialComparisonSnapshot {
@@ -378,7 +387,7 @@ function legacyFreezeOf(
   delete raw.missing_ssm_unaudited_years;
   delete raw.ops_warning;
   raw.selected_years = raw.selected_years.map((year) => {
-    const { statement_type: _statementType, ...rest } = year;
+    const { statement_type: _statementType, calculated_values: _calculated, ...rest } = year;
     return {
       ...rest,
       raw_financials: Object.fromEntries(
@@ -471,10 +480,31 @@ describe("legacy freeze (no freeze_version)", () => {
     expect(source.sourceFooter).toBe("Source: Management Accounts");
 
     const pages = frozenPages(parsed);
-    const revenue = pages.page2.financialComparisonMetrics.rows.find((row) => row.key === "revenue");
-    expect(revenue?.values.at(-1)).toBe("10");
-    const ebit = pages.page3.incomeStatement.rows.find((row) => row.key === "ebit");
-    expect(ebit?.values.at(-1)).toBe(DNA);
+    const latest = (rows: Array<{ key: string; values: string[] }>, key: string) =>
+      rows.find((row) => row.key === key)?.values.at(-1);
+    const page2 = pages.page2.financialComparisonMetrics.rows;
+    const { incomeStatement, balanceSheet, coverageEfficiency } = pages.page3;
+    // What legacy freezes always displayed from their 18 raw keys.
+    expect(latest(page2, "revenue")).toBe("10");
+    expect(latest(page2, "netProfitMargin")).toBe("9%");
+    expect(latest(page2, "roe")).toBe("18%");
+    expect(latest(page2, "currentRatio")).toBe("2x");
+    expect(latest(incomeStatement.rows, "net_profit_margin")).toBe("9%");
+    expect(latest(balanceSheet.rows, "total_assets")).toBe("9");
+    expect(latest(balanceSheet.rows, "total_liabilities")).toBe("4");
+    expect(latest(balanceSheet.rows, "total_equity")).toBe("5");
+    expect(latest(balanceSheet.rows, "current_ratio")).toBe("2x");
+    expect(latest(coverageEfficiency.rows, "debt_equity")).toBe("0.8x");
+    expect(latest(coverageEfficiency.rows, "return_on_assets")).toBe("10%");
+    expect(latest(coverageEfficiency.rows, "asset_turnover")).toBe("1.11x");
+    expect(latest(coverageEfficiency.rows, "return_on_equity")).toBe("18%");
+    // Keys legacy freezes never carried stay unavailable.
+    for (const key of ["netDebtEquity", "interestCoverage", "dscr", "receivablesDays"]) {
+      expect([key, latest(page2, key)]).toEqual([key, DNA]);
+    }
+    expect(latest(incomeStatement.rows, "ebit")).toBe(DNA);
+    expect(latest(balanceSheet.rows, "quick_ratio")).toBe(DNA);
+    expect(latest(coverageEfficiency.rows, "payables_days")).toBe(DNA);
   });
 
   it("treats an unknown freeze_version as a legacy freeze (accepted as before)", () => {
@@ -488,7 +518,21 @@ describe("legacy freeze (no freeze_version)", () => {
   });
 });
 
+function allNull(): Record<string, number | null> {
+  return Object.fromEntries(FINANCIAL_REVIEW_CALCULATED_KEYS.map((key) => [key, null]));
+}
+
+function omitKey(key: string): Record<string, number | null> {
+  const values = allNull();
+  delete values[key];
+  return values;
+}
+
 describe("Page 2 financial_comparison parser", () => {
+  const withCalculated = (calculated: unknown) => ({
+    ...v2,
+    selected_years: [{ ...v2.selected_years[0], calculated_values: calculated }],
+  });
   const v2 = {
     source: "admin_financial_statements_normalized",
     freeze_version: 2,
@@ -502,6 +546,11 @@ describe("Page 2 financial_comparison parser", () => {
         record_source: "admin_input",
         statement_type: "AUDITED",
         raw_financials: { turnover: 1, ebit: 2, cashAndBank: "3", pldd: "2025-12-31", odd: true },
+        calculated_values: {
+          ...Object.fromEntries(FINANCIAL_REVIEW_CALCULATED_KEYS.map((key) => [key, null])),
+          profit_margin: 12.5,
+          totass: 0,
+        },
       },
     ],
     source_footer: "Source: Audited Financial Statements",
@@ -510,7 +559,7 @@ describe("Page 2 financial_comparison parser", () => {
     ops_warning: "warning",
   };
 
-  it("accepts a version-2 freeze and keeps every raw key", () => {
+  it("accepts a version-2 freeze and keeps every raw key and calculated value", () => {
     const parsed = parseProspectusPageTwoFinancialComparison(v2);
     expect(parsed?.freeze_version).toBe(2);
     expect(parsed?.reference_date).toBe("2026-08-01T00:00:00.000Z");
@@ -525,6 +574,11 @@ describe("Page 2 financial_comparison parser", () => {
       pldd: "2025-12-31",
       odd: null,
       gear: null,
+    });
+    expect(year.calculated_values).toEqual({
+      ...Object.fromEntries(FINANCIAL_REVIEW_CALCULATED_KEYS.map((key) => [key, null])),
+      profit_margin: 12.5,
+      totass: 0,
     });
   });
 
@@ -548,6 +602,11 @@ describe("Page 2 financial_comparison parser", () => {
     ["raw_financials not an object", { ...v2, selected_years: [{ ...v2.selected_years[0], raw_financials: [] }] }],
     ["version 2 without missing-year state", { ...v2, missing_ssm_unaudited_years: undefined }],
     ["version 2 with non-integer missing years", { ...v2, missing_ssm_unaudited_years: ["2026"] }],
+    ["version 2 year without calculated values", withCalculated(undefined)],
+    ["version 2 year with calculated values not an object", withCalculated([])],
+    ["version 2 year missing a calculated key", withCalculated(omitKey("dscr"))],
+    ["version 2 year with a string calculated value", withCalculated({ ...allNull(), roa: "1.5" })],
+    ["version 2 year with a non-finite calculated value", withCalculated({ ...allNull(), gear: Number.NaN })],
   ])("rejects %s", (_label, value) => {
     expect(parseProspectusPageTwoFinancialComparison(value)).toBeNull();
   });

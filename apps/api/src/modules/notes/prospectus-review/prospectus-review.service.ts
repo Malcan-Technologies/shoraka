@@ -1,6 +1,8 @@
 /**
  * SECTION: Prospectus Review service (Draft → Approved → Published)
- * WHY: Direct approve, change-based invalidation, complete freeze at approve, copy-only publish
+ * WHY: Direct approve, change-based invalidation, complete freeze at approve, copy-only publish.
+ * Financial figures come only from the Note financial snapshot (the approved Financial Review
+ * result copied at Note creation) or, once approved, from the frozen page_2.
  */
 
 import { createHash, randomBytes } from "node:crypto";
@@ -52,6 +54,7 @@ import {
   mapProspectusPageTwoDataToInput,
 } from "../prospectus/prospectus-page-two-mapper";
 import { loadProspectusPageTwoData } from "../prospectus/prospectus-page-two-prisma";
+import { readProspectusNoteFinancialSnapshot } from "../prospectus/prospectus-note-financial-inputs";
 import { buildProspectusPageThreeHtml } from "../prospectus/prospectus-page-three.html";
 import { buildProspectusPageFourHtml, buildProspectusPageFiveHtml } from "../prospectus/prospectus-marc-appendix.html";
 import {
@@ -498,7 +501,8 @@ async function renderApprovedSnapshotHtml(
 
 /**
  * GET view-models. An approved version-2 freeze on an unpublished Note renders from the approved
- * snapshot (no financial read, no source / year selection). Anything else keeps the live path.
+ * snapshot (no financial read). Anything else renders from the Note financial snapshot
+ * (unpublished) or the Note's frozen Prospectus snapshot (published).
  */
 async function buildReviewReadPages(input: {
   noteId: string;
@@ -538,7 +542,7 @@ async function buildLivePreviewPageOne(
   return buildProspectusPageOne(page1Input);
 }
 
-/** Legacy approved freeze (no freeze_version) replaces live financials on an unpublished Note. */
+/** Legacy approved freeze (no freeze_version) replaces the Note-snapshot financials on an unpublished Note. */
 function applyLegacyFrozenFinancialComparison(
   input: {
     financialMode: ProspectusPageTwoFinancialMode;
@@ -554,7 +558,7 @@ function applyLegacyFrozenFinancialComparison(
     legacyFrozenFinancialComparison as ProspectusPage2FinancialComparisonSnapshot;
 }
 
-/** Draft / legacy-approved preview Page 2 / 3 (unchanged path). */
+/** Draft / legacy-approved preview Page 2 / 3 from the Note financial snapshot (or legacy freeze). */
 async function buildPreviewFinancialPages(
   noteId: string,
   publication: ReturnType<typeof toProspectusPublicationContent>,
@@ -678,10 +682,13 @@ export class ProspectusReviewService {
         contract_snapshot: true,
         profit_rate_percent: true,
         maturity_date: true,
+        financial_snapshot: true,
         listing: { select: { opens_at: true } },
       },
     });
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+    // An unpublished Note without a financial snapshot cannot render; fail before any write.
+    if (!isNoteListed(note)) readProspectusNoteFinancialSnapshot(note);
 
     const recommendationInput = recommendationInputFromNote(note);
     const aboutInvoiceInput = aboutInvoiceRecommendationInputFromNote(note);
@@ -986,6 +993,7 @@ export class ProspectusReviewService {
         issuer_organization_id: true,
         prospectus_snapshot: true,
         source_application_id: true,
+        financial_snapshot: true,
       },
     });
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
@@ -996,6 +1004,8 @@ export class ProspectusReviewService {
         "Published Prospectus cannot be re-approved."
       );
     }
+    // No financial snapshot → nothing to freeze; fail before the optional draft save writes.
+    readProspectusNoteFinancialSnapshot(note);
 
     let current = await prisma.noteProspectusReview.findUnique({ where: { note_id: noteId } });
     if (!current) throw new AppError(404, "PROSPECTUS_REVIEW_NOT_FOUND", "Prospectus review not found");
@@ -1348,7 +1358,7 @@ export class ProspectusReviewService {
       /**
        * Only set for APPROVED/READY_FOR_PUBLISH preview. Page 1 uses its frozen track record
        * (publish-time parity); Page 2/3 use its frozen financial comparison (Stage 4A).
-       * Absent → draft/live preview (Note-derived live track record and financials).
+       * Absent → draft preview (live track record; financials from the Note financial snapshot).
        */
       approvedSnapshot?: ProspectusApprovedSnapshot | null;
       noteListed?: boolean;

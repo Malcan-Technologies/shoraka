@@ -121,9 +121,7 @@ export const SAMPLE_PROSPECTUS_PAGE_TWO_INPUT: ProspectusPageTwoBuilderInput = {
     entity_type: "GOVERNMENT_LINKED",
   },
   maturityDate: new Date("2026-12-31T00:00:00.000Z"),
-  liveFinancialStatements: null,
-  liveCtosFinancials: null,
-  financialReferenceDate: null,
+  approvedFinancialResult: null,
   frozenFinancialComparison: SAMPLE_FROZEN_FINANCIALS,
   publicationContent: PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT,
 };

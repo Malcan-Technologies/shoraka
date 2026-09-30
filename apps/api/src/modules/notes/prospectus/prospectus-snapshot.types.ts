@@ -3,6 +3,8 @@
  * WHY: Published prospectuses must not drift with live statuses/payments/window
  */
 
+import type { FinancialReviewCalculatedValues } from "@cashsouk/types";
+
 export type ProspectusHistoricalNoteStatus =
   | "ACTIVE"
   | "REPAID"
@@ -38,12 +40,12 @@ export interface ProspectusPage1Snapshot {
 }
 
 /**
- * Shared Page 2 + Page 3 frozen Application unaudited fields — not formatted display strings.
+ * Shared Page 2 + Page 3 frozen raw financial fields — not formatted display strings.
  * Original five keys remain; extended keys support Page 3 PBT / totals / liabilities.
- * Flat totass/totlib preserve Application CTOS total preference after approval freeze.
- * Old published snapshots may omit extended keys (parser fills null).
- * A version-2 freeze also carries every other key of the resolved year (derived metrics,
- * issuer overlay fields), so Page 2 / Page 3 render from the freeze exactly as from live data.
+ * Old published snapshots may omit extended keys (parser fills null); their flat totals and
+ * ratios are what they displayed (see prospectus-legacy-frozen-financials).
+ * A version-2 freeze carries every effective raw value of the selected year (issuer overlay
+ * fields included); its metrics come from `calculated_values`, never from these keys.
  */
 export interface ProspectusPage2FinancialRawSnapshot {
   [key: string]: string | number | null;
@@ -93,7 +95,7 @@ export interface ProspectusPage2FinancialRawSnapshot {
   gear: string | number | null;
 }
 
-/** Marks a complete freeze: every raw key, statement type and missing-year state. */
+/** Marks a complete freeze: every raw key, stored calculated values, statement type and missing-year state. */
 export const PROSPECTUS_PAGE2_FINANCIAL_FREEZE_VERSION = 2 as const;
 
 export type ProspectusPage2FinancialStatementType =
@@ -112,6 +114,11 @@ export interface ProspectusPage2FinancialYearSnapshot {
   /** Resolved statement type. Version-2 freezes only; old freezes derive it from record_source. */
   statement_type?: ProspectusPage2FinancialStatementType | null;
   raw_financials: ProspectusPage2FinancialRawSnapshot;
+  /**
+   * Calculated metrics stored with the approved Financial Review result (all 18 keys).
+   * Required on version-2 freezes; absent on older freezes.
+   */
+  calculated_values?: FinancialReviewCalculatedValues;
 }
 
 export interface ProspectusPage2FinancialComparisonSnapshot {

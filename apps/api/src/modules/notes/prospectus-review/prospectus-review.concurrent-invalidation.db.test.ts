@@ -3,8 +3,11 @@
  * WHY: The admin UI fires two GETs at once. When both load the approved row and both see a
  * fingerprint mismatch, only one may invalidate: one status change, content_version + 1 and one
  * audit pair. The other must leave the row alone and answer with the row as it now is.
+ * Financial sources cannot drift any more (the Prospectus reads the Note financial snapshot), so
+ * the genuine change here is a Note identity field (the title) that the fingerprint covers.
  */
 
+import { randomBytes } from "node:crypto";
 import { ProspectusReviewStatus } from "@prisma/client";
 import {
   buildProspectusDemoCtosFinancials,
@@ -30,30 +33,11 @@ const INVALIDATED_EDIT = "PROSPECTUS_APPROVAL_INVALIDATED_EDIT";
 const CONCURRENT_ROUNDS = 5;
 const DB_TEST_TIMEOUT_MS = 120_000;
 
-type FinancialStatements = {
-  unaudited_by_year: Record<string, Record<string, unknown>>;
-};
-
-/** Genuine source change: raise the newest unaudited year's turnover in the live application. */
-async function changeSourceTurnover(graph: IsolatedProspectusNoteGraph): Promise<void> {
-  const application = await prisma.application.findUniqueOrThrow({
-    where: { id: graph.applicationId },
-    select: { financial_statements: true },
-  });
-  const statements = application.financial_statements as FinancialStatements;
-  const newestYear = Object.keys(statements.unaudited_by_year).sort().at(-1)!;
-  const block = statements.unaudited_by_year[newestYear]!;
-  await prisma.application.update({
-    where: { id: graph.applicationId },
-    data: {
-      financial_statements: {
-        ...statements,
-        unaudited_by_year: {
-          ...statements.unaudited_by_year,
-          [newestYear]: { ...block, turnover: Number(block.turnover) + 1_000 },
-        },
-      },
-    },
+/** Genuine source change: a Note identity field the render fingerprint covers. */
+async function changeNoteIdentity(graph: IsolatedProspectusNoteGraph): Promise<void> {
+  await prisma.note.update({
+    where: { id: graph.noteId },
+    data: { title: `Prospectus DB Test — ${graph.noteReference} — ${randomBytes(4).toString("hex")}` },
   });
 }
 
@@ -61,7 +45,7 @@ describe("prospectus GET source-drift invalidation under concurrency (local DB)"
   const graphs: IsolatedProspectusNoteGraph[] = [];
   let actor: ProspectusTestActor;
 
-  /** Live-sourced graph (no Note financial snapshot) approved to READY_FOR_PUBLISH. */
+  /** Snapshot-backed graph approved to READY_FOR_PUBLISH. */
   async function seedAndApprove(label: string): Promise<IsolatedProspectusNoteGraph> {
     const graph = await seedIsolatedProspectusNote({
       label,
@@ -87,7 +71,7 @@ describe("prospectus GET source-drift invalidation under concurrency (local DB)"
   });
 
   it(
-    "invalidates exactly once when two GETs race after a genuine source change",
+    "G24: invalidates exactly once when two GETs race after a genuine source change",
     async () => {
       const graph = await seedAndApprove("concurrent_get");
 
@@ -99,7 +83,7 @@ describe("prospectus GET source-drift invalidation under concurrency (local DB)"
         const approvedRow = await readProspectusReviewRow(graph);
         expect(approvedRow.status).toBe(ProspectusReviewStatus.READY_FOR_PUBLISH);
 
-        await changeSourceTurnover(graph);
+        await changeNoteIdentity(graph);
         const [first, second] = await Promise.all([
           prospectusReviewService.getOrCreateReview(graph.noteId, actor),
           prospectusReviewService.getOrCreateReview(graph.noteId, actor),
@@ -136,7 +120,7 @@ describe("prospectus GET source-drift invalidation under concurrency (local DB)"
       const graph = await seedAndApprove("sequential_get");
       const approvedRow = await readProspectusReviewRow(graph);
 
-      await changeSourceTurnover(graph);
+      await changeNoteIdentity(graph);
       const first = await prospectusReviewService.getOrCreateReview(graph.noteId, actor);
       const second = await prospectusReviewService.getOrCreateReview(graph.noteId, actor);
 
@@ -161,7 +145,7 @@ describe("prospectus GET source-drift invalidation under concurrency (local DB)"
       const graph = await seedAndApprove("single_get");
       const approvedRow = await readProspectusReviewRow(graph);
 
-      await changeSourceTurnover(graph);
+      await changeNoteIdentity(graph);
       const get = await prospectusReviewService.getOrCreateReview(graph.noteId, actor);
 
       const afterRow = await readProspectusReviewRow(graph);

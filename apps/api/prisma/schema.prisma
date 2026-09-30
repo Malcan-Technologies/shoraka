@@ -922,6 +922,7 @@ model ApplicationReview {
   created_at       DateTime         @default(now())
   updated_at       DateTime         @updatedAt
   section          ReviewSection
+  approved_snapshot Json?
   application      Application      @relation(fields: [application_id], references: [id], onDelete: Cascade)
 
   @@unique([application_id, section])

@@ -3,14 +3,20 @@
  * WHY: Each test gets its own Note graph (unique ids per call) so Jest workers and the shared
  * demo seed (`seed_prospectus_demo_note_001`) never race; cleanup removes exactly that graph.
  *
+ * The Note is snapshot-backed by construction: Financial is approved through the real
+ * `approveFinancialReviewWithResult`, and its result is copied onto `notes.financial_snapshot` with
+ * the real `buildNoteFinancialSnapshot`, exactly as Note creation does.
+ *
  * API:
- *   seedIsolatedProspectusNote({ label, financialStatements, ctosFinancials }) → graph
+ *   seedIsolatedProspectusNote({ label, financialStatements, ctosFinancials, withFinancialSnapshot? })
+ *     → graph (withFinancialSnapshot: false leaves notes.financial_snapshot NULL)
+ *   approveFinancialAndSnapshotNote(graph) → approve Financial, copy the result onto the Note
+ *   insertNewerOrganizationCtosReport(graph, financials) → a later CTOS pull for the issuer org
  *   getProspectusTestActor() → admin ActorContext for service calls
  *   makeProspectusDraftApprovable(graph, actor) → lazy-creates the review and saves a complete draft
  *   approveProspectus(graph, actor) → prospectusReviewService.approve
  *   readProspectusReviewRow(graph) → note_prospectus_reviews row as stored
  *   countProspectusAuditEntries(graph, actionType) → admin-action + note-event counts
- *   writeProspectusNoteFinancialSnapshot(graph) → makes the Note snapshot-backed (no live read)
  *   cleanupIsolatedProspectusNote(graph) → deletes every row the graph created
  */
 
@@ -27,8 +33,9 @@ import {
   UserRole,
 } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
+import { approveFinancialReviewWithResult } from "../../admin/financial-approved-result";
 import {
-  NOTE_FINANCIAL_SNAPSHOT_VERSION,
+  buildNoteFinancialSnapshot,
   type NoteFinancialSnapshot,
 } from "../note-financial-snapshot.types";
 import { buildCompleteProspectusReviewDraft } from "./prospectus-review.demo-fixtures";
@@ -107,7 +114,8 @@ export async function getProspectusTestActor(): Promise<ProspectusTestActor> {
 
 /**
  * Create a DRAFT Note graph with its own issuer org, MARC assessment, application, CTOS report
- * and listing.
+ * and listing, then approve Financial and copy its result onto the Note (unless
+ * `withFinancialSnapshot` is false, for the missing-snapshot tests).
  * Financial inputs are passed in so callers choose the fixture (e.g. the demo seed builders).
  * The org owner is the local admin user (no user rows are written).
  */
@@ -115,6 +123,7 @@ export async function seedIsolatedProspectusNote(input: {
   label: string;
   financialStatements: Record<string, unknown>;
   ctosFinancials: unknown[];
+  withFinancialSnapshot?: boolean;
 }): Promise<IsolatedProspectusNoteGraph> {
   if (process.env.NODE_ENV === "production") {
     throw new Error("Prospectus DB test support is blocked in production");
@@ -122,6 +131,9 @@ export async function seedIsolatedProspectusNote(input: {
   const graph = graphIds(input.label);
   try {
     await insertIsolatedGraphRows(graph, input);
+    if (input.withFinancialSnapshot !== false) {
+      await approveFinancialAndSnapshotNote(graph);
+    }
   } catch (error) {
     // A half-created graph must not leak rows into the shared local DB.
     await cleanupIsolatedProspectusNote(graph);
@@ -349,40 +361,21 @@ export async function countProspectusAuditEntries(
 }
 
 /**
- * Copy the graph's application financials and owned CTOS into notes.financial_snapshot, so the
- * Prospectus reads the Note snapshot and never the live application / CTOS rows.
+ * Approve Financial through the real function (application row lock, result written to
+ * application_reviews.approved_snapshot) and copy that result onto the Note the way Note creation
+ * does (captured_at = Note created_at).
  */
-export async function writeProspectusNoteFinancialSnapshot(
+export async function approveFinancialAndSnapshotNote(
   graph: IsolatedProspectusNoteGraph
 ): Promise<NoteFinancialSnapshot> {
-  const [application, ctos] = await Promise.all([
-    prisma.application.findUniqueOrThrow({
-      where: { id: graph.applicationId },
-      select: { financial_statements: true, submitted_at: true },
-    }),
-    prisma.ctosReport.findUniqueOrThrow({
-      where: { id: graph.ctosReportId },
-      select: { fetched_at: true, financials_json: true },
-    }),
-  ]);
-  const submittedAt = (application.submitted_at ?? new Date()).toISOString();
-  const snapshot: NoteFinancialSnapshot = {
-    version: NOTE_FINANCIAL_SNAPSHOT_VERSION,
-    captured_at: new Date().toISOString(),
-    reference_date: submittedAt,
-    financial_statements: application.financial_statements,
-    ctos: {
-      report_id: graph.ctosReportId,
-      fetched_at: ctos.fetched_at.toISOString(),
-      financials: ctos.financials_json,
-    },
-    source: {
-      application_id: graph.applicationId,
-      review_cycle: 1,
-      application_submitted_at: submittedAt,
-      financial_review: { status: "APPROVED", reviewed_at: submittedAt, reviewer_user_id: null },
-    },
-  };
+  const result = await prisma.$transaction((tx) =>
+    approveFinancialReviewWithResult(tx, { applicationId: graph.applicationId, reviewerUserId: null })
+  );
+  const note = await prisma.note.findUniqueOrThrow({
+    where: { id: graph.noteId },
+    select: { created_at: true },
+  });
+  const snapshot = buildNoteFinancialSnapshot(result, note.created_at);
   await prisma.note.update({
     where: { id: graph.noteId },
     data: { financial_snapshot: snapshot as unknown as Prisma.InputJsonValue },
@@ -390,12 +383,44 @@ export async function writeProspectusNoteFinancialSnapshot(
   return snapshot;
 }
 
-/** Delete the graph; Note children (review, publications, audit, listing, schedule) cascade. */
+/** A CTOS pull for the issuer org made after the Note exists (removed by the org-wide cleanup). */
+export async function insertNewerOrganizationCtosReport(
+  graph: IsolatedProspectusNoteGraph,
+  ctosFinancials: unknown[]
+): Promise<string> {
+  const id = `${graph.ctosReportId}_newer_${randomBytes(4).toString("hex")}`;
+  const stub = {} as Prisma.InputJsonValue;
+  await prisma.ctosReport.create({
+    data: {
+      id,
+      issuer_organization_id: graph.organizationId,
+      subject_ref: null,
+      fetched_at: new Date(),
+      financials_json: ctosFinancials as Prisma.InputJsonValue,
+      summary_json: stub,
+      legal_json: stub,
+      ccris_json: stub,
+      company_json: stub,
+      raw_xml: "<dbtest/>",
+    },
+  });
+  return id;
+}
+
+/**
+ * Delete the graph; Note children (review, publications, audit, listing, schedule) cascade.
+ * The Financial approval writes only the application_reviews row (deleted explicitly; it would
+ * also cascade with the application); application_logs have no cascade and are deleted by id.
+ * Every CTOS report of the test org is removed, including later pulls a test inserted.
+ */
 export async function cleanupIsolatedProspectusNote(
   graph: IsolatedProspectusNoteGraph
 ): Promise<void> {
   await prisma.note.deleteMany({ where: { id: graph.noteId } });
-  await prisma.ctosReport.deleteMany({ where: { id: graph.ctosReportId } });
+  await prisma.ctosReport.deleteMany({ where: { issuer_organization_id: graph.organizationId } });
+  await prisma.applicationReview.deleteMany({ where: { application_id: graph.applicationId } });
+  // No FK cascade on application_logs; nothing here writes one today, but never leave one behind.
+  await prisma.applicationLog.deleteMany({ where: { application_id: graph.applicationId } });
   await prisma.issuerOrganizationFinancialStatement.deleteMany({
     where: { issuer_organization_id: graph.organizationId },
   });

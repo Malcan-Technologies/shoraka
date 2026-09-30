@@ -4,19 +4,17 @@
 
 import { NoteStatus, PrismaClient, ProspectusReviewStatus } from "@prisma/client";
 import {
-  buildNormalizedFinancialStatementYearSet,
   getAdminFinancialSummaryUserColumnYears,
   normalizeFinancialStatementsQuestionnaire,
-  selectLatestNormalizedFinancialStatementYears,
 } from "@cashsouk/types";
 import {
   PROSPECTUS_DEMO_NOTE_ID,
   PROSPECTUS_DEMO_NOTE_REFERENCE,
-  PROSPECTUS_DEMO_ORG_ID,
   buildProspectusDemoCtosFinancials,
   buildProspectusDemoFinancialStatements,
   seedProspectusReviewNote,
 } from "../../../../scripts/seed-prospectus-review-note";
+import { parseNoteFinancialSnapshot } from "../note-financial-snapshot.types";
 import { buildCompleteProspectusReviewDraft } from "./prospectus-review.demo-fixtures";
 import { PROSPECTUS_REVIEW_REQUIRED_FROM } from "./prospectus-review.service";
 import { validateApprovalContent } from "./prospectus-review.schemas";
@@ -49,19 +47,10 @@ describe("prospectus review demo seed", () => {
       PROSPECTUS_REVIEW_REQUIRED_FROM.getTime()
     );
 
-    const application = await prisma.application.findUniqueOrThrow({
-      where: { id: note.source_application_id },
-    });
-    const ctos = await prisma.ctosReport.findFirst({
-      where: { issuer_organization_id: PROSPECTUS_DEMO_ORG_ID, subject_ref: null },
-      orderBy: { fetched_at: "desc" },
-      select: { financials_json: true },
-    });
-    const available = buildNormalizedFinancialStatementYearSet({
-      financialStatements: application.financial_statements,
-      ctosFinancials: ctos?.financials_json,
-    });
-    const selected = selectLatestNormalizedFinancialStatementYears(available, 3);
+    // The Prospectus reads the Note financial snapshot (approved Financial Review result) only.
+    const snapshot = parseNoteFinancialSnapshot(note.financial_snapshot);
+    expect(snapshot).not.toBeNull();
+    const selected = snapshot!.approved_financial_result.years.filter((y) => y.selected);
     expect(selected).toHaveLength(3);
     expect(selected.map((y) => y.year)).toEqual(
       [...selected.map((y) => y.year)].sort((a, b) => a - b)

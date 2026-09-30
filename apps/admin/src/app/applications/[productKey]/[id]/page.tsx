@@ -87,7 +87,6 @@ import {
   isCompletedWithNoApprovedInvoices,
   isPaymasterSwitchingFrozen,
   resolveOriginationPhase,
-  resolveEffectiveReviewSectionStatus,
   readInvoiceProductRules,
   readContractProductRules,
   readProductLimitViolationMessage,
@@ -518,14 +517,16 @@ export default function DynamicApplicationDetailPage() {
         orderedSections.push(review.section);
       }
     }
-    const baseSections = orderedSections.map((section) => ({
-      section,
-      status: resolveEffectiveReviewSectionStatus({
-        section,
-        structureType: isExistingContract ? "existing_contract" : null,
-        reviewStatus: reviewSectionStatusMap.get(section),
-      }),
-    }));
+    const baseSections = orderedSections.map((section) => {
+      let status = reviewSectionStatusMap.get(section) ?? "PENDING";
+      if (section === "contract_details" && isExistingContract) {
+        status = "APPROVED";
+      }
+      if (section === "acceptance_documents" && isExistingContract) {
+        status = "APPROVED";
+      }
+      return { section, status };
+    });
 
     const sectionWithAmendmentFromItems = new Set<string>();
     for (const item of reviewItems) {

@@ -293,7 +293,7 @@ function resolveRawField(params: {
   };
 }
 
-function yearFields(params: {
+export function yearFields(params: {
   primary: Exclude<AdminFinancialReviewPrimarySource, "add_year">;
   ctosRaw: Record<string, unknown> | null;
   issuerRaw: Record<string, unknown> | null;

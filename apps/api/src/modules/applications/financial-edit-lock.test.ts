@@ -233,3 +233,74 @@ describe("Admin financial edit endpoints honour the application review boundary"
     });
   });
 });
+
+/**
+ * Inside the edit transaction: the application row is locked (same lock as Financial approval)
+ * and both checks re-run on the locked status and the transaction's view of the Financial row.
+ */
+describe("Admin financial edit re-check inside the write transaction", () => {
+  const service = new ApplicationService();
+
+  function lockedTx(applicationStatus: string | null, financialRow: { status: string } | null) {
+    const queryRaw = jest.fn().mockResolvedValue(
+      applicationStatus === null ? [] : [{ status: applicationStatus }]
+    );
+    const reviewFindUnique = jest.fn().mockResolvedValue(financialRow);
+    return {
+      tx: { $queryRaw: queryRaw, applicationReview: { findUnique: reviewFindUnique } },
+      queryRaw,
+      reviewFindUnique,
+    };
+  }
+
+  function recheck(tx: unknown) {
+    return (service as any).lockAndAssertAdminFinancialEditsOpen(tx, "app-1");
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it("locks the application row FOR UPDATE before reading the Financial row", async () => {
+    const { tx, queryRaw, reviewFindUnique } = lockedTx("UNDER_REVIEW", { status: "PENDING" });
+    await expect(recheck(tx)).resolves.toBeUndefined();
+    const sql = (queryRaw.mock.calls[0]![0] as string[]).join("?");
+    expect(sql).toMatch(/FROM applications\s+WHERE id = \?\s+FOR UPDATE/);
+    expect(queryRaw.mock.calls[0]![1]).toBe("app-1");
+    expect(queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      reviewFindUnique.mock.invocationCallOrder[0]!
+    );
+    expect(reviewFindUnique).toHaveBeenCalledWith({
+      where: { application_id_section: { application_id: "app-1", section: "financial" } },
+      select: { status: true },
+    });
+    expect(mockFindUnique).not.toHaveBeenCalled();
+  });
+
+  it("refuses when Financial was approved after the early check", async () => {
+    const { tx } = lockedTx("UNDER_REVIEW", { status: "APPROVED" });
+    await expect(recheck(tx)).rejects.toMatchObject({
+      code: "FINANCIAL_REVIEW_LOCKED",
+      statusCode: 409,
+      message: APPROVED_MESSAGE,
+    });
+  });
+
+  it("refuses when the locked application is no longer reviewable", async () => {
+    const { tx, reviewFindUnique } = lockedTx("COMPLETED", { status: "PENDING" });
+    await expect(recheck(tx)).rejects.toMatchObject({
+      code: "FINANCIAL_REVIEW_LOCKED",
+      statusCode: 409,
+      message: NOT_REVIEWABLE_MESSAGE,
+    });
+    expect(reviewFindUnique).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 when the application row is gone", async () => {
+    const { tx } = lockedTx(null, null);
+    await expect(recheck(tx)).rejects.toMatchObject({
+      code: "APPLICATION_NOT_FOUND",
+      statusCode: 404,
+    });
+  });
+});

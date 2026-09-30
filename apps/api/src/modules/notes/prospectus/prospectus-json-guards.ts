@@ -3,7 +3,13 @@
  * WHY: Avoid unchecked casts; malformed published snapshots must not crash or live-fallback
  */
 
-import { isMarcSmeGrade, resolvePurposeOfFinancing, type MarcSmeGrade } from "@cashsouk/types";
+import {
+  FINANCIAL_REVIEW_CALCULATED_KEYS,
+  isMarcSmeGrade,
+  resolvePurposeOfFinancing,
+  type FinancialReviewCalculatedValues,
+  type MarcSmeGrade,
+} from "@cashsouk/types";
 import {
   PROSPECTUS_PAGE2_FINANCIAL_FREEZE_VERSION,
   type NotePurposeSnapshot,
@@ -88,35 +94,6 @@ export function parseInvoiceSnapshotRiskRating(value: unknown): MarcSmeGrade | n
 }
 
 const ISO_DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
-
-/**
- * Application financial_statements for Page 2 Stage 4A.
- * Does not require financial_year_end to be in the future (render-time, not save-time).
- * Does not parse CTOS.
- */
-export function parseApplicationFinancialStatements(value: unknown): {
-  financialYearEndIso: string | null;
-  unauditedByYear: Record<string, Record<string, unknown>>;
-} {
-  const root = asJsonRecord(value);
-  const questionnaire = asJsonRecord(root?.questionnaire);
-  const fyeRaw = nonEmptyString(questionnaire?.financial_year_end);
-  const financialYearEndIso =
-    fyeRaw && ISO_DATE_ONLY.test(fyeRaw) ? fyeRaw : null;
-
-  const byYear = asJsonRecord(root?.unaudited_by_year);
-  const unauditedByYear: Record<string, Record<string, unknown>> = {};
-  if (byYear) {
-    for (const [key, yearValue] of Object.entries(byYear)) {
-      const yearRecord = asJsonRecord(yearValue);
-      if (yearRecord) {
-        unauditedByYear[key] = yearRecord;
-      }
-    }
-  }
-
-  return { financialYearEndIso, unauditedByYear };
-}
 
 /**
  * Prospectus invoice face value — notes.invoice_snapshot.details.value only.
@@ -259,6 +236,20 @@ function parsePage2RawFinancials(
   return { ...legacy, ...Object.fromEntries(extra) };
 }
 
+/** Strict: all 18 keys, each a finite number or null; anything else → null. */
+function parsePage2CalculatedValues(value: unknown): FinancialReviewCalculatedValues | null {
+  const record = asJsonRecord(value);
+  if (!record) return null;
+  const out = {} as FinancialReviewCalculatedValues;
+  for (const key of FINANCIAL_REVIEW_CALCULATED_KEYS) {
+    const item = record[key];
+    if (item === null) out[key] = null;
+    else if (typeof item === "number" && Number.isFinite(item)) out[key] = item;
+    else return null;
+  }
+  return out;
+}
+
 function parsePage2StatementType(value: unknown): ProspectusPage2FinancialStatementType | null {
   return value === "AUDITED" || value === "NOT_AUDITED" || value === "MANAGEMENT_ACCOUNTS"
     ? value
@@ -279,6 +270,8 @@ function parsePage2FinancialYear(
   if (!yearLabel) return null;
   const rawFinancials = parsePage2RawFinancials(row.raw_financials, complete);
   if (!rawFinancials) return null;
+  const calculatedValues = complete ? parsePage2CalculatedValues(row.calculated_values) : null;
+  if (complete && !calculatedValues) return null;
   const fye = row.financial_year_end_label;
   const financialYearEndLabel =
     fye == null ? null : typeof fye === "string" ? nonEmptyString(fye) : null;
@@ -303,6 +296,7 @@ function parsePage2FinancialYear(
     record_source: recordSource,
     ...(complete ? { statement_type: parsePage2StatementType(row.statement_type) } : {}),
     raw_financials: rawFinancials,
+    ...(calculatedValues ? { calculated_values: calculatedValues } : {}),
   };
 }
 
@@ -324,7 +318,8 @@ function parsePage2CompleteFreezeFields(comparison: Record<string, unknown>): Pi
 /**
  * Strict Page 2 financial_comparison parser.
  * Independent of page_1 validity — malformed page_2 must not live-fallback.
- * `freeze_version: 2` → complete freeze (every raw key, statement type, missing-year state).
+ * `freeze_version: 2` → complete freeze (every raw key, statement type, missing-year state and
+ * all 18 calculated values on every year; a missing or non-finite calculated value → null).
  * Anything else parses exactly as before the complete freeze (18 raw keys).
  */
 export function parseProspectusPageTwoFinancialComparison(

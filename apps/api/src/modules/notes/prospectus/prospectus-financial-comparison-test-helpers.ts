@@ -1,11 +1,76 @@
 /**
- * Test helper: build Stage 4A source from year blocks via CTOS rows.
- * WHY: Admin-aligned resolver only includes SSM unaudited tab years (1–2);
- * historical multi-year fixtures use CTOS the same way Admin does.
+ * Test / sample support only (production code must not import this file).
+ * WHY: Fixtures describe application financial_statements + CTOS rows; the Prospectus now
+ * displays a Financial Review result, so fixtures go through the same resolver Financial Review
+ * uses, then through the production source adapter.
  */
 
-import { buildProspectusFinancialComparisonSource } from "./prospectus-financial-comparison-source";
+import {
+  resolveFinancialReviewResult,
+  type ApprovedFinancialResult,
+  type FinancialReviewResult,
+} from "@cashsouk/types";
+import {
+  buildNoteFinancialSnapshot,
+  type NoteFinancialSnapshot,
+} from "../note-financial-snapshot.types";
+import { buildProspectusFinancialComparisonSourceFromResult } from "./prospectus-financial-comparison-source";
 import type { ProspectusFinancialComparisonSource } from "./prospectus-financial-comparison-source.types";
+
+/** Application financial_statements + CTOS financials_json + year-selection reference date. */
+export type ProspectusFinancialFixtureInputs = {
+  financialStatements?: unknown;
+  ctosFinancials?: unknown;
+  ref: Date;
+};
+
+export function financialReviewResultFromInputs(
+  input: ProspectusFinancialFixtureInputs
+): FinancialReviewResult {
+  return resolveFinancialReviewResult({
+    financialStatements: input.financialStatements,
+    ctosFinancials: input.ctosFinancials,
+    referenceDate: input.ref,
+  });
+}
+
+/** Stage 4A source as the Prospectus shows it once Financial Review has approved these inputs. */
+export function buildProspectusFinancialComparisonSourceFromInputs(
+  input: ProspectusFinancialFixtureInputs
+): ProspectusFinancialComparisonSource {
+  return buildProspectusFinancialComparisonSourceFromResult(financialReviewResultFromInputs(input));
+}
+
+/** Wrap a Financial Review result the way Financial APPROVED stores it. */
+export function approvedFinancialResultOf(
+  result: FinancialReviewResult,
+  overrides: Partial<Omit<ApprovedFinancialResult, keyof FinancialReviewResult>> = {}
+): ApprovedFinancialResult {
+  return {
+    ...result,
+    version: 1,
+    application_id: "app-fixture",
+    review_cycle: 1,
+    approved_at: "2026-01-01T00:00:00.000Z",
+    reviewer_user_id: null,
+    ctos_report: null,
+    ...overrides,
+  };
+}
+
+export function approvedFinancialResultFromInputs(
+  input: ProspectusFinancialFixtureInputs
+): ApprovedFinancialResult {
+  return approvedFinancialResultOf(financialReviewResultFromInputs(input));
+}
+
+/** Note.financial_snapshot as Note creation stores it (JSON round trip included). */
+export function noteFinancialSnapshotOf(
+  result: ApprovedFinancialResult,
+  capturedAt: Date = new Date("2026-01-02T00:00:00.000Z")
+): NoteFinancialSnapshot {
+  return JSON.parse(JSON.stringify(buildNoteFinancialSnapshot(result, capturedAt))) as NoteFinancialSnapshot;
+}
 
 const ACCOUNT_KEYS = [
   "bsfatot",
@@ -84,7 +149,7 @@ export function financialSourceFromYearBlocks(
       )
     : {};
 
-  return buildProspectusFinancialComparisonSource({
+  return buildProspectusFinancialComparisonSourceFromInputs({
     financialStatements: {
       questionnaire: {
         financial_year_end: options?.financialYearEnd ?? "2027-12-31",

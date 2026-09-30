@@ -102,7 +102,7 @@ describe("Admin Financial Summary table UI", () => {
 
   it("calculated metrics display Cannot calculate and show helper text for turnover growth / receivables days", () => {
     const source = readFileSync(tablePath, "utf8");
-    expect(source).toContain("Cannot calculate");
+    expect(source).toContain("CANNOT_CALCULATE_LABEL");
     expect(source).toContain('case "turnover_growth"');
     expect(source).toContain("Missing: previous financial year Revenue / Turnover");
     expect(source).toContain("getCalculatedHelperText");
@@ -115,101 +115,53 @@ describe("Admin Financial Summary table UI", () => {
     expect(source).toContain("Missing: Trade Receivables");
   });
 
-  it("CTOS fallback computes Current Ratio / Working Capital / ROE from raw components when CTOS finished metric is missing", () => {
+  it("calculated rows read the shared Financial Review result instead of local formulas", () => {
     const source = readFileSync(tablePath, "utf8");
 
-    // Current Ratio fallback: bscatot ÷ curlib
-    expect(source).toContain("fields.bscatot");
-    expect(source).toContain("fields.curlib");
-    expect(source).toContain("computeCurrentRatio(currentAssets, currentLiabilities)");
+    // One shared result per screen; each calculated cell reads its (year, kind) entry.
+    expect(source).toContain("resolveFinancialReviewResult({");
+    expect(source).toContain(
+      "return formatFinancialReviewCalculatedCell(rowId, resultYearForColumn(colIdx)?.calculated_values);"
+    );
+    expect(source).toContain("findFinancialReviewResultYear(financialReviewResult, spec.year, spec.kind)");
 
-    // Working Capital fallback: bscatot − curlib
-    expect(source).toContain("computeWorkingCapital(currentAssets, currentLiabilities)");
-
-    // ROE fallback: PAT ÷ net worth × 100
-    expect(source).toContain("resolveFinancialSummaryIssuerReturnOnEquityRatio({");
-    expect(source).toContain("roeRatio * 100");
+    // CTOS-first priority and component fallbacks now live in the shared result, not here.
+    for (const localFormula of [
+      "computeCurrentRatio(",
+      "computeWorkingCapital(",
+      "computeTotalAssets(",
+      "computeTotalLiabilities(",
+      "computeNetWorth(",
+      "computeDscr(",
+      "resolveCtosCurrentRatio(",
+      "resolveCtosReturnOnEquityPercent(",
+      "resolveFinancialSummaryIssuerReturnOnEquityRatio(",
+      "roeRatio * 100",
+      "columnMetrics",
+    ]) {
+      expect(source).not.toContain(localFormula);
+    }
   });
 
   it("DSCR uses only Net Operating Income (no ebitda fallback)", () => {
     const source = readFileSync(tablePath, "utf8");
-    expect(source).toContain("computeDscr(netOperatingIncome, annualDebtService)");
+    expect(source).toContain("const netOperatingIncome = yearFields?.netOperatingIncome?.value ?? null;");
     expect(source).not.toContain("typeof netOperatingIncome === \"number\" ? netOperatingIncome : ebitda");
   });
 
-  it("CTOS priority for Current Ratio: use finished currat when present, otherwise fallback to bscatot ÷ curlib", () => {
+  it("keeps the em dash for CTOS years missing from the report on calculated rows", () => {
     const source = readFileSync(tablePath, "utf8");
-
-    // Priority: CTOS finished metric resolves first.
-    const idxResolve = source.indexOf('resolveCtosCurrentRatio({');
-    const idxIfFinished = source.indexOf("if (n != null) return formatNumber(n, 2);", idxResolve);
-    expect(idxResolve).toBeGreaterThan(-1);
-    expect(idxIfFinished).toBeGreaterThan(idxResolve);
-
-    // Fallback formula when finished metric is absent.
-    expect(source).toContain("fields.bscatot");
-    expect(source).toContain("fields.curlib");
-    expect(source).toContain("computeCurrentRatio(currentAssets, currentLiabilities)");
-    expect(source).toContain('return ratio == null ? CANNOT_CALCULATE_LABEL : formatNumber(ratio, 2);');
-
-    // Unavailable rules for fallback.
-    expect(source).toContain("ratio == null ? CANNOT_CALCULATE_LABEL");
-  });
-
-  it("CTOS priority for Working Capital: use finished workcap when present, otherwise fallback to bscatot − curlib", () => {
-    const source = readFileSync(tablePath, "utf8");
-
-    const idxCheck = source.indexOf('ctosFlatNumericPresent(fs, "workcap")');
-    expect(idxCheck).toBeGreaterThan(-1);
-    expect(source).toContain('return formatCurrency(toNum(fs.workcap), { decimals: 0 });');
-
-    // Fallback formula when finished metric is absent.
-    expect(source).toContain("computeWorkingCapital(currentAssets, currentLiabilities)");
     expect(source).toContain(
-      'wc == null ? CANNOT_CALCULATE_LABEL : formatCurrency(wc, { decimals: 0 });'
+      'if (ctosColumnMissing(colIdx) && !CALCULATED_ROWS_SHOWN_ON_MISSING_CTOS_YEAR.has(rowId)) return "—";'
     );
-    expect(source).toContain("fields.bscatot");
-    expect(source).toContain("fields.curlib");
-
-    // Unavailable rules for fallback.
-    expect(source).toContain("wc == null ? CANNOT_CALCULATE_LABEL");
   });
 
-  it("CTOS priority for ROE: use finished return_on_equity when present, otherwise fallback to plnpat ÷ networth × 100", () => {
+  it("explains Cannot calculate from the result's resolved totals, only for a null value", () => {
     const source = readFileSync(tablePath, "utf8");
-
-    const idxResolve = source.indexOf("resolveCtosReturnOnEquityPercent({");
-    const idxIfFinished = source.indexOf("if (percent != null) return", idxResolve);
-    expect(idxResolve).toBeGreaterThan(-1);
-    expect(idxIfFinished).toBeGreaterThan(idxResolve);
-
-    // Fallback formula when finished metric is absent.
-    expect(source).toContain("resolveFinancialSummaryIssuerReturnOnEquityRatio({");
-    expect(source).toContain('roeRatio == null ? CANNOT_CALCULATE_LABEL :');
-    expect(source).toContain("roeRatio * 100");
-
-    // Unavailable rules for fallback.
-    expect(source).toContain("roeRatio == null ? CANNOT_CALCULATE_LABEL");
-  });
-
-  it("CTOS priority for Total Assets / Total Liabilities / Total Equity: fallback to component sums when CTOS finished fields are missing", () => {
-    const source = readFileSync(tablePath, "utf8");
-
-    // Total Assets fallback path uses agreed sum of asset components.
-    expect(source).toContain("computeTotalAssets({");
-    expect(source).toContain("fixed_assets: yearFields?.bsfatot?.value");
-    expect(source).toContain("other_assets: yearFields?.othass?.value");
-    expect(source).toContain("current_assets: yearFields?.bscatot?.value");
-    expect(source).toContain("non_current_assets: yearFields?.bsclbank?.value");
-
-    // Total Liabilities fallback path uses agreed sum of liability components.
-    expect(source).toContain("computeTotalLiabilities({");
-    expect(source).toContain("current_liabilities: yearFields?.curlib?.value");
-    expect(source).toContain("long_term_liabilities: yearFields?.bsslltd?.value");
-    expect(source).toContain("non_current_liabilities: yearFields?.bsclstd?.value");
-
-    // Total Equity fallback is Total Assets − Total Liabilities.
-    expect(source).toContain("computeNetWorth(totass, totlib)");
+    expect(source).toContain("const calculated = resultYearForColumn(colIdx)?.calculated_values ?? null;");
+    expect(source).toContain("const totalAssets = calculated?.totass ?? null;");
+    expect(source).toContain("const netWorth = calculated?.networth ?? null;");
+    expect(source).toContain("uiCalculated && cellText === CANNOT_CALCULATE_LABEL");
   });
 
   it("suppresses source badges and cell-level edit for calculated rows", () => {

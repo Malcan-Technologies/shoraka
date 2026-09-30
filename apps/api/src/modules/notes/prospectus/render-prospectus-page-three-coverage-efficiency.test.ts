@@ -194,7 +194,7 @@ describe("prospectus Page 3 coverage/efficiency", () => {
     expect(row(data, "receivables_days")?.values[1]).toBe("74");
   });
 
-  it("uses resolveCtosReturnOnEquityPercent (direct return_on_equity only) and matches Page 2", () => {
+  it("displays the stored ROE (CTOS direct figure, else stored fallback) and matches Page 2", () => {
     const withFlat = buildProspectusPageThreeCoverageEfficiency({
       financialSource: sourceFromYears({
         "2024": {
@@ -221,25 +221,26 @@ describe("prospectus Page 3 coverage/efficiency", () => {
         "2024": { plnpat: 100, networth: 500, totass: 1000, totlib: 200 },
       }),
     });
-    expect(row(missingFlat, "return_on_equity")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    // CTOS omitted return_on_equity → stored fallback PAT ÷ Net Worth (100 / 500).
+    expect(row(missingFlat, "return_on_equity")?.values[0]).toBe("20%");
 
     const paidUpIgnored = buildProspectusPageThreeCoverageEfficiency({
       financialSource: sourceFromYears({
         "2024": { plnpat: 100, bsqpuc: 200, networth: 500 },
       }),
     });
-    expect(row(paidUpIgnored, "return_on_equity")?.values[0]).toBe(
-      PROSPECTUS_DATA_NOT_AVAILABLE
-    );
+    // Paid-up capital is never the denominator: 100 / 500, not 100 / 200.
+    expect(row(paidUpIgnored, "return_on_equity")?.values[0]).toBe("20%");
 
     const moduleSource = readFileSync(
       join(__dirname, "prospectus-page-three-coverage-efficiency.ts"),
       "utf8"
     );
-    expect(moduleSource).toMatch(/resolveCtosReturnOnEquityPercent/);
-    expect(moduleSource).toMatch(/resolveCtosGearingRatio/);
-    expect(moduleSource).toMatch(/resolveCtosReturnOnAssetsPercent/);
-    expect(moduleSource).toMatch(/resolveCtosTotalAssetTurnover/);
+    expect(moduleSource).not.toMatch(/\bresolveCtos\w+|\bcompute[A-Z]\w*\(/);
+    expect(moduleSource).toMatch(/calculated\.return_on_equity/);
+    expect(moduleSource).toMatch(/calculated\.gear/);
+    expect(moduleSource).toMatch(/calculated\.roa/);
+    expect(moduleSource).toMatch(/calculated\.assetTurnover/);
     expect(moduleSource).not.toMatch(/resolveApplicationFinancialReturnOnEquityRatio/);
     expect(moduleSource).not.toMatch(/plnpat\s*\/\s*bsqpuc/);
   });
