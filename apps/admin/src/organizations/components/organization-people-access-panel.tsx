@@ -12,6 +12,7 @@ import {
   ADMIN_PEOPLE_ACCESS_FILTERS,
   ctosExtractFingerprint,
   adminPeopleAccessCtosBadgeStatus,
+  adminPeopleAccessRowAllowsRegTankSync,
   adminPeopleAccessRowNeedsAttention,
   buildAdminPeopleAccessRows,
   filterAdminPeopleAccessRows,
@@ -433,7 +434,8 @@ function PeopleAccessTableRow({
   const showSyncRegTank =
     canManage &&
     party?.membershipStatus === "MASTER_ACTIVE" &&
-    (party.isDirector || party.isShareholder);
+    (party.isDirector || party.isShareholder) &&
+    adminPeopleAccessRowAllowsRegTankSync(row);
   const showMemberEdit =
     row.kind === "platform_only" &&
     canManageUsers &&

@@ -30,9 +30,12 @@ import {
   formatPeopleRolesLine,
   formatPeopleRolesLineWithoutShare,
   isMissingGovernmentIdPerson,
-  getFinalStatusLabel,
+  getRegtankColumnDisplayRows,
+  getRelatedPartyFinalStatusLabel,
   getRelatedPartyStatusToken,
+  RELATED_PARTY_COMPLIANCE_NOT_REQUIRED_LABEL,
   relatedPartyVerificationCaption,
+  requiresRelatedPartyCompliance,
   normalizeDirectorShareholderIdKey,
   pickPreferredDirectorShareholderOnboarding,
   pickPreferredDirectorShareholderScreening,
@@ -184,10 +187,7 @@ export function DirectorShareholderTable({
           </TableHeader>
           <TableBody>
             {verifiedRows.map((p) => {
-              const finalStatus = getFinalStatusLabel({
-                screening: p.screening,
-                onboarding: p.onboarding,
-              });
+              const finalStatus = getRelatedPartyFinalStatusLabel(p);
               const latestReport = resolveLatestCtosSubjectReportForParty(subjectCtosReports, p.matchKey);
               const shareDisplay = (() => {
                 const rolesU = (p.roles ?? []).map((r) => String(r).toUpperCase());
@@ -222,7 +222,16 @@ export function DirectorShareholderTable({
                     />
                   </TableCell>
                   <TableCell className="align-top w-[11rem] whitespace-nowrap">
-                    <RegtankRecordsControl person={p} />
+                    {requiresRelatedPartyCompliance(p) ? (
+                      <RegtankRecordsControl person={p} />
+                    ) : (
+                      <div className="flex flex-col items-start gap-1">
+                        <span className="text-ui text-muted-foreground">
+                          {RELATED_PARTY_COMPLIANCE_NOT_REQUIRED_LABEL}
+                        </span>
+                        {getRegtankColumnDisplayRows(p).length > 0 ? <RegtankRecordsControl person={p} /> : null}
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell className="align-top w-[15rem] whitespace-nowrap">
                     <div className="flex flex-col gap-0.5">

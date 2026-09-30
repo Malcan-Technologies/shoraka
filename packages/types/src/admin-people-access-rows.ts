@@ -8,6 +8,7 @@ import type { ApplicationPersonRow } from "./application-people-display";
 import {
   filterVisiblePeopleRows,
   isMissingGovernmentIdPerson,
+  requiresRelatedPartyCompliance,
 } from "./application-people-display";
 import { resolvePartyCtosComparison } from "./party-ctos-comparison";
 import {
@@ -410,6 +411,24 @@ function pendingKyc(label: PeopleAccessKycLabel): boolean {
   return label === "In progress" || label === "Pending approval";
 }
 
+/**
+ * True only when the row's person is a company confirmed outside the issuer's initial onboarding.
+ * No person (or unknown membership) → false, so existing compliance behaviour stays.
+ */
+export function adminPeopleAccessRowComplianceNotRequired(
+  row: Pick<AdminPeopleAccessRow, "corporate" | "person">
+): boolean {
+  if (!row.corporate || !row.person) return false;
+  return !requiresRelatedPartyCompliance({ ...row.person, entityType: "CORPORATE" });
+}
+
+/** Sync RegTank is hidden for companies whose KYB/AML is not required. */
+export function adminPeopleAccessRowAllowsRegTankSync(
+  row: Pick<AdminPeopleAccessRow, "corporate" | "person">
+): boolean {
+  return !adminPeopleAccessRowComplianceNotRequired(row);
+}
+
 function needsRelatedPartyVerification(row: AdminPeopleAccessRow): boolean {
   if (row.inactive || row.observed || row.kind === "platform_only") return false;
   const isDirectorOrShareholder =
@@ -429,11 +448,11 @@ function needsCtosReview(row: AdminPeopleAccessRow): boolean {
 }
 
 export function adminPeopleAccessRowNeedsAttention(row: AdminPeopleAccessRow): boolean {
+  const complianceNotRequired = adminPeopleAccessRowComplianceNotRequired(row);
   return (
     row.platformAccess === "Invitation sent" ||
     row.platformAccess === "Invitation expired" ||
-    pendingKyc(row.kyc) ||
-    needsRelatedPartyVerification(row) ||
+    (!complianceNotRequired && (pendingKyc(row.kyc) || needsRelatedPartyVerification(row))) ||
     needsCtosReview(row)
   );
 }

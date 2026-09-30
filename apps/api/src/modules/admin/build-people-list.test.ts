@@ -6,7 +6,12 @@
  * WHERE USED: Admin/Issuer/Investor director-shareholder rendering
  */
 
-import { buildUnifiedPeople, buildDirectorShareholderPeopleList, mergeMasterPartiesIntoPeopleList } from "./build-people-list";
+import {
+  buildUnifiedPeople,
+  buildDirectorShareholderPeopleList,
+  mergeMasterPartiesIntoPeopleList,
+  stampInitialOnboardingMembership,
+} from "./build-people-list";
 import {
   CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING,
   computeHasPendingDirectorShareholder,
@@ -2329,5 +2334,259 @@ describe("initial corporate onboarding CTOS source of truth", () => {
       ],
     });
     expect(result.people.find((p) => p.matchKey === "800101011234")?.screening?.status).toBe("APPROVED");
+  });
+});
+
+describe("initial onboarding membership (company KYB/AML requirement)", () => {
+  type BuildParams = Parameters<typeof buildDirectorShareholderPeopleList>[0];
+  /** Issuer org after onboarding completed — the only case where membership is classified. */
+  const build = (params: BuildParams) =>
+    buildDirectorShareholderPeopleList({
+      initialCorporateOnboarding: false,
+      classifyCompanyOnboardingMembership: true,
+      ...params,
+    });
+
+  const LATER_SSM = "202001234567";
+  const ONBOARDED_SSM = "8217649D";
+
+  function snapshotCompany(ssm: string | null, cod: string, status: string) {
+    return {
+      companyName: `Company ${ssm ?? "unknown"}`,
+      requestId: cod,
+      status,
+      formContent: {
+        displayAreas: [
+          {
+            displayArea: "Basic Information Setting",
+            content: [
+              ...(ssm ? [{ fieldName: "Business Number", fieldValue: ssm }] : []),
+              { fieldName: "% of Shares", fieldValue: "40" },
+            ],
+          },
+        ],
+      },
+    };
+  }
+
+  function snapshot(corporateShareholders: unknown) {
+    return { directors: [], shareholders: [], corporateShareholders };
+  }
+
+  const approvedAml = {
+    directors: [],
+    businessShareholders: [{ businessNumber: ONBOARDED_SSM, codRequestId: "COD1", rawStatus: "APPROVED" }],
+  };
+
+  const ctosCompany = (ssm: string, name = "Later Co Sdn Bhd") => ({
+    party_type: "C",
+    ic_lcno: ssm,
+    name,
+    position: "SO",
+    equity_percentage: 40,
+  });
+
+  function laterMaster(origin: string, partyKey = LATER_SSM, identityNumber: string | null = LATER_SSM) {
+    return {
+      partyKey,
+      membershipStatus: "MASTER_ACTIVE",
+      entityType: "CORPORATE" as const,
+      name: "Later Co Sdn Bhd",
+      identityNumber,
+      isDirector: false,
+      isShareholder: true,
+      shareholdingPercentage: "30",
+      origin,
+    };
+  }
+
+  function companyRow(people: { matchKey: string; entityType: string }[], key: string) {
+    const row = people.find((p) => p.entityType === "CORPORATE" && p.matchKey === key);
+    if (!row) throw new Error(`missing company row ${key}`);
+    return row;
+  }
+
+  it("initial-onboarding company with incomplete KYB/AML is required and pending", () => {
+    const { people } = build({
+      ctos: null,
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      corporateEntities: snapshot([snapshotCompany(ONBOARDED_SSM, "COD1", "IN_PROGRESS")]),
+    });
+    expect(companyRow(people, ONBOARDED_SSM).inInitialOnboarding).toBe(true);
+    expect(computeHasPendingDirectorShareholder(people)).toBe(true);
+  });
+
+  it("initial-onboarding company with complete KYB/AML does not block", () => {
+    const { people } = build({
+      ctos: null,
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: approvedAml,
+      corporateEntities: snapshot([snapshotCompany(ONBOARDED_SSM, "COD1", "APPROVED")]),
+    });
+    expect(companyRow(people, ONBOARDED_SSM).inInitialOnboarding).toBe(true);
+    expect(computeHasPendingDirectorShareholder(people)).toBe(false);
+  });
+
+  it("later USER_ADDED company outside the snapshot is not required and does not block", () => {
+    const { people } = build({
+      ctos: null,
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: approvedAml,
+      corporateEntities: snapshot([snapshotCompany(ONBOARDED_SSM, "COD1", "APPROVED")]),
+      masterParties: [
+        { ...laterMaster("REGTANK_PARTY", ONBOARDED_SSM, ONBOARDED_SSM), name: "Onboarded Co" },
+        laterMaster("USER_ADDED"),
+      ],
+    });
+    const later = companyRow(people, LATER_SSM);
+    expect(later.inInitialOnboarding).toBe(false);
+    expect(later.onboarding?.status ?? null).toBeNull();
+    expect(companyRow(people, ONBOARDED_SSM).inInitialOnboarding).toBe(true);
+    expect(computeHasPendingDirectorShareholder(people)).toBe(false);
+  });
+
+  it("CTOS-only company outside the snapshot is not required", () => {
+    const { people, listSource } = build({
+      ctos: { directors: [], shareholders: [ctosCompany(LATER_SSM)] },
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: approvedAml,
+      corporateEntities: snapshot([snapshotCompany(ONBOARDED_SSM, "COD1", "APPROVED")]),
+    });
+    expect(listSource).toBe("CTOS");
+    expect(companyRow(people, LATER_SSM).inInitialOnboarding).toBe(false);
+    expect(computeHasPendingDirectorShareholder(people)).toBe(false);
+  });
+
+  it("admin-adopted CTOS_PARTY company outside the snapshot is not required", () => {
+    const { people } = build({
+      ctos: { directors: [], shareholders: [ctosCompany(LATER_SSM)] },
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      corporateEntities: snapshot([]),
+      masterParties: [laterMaster("CTOS_PARTY")],
+    });
+    expect(companyRow(people, LATER_SSM).inInitialOnboarding).toBe(false);
+    expect(computeHasPendingDirectorShareholder(people)).toBe(false);
+  });
+
+  it("CTOS_PARTY company that is also in the snapshot stays required and blocks when incomplete", () => {
+    const { people } = build({
+      ctos: { directors: [], shareholders: [ctosCompany(ONBOARDED_SSM, "Onboarded Co")] },
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      corporateEntities: snapshot([snapshotCompany(ONBOARDED_SSM, "COD1", "IN_PROGRESS")]),
+      masterParties: [{ ...laterMaster("CTOS_PARTY", ONBOARDED_SSM, ONBOARDED_SSM), name: "Onboarded Co" }],
+    });
+    expect(companyRow(people, ONBOARDED_SSM).inInitialOnboarding).toBe(true);
+    expect(computeHasPendingDirectorShareholder(people)).toBe(true);
+  });
+
+  it("company found only in director_aml_status.businessShareholders is required", () => {
+    const { people } = build({
+      ctos: { directors: [], shareholders: [ctosCompany(LATER_SSM)] },
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: { businessShareholders: [{ businessNumber: LATER_SSM, rawStatus: "PENDING" }] },
+      corporateEntities: snapshot([]),
+    });
+    expect(companyRow(people, LATER_SSM).inInitialOnboarding).toBe(true);
+    expect(computeHasPendingDirectorShareholder(people)).toBe(true);
+  });
+
+  it("a valid empty snapshot still classifies a later company as not required", () => {
+    const { people } = build({
+      ctos: null,
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      corporateEntities: snapshot([]),
+      masterParties: [laterMaster("USER_ADDED")],
+    });
+    expect(companyRow(people, LATER_SSM).inInitialOnboarding).toBe(false);
+    expect(computeHasPendingDirectorShareholder(people)).toBe(false);
+  });
+
+  it.each([
+    ["corporate_entities is null", null, null],
+    ["corporateShareholders is not an array", { directors: [], shareholders: [], corporateShareholders: "x" }, null],
+    ["a snapshot company has no SSM", snapshot([snapshotCompany(null, "COD9", "APPROVED")]), null],
+    [
+      "a business shareholder has no SSM and an unknown COD",
+      snapshot([]),
+      { businessShareholders: [{ codRequestId: "COD404", rawStatus: "APPROVED" }] },
+    ],
+  ])("unknown membership when %s keeps the company required", (_label, corporateEntities, aml) => {
+    const { people } = build({
+      ctos: { directors: [], shareholders: [ctosCompany(LATER_SSM)] },
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: aml,
+      corporateEntities,
+    });
+    const row = companyRow(people, LATER_SSM);
+    expect("inInitialOnboarding" in row).toBe(false);
+    expect(computeHasPendingDirectorShareholder(people)).toBe(true);
+  });
+
+  it("company without a usable SSM stays unknown", () => {
+    const { people } = build({
+      ctos: null,
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      corporateEntities: snapshot([]),
+      masterParties: [laterMaster("USER_ADDED", "user:4f1c2b9e-0000-4000-8000-000000000001", null)],
+    });
+    const row = people.find((p) => p.entityType === "CORPORATE");
+    expect(row).toBeDefined();
+    expect("inInitialOnboarding" in (row as object)).toBe(false);
+    expect(computeHasPendingDirectorShareholder(people)).toBe(true);
+  });
+
+  it("never stamps individuals and keeps their pending behaviour", () => {
+    const { people } = build({
+      ctos: {
+        directors: [{ party_type: "I", nic_brno: "900101101111", name: "Ind Person", position: "DO" }],
+        shareholders: [ctosCompany(LATER_SSM)],
+      },
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      corporateEntities: snapshot([]),
+    });
+    const individual = people.find((p) => p.entityType === "INDIVIDUAL");
+    expect(individual).toBeDefined();
+    expect("inInitialOnboarding" in (individual as object)).toBe(false);
+    expect(companyRow(people, LATER_SSM).inInitialOnboarding).toBe(false);
+    expect(computeHasPendingDirectorShareholder(people)).toBe(true);
+  });
+
+  it.each([
+    ["during initial onboarding", { initialCorporateOnboarding: true }],
+    ["when classification is off (callers that do not opt in)", { classifyCompanyOnboardingMembership: false }],
+  ])("leaves membership unknown %s", (_label, overrides) => {
+    const { people } = build({
+      ctos: { directors: [], shareholders: [ctosCompany(LATER_SSM)] },
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      corporateEntities: snapshot([]),
+      ...overrides,
+    });
+    expect("inInitialOnboarding" in companyRow(people, LATER_SSM)).toBe(false);
+    expect(computeHasPendingDirectorShareholder(people)).toBe(true);
+  });
+
+  it("classifies by the SSM party key only (no company-name matching)", () => {
+    const [row] = stampInitialOnboardingMembership(
+      [
+        {
+          matchKey: "1234567X",
+          name: "Company 202001234567",
+          entityType: "CORPORATE",
+          roles: ["SHAREHOLDER"],
+          sharePercentage: 40,
+          status: "",
+        },
+      ],
+      snapshot([snapshotCompany(LATER_SSM, "COD1", "IN_PROGRESS")]),
+      null
+    );
+    expect(row?.inInitialOnboarding).toBe(false);
   });
 });
