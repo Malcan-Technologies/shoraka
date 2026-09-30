@@ -885,3 +885,38 @@ describe("resolveFinancialReviewResult — reference date and purity", () => {
     expect(result.missing_ssm_unaudited_years).toEqual([]);
   });
 });
+
+describe("resolveFinancialReviewResult — CTOS gap-fill and User Input edit on one FY field", () => {
+  const unaudited = {
+    "2027": { turnover: 70, pldd: "2027-12-31" },
+    "2026": { turnover: 60, tradeReceivables: 50, pldd: "2026-12-31" },
+  };
+  const ctos = [ctosRow(2026, { turnover: 900, tradeReceivables: null })];
+
+  it("CTOS kind has 100, User Input kind has 120, User Input stays selected", () => {
+    const overrides = {
+      "2026": {
+        tradeReceivables: { add_missing_ctos_field: gapFill(100), edit_user_input: userInputEdit(120) },
+      },
+    };
+    const result = resolve({ unaudited, ctos, overrides });
+    const ctosYear = entry(result, 2026, "ctos");
+    const userYear = entry(result, 2026, "unaudited");
+    expect(ctosYear.effective_raw_values.tradeReceivables).toBe(100);
+    expect(ctosYear.source_trace.fields.tradeReceivables).toEqual({ source: "admin_input", edited_by_admin: true });
+    expect(userYear.effective_raw_values.tradeReceivables).toBe(120);
+    expect(userYear.source_trace.fields.tradeReceivables).toEqual({ source: "user_input", edited_by_admin: true });
+    expect(userYear.selected).toBe(true);
+    expect(ctosYear.selected).toBe(false);
+    expect(ctosYear.source_trace.inputs.admin_overrides).toEqual(overrides["2026"]);
+  });
+
+  it("legacy single entries keep resolving per lane", () => {
+    const gapOnly = resolve({ unaudited, ctos, overrides: { "2026": { tradeReceivables: gapFill(100) } } });
+    expect(entry(gapOnly, 2026, "ctos").effective_raw_values.tradeReceivables).toBe(100);
+    expect(entry(gapOnly, 2026, "unaudited").effective_raw_values.tradeReceivables).toBe(50);
+    const userOnly = resolve({ unaudited, ctos, overrides: { "2026": { tradeReceivables: userInputEdit(120) } } });
+    expect(entry(userOnly, 2026, "ctos").effective_raw_values.tradeReceivables).toBeNull();
+    expect(entry(userOnly, 2026, "unaudited").effective_raw_values.tradeReceivables).toBe(120);
+  });
+});

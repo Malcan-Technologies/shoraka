@@ -59,11 +59,14 @@ const CALCULATED_KEY_SET = new Set<string>(CALCULATED_FINANCIAL_METRIC_KEYS);
 
 export type FinancialFieldProvenance = "ctos" | "user_input" | "admin_input";
 
-export type AdminFieldOverrideAction =
-  | "add_missing_ctos_field"
-  | "edit_user_input"
-  | "edit_admin_input"
-  | "add_missing_fy";
+export const ADMIN_FIELD_OVERRIDE_ACTIONS = [
+  "add_missing_ctos_field",
+  "edit_user_input",
+  "edit_admin_input",
+  "add_missing_fy",
+] as const;
+
+export type AdminFieldOverrideAction = (typeof ADMIN_FIELD_OVERRIDE_ACTIONS)[number];
 
 export type AdminFieldOverride = {
   value: number | string | null;
@@ -72,6 +75,9 @@ export type AdminFieldOverride = {
   updated_by_user_id: string;
   updated_at: string;
 };
+
+/** One FY + field keeps one override per action. The action key is the source identity. */
+export type AdminFieldOverrideSlot = Partial<Record<AdminFieldOverrideAction, AdminFieldOverride>>;
 
 export type ResolvedRawFinancialField = {
   value: number | null;
@@ -186,44 +192,113 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
+const ADMIN_FIELD_OVERRIDE_ACTION_SET = new Set<string>(ADMIN_FIELD_OVERRIDE_ACTIONS);
+
+function isAdminFieldOverrideAction(value: unknown): value is AdminFieldOverrideAction {
+  return typeof value === "string" && ADMIN_FIELD_OVERRIDE_ACTION_SET.has(value);
+}
+
+function isFinancialFieldProvenance(value: unknown): value is FinancialFieldProvenance {
+  return value === "ctos" || value === "user_input" || value === "admin_input";
+}
+
+function buildAdminFieldOverride(
+  rec: Record<string, unknown>,
+  action: AdminFieldOverrideAction,
+  baseSource: FinancialFieldProvenance
+): AdminFieldOverride {
+  return {
+    value: (rec.value as number | string | null) ?? null,
+    baseSource,
+    action,
+    updated_by_user_id: typeof rec.updated_by_user_id === "string" ? rec.updated_by_user_id : "",
+    updated_at: typeof rec.updated_at === "string" ? rec.updated_at : "",
+  };
+}
+
+/**
+ * One stored `admin_field_overrides[year][field]` entry.
+ * - Legacy: the entry has a string `action`. It is exactly one override for that action
+ *   (valid action + valid baseSource, else ignored). Never read as more than one action.
+ * - New: `{ [action]: override }`. Each known action key with a valid baseSource is kept,
+ *   and the key wins over any inner `action`.
+ * Returns null when nothing valid is stored.
+ */
+export function parseAdminFieldOverrideEntry(
+  raw: unknown
+): { slot: AdminFieldOverrideSlot; legacy: boolean } | null {
+  const rec = asRecord(raw);
+  if (!rec) return null;
+  if (typeof rec.action === "string") {
+    const action = rec.action;
+    const baseSource = rec.baseSource;
+    if (!isAdminFieldOverrideAction(action) || !isFinancialFieldProvenance(baseSource)) return null;
+    return { slot: { [action]: buildAdminFieldOverride(rec, action, baseSource) }, legacy: true };
+  }
+  const slot: AdminFieldOverrideSlot = {};
+  for (const action of ADMIN_FIELD_OVERRIDE_ACTIONS) {
+    const inner = asRecord(rec[action]);
+    if (!inner || !isFinancialFieldProvenance(inner.baseSource)) continue;
+    slot[action] = buildAdminFieldOverride(inner, action, inner.baseSource);
+  }
+  if (Object.keys(slot).length === 0) return null;
+  return { slot, legacy: false };
+}
+
+/** Year → field → one override per action. Legacy and new entries may be mixed. */
 export function parseAdminFieldOverrides(
   financialStatements: unknown
-): Record<string, Record<string, AdminFieldOverride>> {
+): Record<string, Record<string, AdminFieldOverrideSlot>> {
   const root = asRecord(financialStatements);
   const byYear = asRecord(root?.admin_field_overrides);
   if (!byYear) return {};
-  const out: Record<string, Record<string, AdminFieldOverride>> = {};
+  const out: Record<string, Record<string, AdminFieldOverrideSlot>> = {};
   for (const [year, yearValue] of Object.entries(byYear)) {
     const fields = asRecord(yearValue);
     if (!fields) continue;
-    const parsed: Record<string, AdminFieldOverride> = {};
+    const parsed: Record<string, AdminFieldOverrideSlot> = {};
     for (const [fieldKey, raw] of Object.entries(fields)) {
-      const rec = asRecord(raw);
-      if (!rec) continue;
-      const action = rec.action;
-      const baseSource = rec.baseSource;
-      if (
-        action !== "add_missing_ctos_field" &&
-        action !== "edit_user_input" &&
-        action !== "edit_admin_input" &&
-        action !== "add_missing_fy"
-      ) {
-        continue;
-      }
-      if (baseSource !== "ctos" && baseSource !== "user_input" && baseSource !== "admin_input") {
-        continue;
-      }
-      parsed[fieldKey] = {
-        value: (rec.value as number | string | null) ?? null,
-        baseSource,
-        action,
-        updated_by_user_id: typeof rec.updated_by_user_id === "string" ? rec.updated_by_user_id : "",
-        updated_at: typeof rec.updated_at === "string" ? rec.updated_at : "",
-      };
+      const entry = parseAdminFieldOverrideEntry(raw);
+      if (entry) parsed[fieldKey] = entry.slot;
     }
     if (Object.keys(parsed).length > 0) out[year] = parsed;
   }
   return out;
+}
+
+/**
+ * Next `admin_field_overrides` to store after one Admin edit on one FY + field.
+ * Only that field's `override.action` is set. Other actions on the field are kept
+ * (a legacy entry is converted to the new shape first). Every other year / field is passed
+ * through unchanged, so untouched legacy entries stay legacy.
+ */
+export function setAdminFieldOverride(
+  financialStatements: unknown,
+  params: { year: string; fieldKey: string; override: AdminFieldOverride }
+): Record<string, unknown> {
+  const root = asRecord(financialStatements);
+  const byYear = asRecord(root?.admin_field_overrides) ?? {};
+  const yearFieldsRaw = asRecord(byYear[params.year]) ?? {};
+  const existingRaw = yearFieldsRaw[params.fieldKey];
+  const existing = asRecord(existingRaw);
+
+  let entry: Record<string, unknown> = {};
+  if (existing && typeof existing.action === "string") {
+    // Legacy: keep its one valid action under its own key. An invalid legacy entry was never read.
+    if (isAdminFieldOverrideAction(existing.action) && parseAdminFieldOverrideEntry(existing)) {
+      entry = { [existing.action]: { ...existing } };
+    }
+  } else if (existing) {
+    entry = { ...existing };
+  }
+
+  const action = params.override.action;
+  entry[action] = { ...params.override, action };
+
+  return {
+    ...byYear,
+    [params.year]: { ...yearFieldsRaw, [params.fieldKey]: entry },
+  };
 }
 
 export function financialFieldSourceBadge(field: ResolvedRawFinancialField): string {
@@ -239,19 +314,25 @@ function resolveRawField(params: {
   ctosRaw: Record<string, unknown> | null;
   issuerRaw: Record<string, unknown> | null;
   adminRaw: Record<string, unknown> | null;
-  override: AdminFieldOverride | undefined;
+  /** Each primary reads only its own action. */
+  slot: AdminFieldOverrideSlot | undefined;
 }): ResolvedRawFinancialField {
   const ctosValue = params.ctosRaw ? readFiniteFinancialNumber(params.ctosRaw[params.key]) : null;
   const issuerValue = params.issuerRaw ? readFiniteFinancialNumber(params.issuerRaw[params.key]) : null;
   const adminValue = params.adminRaw ? readFiniteFinancialNumber(params.adminRaw[params.key]) : null;
-  const overrideValue =
-    params.override != null ? readFiniteFinancialNumber(params.override.value) : null;
+  const override =
+    params.primary === "ctos"
+      ? params.slot?.add_missing_ctos_field
+      : params.primary === "user_input"
+        ? params.slot?.edit_user_input
+        : params.slot?.edit_admin_input;
+  const overrideValue = override != null ? readFiniteFinancialNumber(override.value) : null;
 
   if (params.primary === "ctos") {
     if (ctosValue != null) {
       return { value: ctosValue, source: "ctos", editedByAdmin: false, readOnly: true };
     }
-    if (params.override?.action === "add_missing_ctos_field" && overrideValue != null) {
+    if (overrideValue != null) {
       return { value: overrideValue, source: "admin_input", editedByAdmin: true, readOnly: false };
     }
     return {
@@ -264,7 +345,7 @@ function resolveRawField(params: {
   }
 
   if (params.primary === "user_input") {
-    if (params.override?.action === "edit_user_input" && overrideValue != null) {
+    if (overrideValue != null) {
       return { value: overrideValue, source: "user_input", editedByAdmin: true, readOnly: false };
     }
     if (issuerValue != null) {
@@ -279,8 +360,7 @@ function resolveRawField(params: {
     };
   }
 
-  const adminResolved =
-    params.override?.action === "edit_admin_input" && overrideValue != null ? overrideValue : adminValue;
+  const adminResolved = overrideValue ?? adminValue;
   if (adminResolved != null) {
     return { value: adminResolved, source: "admin_input", editedByAdmin: false, readOnly: false };
   }
@@ -298,7 +378,7 @@ export function yearFields(params: {
   ctosRaw: Record<string, unknown> | null;
   issuerRaw: Record<string, unknown> | null;
   adminRaw: Record<string, unknown> | null;
-  overrides: Record<string, AdminFieldOverride> | undefined;
+  overrides: Record<string, AdminFieldOverrideSlot> | undefined;
 }): Record<string, ResolvedRawFinancialField> {
   const fields: Record<string, ResolvedRawFinancialField> = {};
   for (const key of ADMIN_EDITABLE_RAW_FINANCIAL_KEYS) {
@@ -308,7 +388,7 @@ export function yearFields(params: {
       ctosRaw: params.ctosRaw,
       issuerRaw: params.issuerRaw,
       adminRaw: params.adminRaw,
-      override: params.overrides?.[key],
+      slot: params.overrides?.[key],
     });
   }
   return fields;
@@ -642,7 +722,7 @@ export function decideAdminFinancialFieldEdit(params: {
 export function applyResolvedRawFields(params: {
   recordSource: FinancialStatementRecordSource;
   rawFinancials: Record<string, unknown>;
-  overridesForYear: Record<string, AdminFieldOverride> | undefined;
+  overridesForYear: Record<string, AdminFieldOverrideSlot> | undefined;
 }): Record<string, unknown> {
   const next = { ...params.rawFinancials };
   const primary: Exclude<AdminFinancialReviewPrimarySource, "add_year"> =
@@ -658,7 +738,7 @@ export function applyResolvedRawFields(params: {
       ctosRaw: primary === "ctos" ? params.rawFinancials : null,
       issuerRaw: primary === "user_input" ? params.rawFinancials : null,
       adminRaw: primary === "admin_input" ? params.rawFinancials : null,
-      override: params.overridesForYear?.[key],
+      slot: params.overridesForYear?.[key],
     });
     if (resolved.value == null) continue;
     if (primary === "ctos" && readFiniteFinancialNumber(params.rawFinancials[key]) != null) continue;
@@ -686,28 +766,36 @@ export function receivablesDaysUnavailableReason(params: {
 }
 
 /**
- * Drop User Input overrides the issuer has replaced. CTOS gap fills stay.
+ * Drop `edit_user_input` where the issuer replaced the value. Every other action stays.
+ * Returns the stored shape: a kept legacy entry stays legacy, a new-shape entry stays new-shape.
  */
 export function reconcileAdminFieldOverridesAfterIssuerSave(params: {
   existingFinancialStatements: unknown;
   previousUnauditedByYear: Record<string, unknown> | null;
   nextUnauditedByYear: Record<string, Record<string, unknown>>;
-}): Record<string, Record<string, AdminFieldOverride>> {
-  const overrides = parseAdminFieldOverrides(params.existingFinancialStatements);
+}): Record<string, Record<string, unknown>> {
+  const root = asRecord(params.existingFinancialStatements);
+  const byYear = asRecord(root?.admin_field_overrides) ?? {};
   const previous = params.previousUnauditedByYear ?? {};
-  const next: Record<string, Record<string, AdminFieldOverride>> = {};
-  for (const [year, fields] of Object.entries(overrides)) {
-    const kept: Record<string, AdminFieldOverride> = {};
+  const next: Record<string, Record<string, unknown>> = {};
+  for (const [year, yearValue] of Object.entries(byYear)) {
+    const fields = asRecord(yearValue);
+    if (!fields) continue;
+    const kept: Record<string, unknown> = {};
     const prevBlock = asRecord(previous[year]);
     const nextBlock = params.nextUnauditedByYear[year];
-    for (const [key, override] of Object.entries(fields)) {
-      if (override.action !== "edit_user_input") {
-        kept[key] = override;
-        continue;
+    for (const [key, raw] of Object.entries(fields)) {
+      const entry = parseAdminFieldOverrideEntry(raw);
+      if (!entry) continue;
+      const slot: AdminFieldOverrideSlot = { ...entry.slot };
+      if (slot.edit_user_input) {
+        const before = readFiniteFinancialNumber(prevBlock?.[key]);
+        const after = readFiniteFinancialNumber(nextBlock?.[key]);
+        if (before !== after) delete slot.edit_user_input;
       }
-      const before = readFiniteFinancialNumber(prevBlock?.[key]);
-      const after = readFiniteFinancialNumber(nextBlock?.[key]);
-      if (before === after) kept[key] = override;
+      const actions = Object.values(slot);
+      if (actions.length === 0) continue;
+      kept[key] = entry.legacy ? actions[0] : slot;
     }
     if (Object.keys(kept).length > 0) next[year] = kept;
   }
