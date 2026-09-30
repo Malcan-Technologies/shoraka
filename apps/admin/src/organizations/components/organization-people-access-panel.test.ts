@@ -12,6 +12,10 @@ const ctos = readFileSync(
   join(__dirname, "../../components/organization-issuer-ctos-reports-card.tsx"),
   "utf8"
 );
+const directorShareholderTable = readFileSync(
+  join(__dirname, "../../components/admin/director-shareholder-table.tsx"),
+  "utf8"
+);
 const quickLinks = readFileSync(join(__dirname, "organization-quick-links-card.tsx"), "utf8");
 const rail = readFileSync(
   join(__dirname, "../../components/admin-detail/admin-related-records-rail.tsx"),
@@ -208,5 +212,16 @@ describe("Admin organisation tabs", () => {
     expect(panel).toContain("View");
     expect(panel).toContain("Edit");
     expect(panel).toContain("Mark inactive");
+  });
+
+  it("uses the shared company compliance rule for Sync RegTank, KYB/AML chips, and review status", () => {
+    for (const source of [panel, detail]) {
+      expect(source).toContain("adminPeopleAccessRowAllowsRegTankSync(row)");
+      expect(source).toContain("adminPeopleAccessKycChipPresentation(row)");
+      expect(source).toContain("adminPeopleAccessAmlChipPresentation(row)");
+    }
+    expect(directorShareholderTable).toContain("getRelatedPartyFinalStatusLabel(p)");
+    expect(directorShareholderTable).toContain("requiresRelatedPartyCompliance(p)");
+    expect(directorShareholderTable).toContain("RELATED_PARTY_COMPLIANCE_NOT_REQUIRED_LABEL");
   });
 });

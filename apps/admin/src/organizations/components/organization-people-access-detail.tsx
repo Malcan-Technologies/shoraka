@@ -14,6 +14,10 @@ import {
   IDENTITY_CONFLICT_OBSERVED_BODY,
   adminAmlWaitingCopy,
   adminOnboardingStageLabel,
+  adminPeopleAccessAmlChipPresentation,
+  adminPeopleAccessKycChipPresentation,
+  adminPeopleAccessRowAllowsRegTankSync,
+  adminPeopleAccessRowComplianceNotRequired,
   adminPartyRecordSourceLabel,
   adminPeopleAccessAmlDisplayLabel,
   adminPeopleAccessDetailRoleLine,
@@ -35,15 +39,13 @@ import {
   CUSTOMER_PERSON_LABEL,
   PROFILE_LABEL,
   observedPartyBlockedByIdentityConflict,
-  peopleAccessAmlChipPresentation,
-  peopleAccessChipOptionsFromRow,
-  peopleAccessKycChipPresentation,
   peopleAccessPlatformBadgeStatus,
   partyNeedsCtosAbsenceReview,
   personRegTankKycId,
   personRegTankKybId,
   readPersonIdentityConflict,
   type AdminPeopleAccessRow,
+  type DirectorShareholderFinalStatusPresentation,
   type OrganizationDetailResponse,
   type OrganizationPartyProfileDto,
 } from "@cashsouk/types";
@@ -72,20 +74,7 @@ function AccessBadge({ label }: { label: string }) {
   return <StatusBadge status={status} label={label} size="sm" />;
 }
 
-function KycBadge({ person, entityType }: { person: AdminPeopleAccessRow["person"]; entityType?: string | null }) {
-  const presentation = peopleAccessKycChipPresentation(person, { entityType });
-  if (!presentation) return <span className="text-ui text-muted-foreground">—</span>;
-  return (
-    <StatusBadge
-      status={getRelatedPartyStatusToken(presentation, "admin")}
-      label={presentation.label}
-      size="sm"
-    />
-  );
-}
-
-function AmlBadge({ person, entityType }: { person: AdminPeopleAccessRow["person"]; entityType?: string | null }) {
-  const presentation = peopleAccessAmlChipPresentation(person, { entityType });
+function ComplianceBadge({ presentation }: { presentation: DirectorShareholderFinalStatusPresentation | null }) {
   if (!presentation) return <span className="text-ui text-muted-foreground">—</span>;
   return (
     <StatusBadge
@@ -206,7 +195,9 @@ export function OrganizationPeopleAccessDetail({
     canManage &&
     Boolean(onSyncRegTank) &&
     party?.membershipStatus === "MASTER_ACTIVE" &&
-    (party.isDirector || party.isShareholder);
+    (party.isDirector || party.isShareholder) &&
+    adminPeopleAccessRowAllowsRegTankSync(row);
+  const complianceNotRequired = adminPeopleAccessRowComplianceNotRequired(row);
   const showCtos = adminPersonHasCtosEvidence(row);
   const roleRecords = buildAdminPersonRegTankRoleRecords({
     person: person
@@ -220,11 +211,13 @@ export function OrganizationPeopleAccessDetail({
   const showRegTank = adminPersonHasRegTankEvidence(person) || roleRecords.length > 0;
   const verificationLabel = adminPeopleAccessVerificationLabel(row.corporate);
   const amlLabel = adminPeopleAccessAmlDisplayLabel(row);
-  const amlWaiting = adminAmlWaitingCopy({
-    corporate: row.corporate,
-    person,
-    amlLabel,
-  });
+  const amlWaiting = complianceNotRequired
+    ? null
+    : adminAmlWaitingCopy({
+        corporate: row.corporate,
+        person,
+        amlLabel,
+      });
   const kycId = personRegTankKycId(person);
   const kybId = personRegTankKybId(person);
   const screeningResultUrl = adminPersonAmlScreeningResultUrl(person);
@@ -235,8 +228,8 @@ export function OrganizationPeopleAccessDetail({
   const platformLabel = row.corporate ? "Not applicable" : row.platformAccess === "—" ? "No access" : row.platformAccess;
   const profileStatus = overviewItems.find((item) => item.label === "Profile Status")?.value ?? "Active profile";
 
-  const kycPresentation = peopleAccessKycChipPresentation(person, peopleAccessChipOptionsFromRow(row));
-  const amlPresentation = peopleAccessAmlChipPresentation(person, peopleAccessChipOptionsFromRow(row));
+  const kycPresentation = adminPeopleAccessKycChipPresentation(row);
+  const amlPresentation = adminPeopleAccessAmlChipPresentation(row);
 
   const defaultSection =
     showCtos && (row.observed || row.ctos === "Differs" || row.ctos === "Not found" || row.identityConflict)
@@ -484,7 +477,7 @@ export function OrganizationPeopleAccessDetail({
                 <div className="flex flex-wrap items-start gap-3">
                   <div className="space-y-1">
                     <p className="text-meta text-muted-foreground">Status</p>
-                    <KycBadge person={person} entityType={peopleAccessChipOptionsFromRow(row).entityType} />
+                    <ComplianceBadge presentation={kycPresentation} />
                   </div>
                 </div>
 
@@ -496,7 +489,7 @@ export function OrganizationPeopleAccessDetail({
                   <ProfileReadField
                     label={row.corporate ? "KYB ID" : "KYC ID"}
                     value={row.corporate ? kybId : kycId}
-                    hint={row.corporate ? (!kybId ? "Generated after business screening starts." : undefined) : (!kycId ? "Generated after KYC approval." : undefined)}
+                    hint={row.corporate ? (!kybId && !complianceNotRequired ? "Generated after business screening starts." : undefined) : (!kycId ? "Generated after KYC approval." : undefined)}
                   />
                 </ProfileFieldGrid>
 
@@ -547,7 +540,7 @@ export function OrganizationPeopleAccessDetail({
                 <ProfileFieldGrid>
                   <div className="space-y-1">
                     <p className="text-meta text-muted-foreground">Status</p>
-                    <AmlBadge person={person} entityType={peopleAccessChipOptionsFromRow(row).entityType} />
+                    <ComplianceBadge presentation={amlPresentation} />
                   </div>
                   <ProfileReadField
                     label="Screening"

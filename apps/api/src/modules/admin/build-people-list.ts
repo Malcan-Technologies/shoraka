@@ -3,6 +3,7 @@ import {
   normalizeRawStatus,
   parseCtosPartySupplement,
   extractBusinessNumber,
+  extractBusinessNameFromRegTankForm,
   extractGovernmentId,
   filterVisiblePeopleRows,
   CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING,
@@ -81,10 +82,147 @@ function stampParentCorporateRequestId(
   return people.map((row) => ({ ...row, parentCorporateRequestId: parent }));
 }
 
+type InitialOnboardingSnapshot = {
+  ssmKeys: Set<string>;
+  /** Loose company names; a name match only ever marks a company as required (guards SSM format drift). */
+  names: Set<string>;
+  /** False when membership cannot be proven absent (missing, malformed, or unkeyed snapshot rows). */
+  trusted: boolean;
+};
+
+/**
+ * Company SSMs from the issuer's initial onboarding snapshot. `corporate_entities` is only ever written
+ * as `extractCorporateEntities` output, so a plain object with a `corporateShareholders` array — even
+ * an empty one — is a complete snapshot of the submitted onboarding form.
+ */
+function readInitialOnboardingSnapshot(
+  corporateEntities: unknown,
+  issuerDirectorAmlStatus: unknown
+): InitialOnboardingSnapshot {
+  const ssmKeys = new Set<string>();
+  const names = new Set<string>();
+  const cods = new Set<string>();
+  const corporateShareholders =
+    isPlainRecord(corporateEntities) && Array.isArray(corporateEntities.corporateShareholders)
+      ? corporateEntities.corporateShareholders
+      : null;
+  let trusted = corporateShareholders !== null;
+
+  for (const corp of corporateShareholders ?? []) {
+    if (!isPlainRecord(corp)) {
+      trusted = false;
+      continue;
+    }
+    const name = looseCompanyNameKey(
+      extractBusinessNameFromRegTankForm(corp.formContent) ||
+        strField(corp, "businessName") ||
+        strField(corp, "companyName")
+    );
+    if (name) names.add(name);
+    const key = corporateShareholderSsmKey(corp);
+    if (!key) {
+      trusted = false;
+      continue;
+    }
+    ssmKeys.add(key);
+    const cod = corporateShareholderCod(corp);
+    if (cod) cods.add(cod);
+  }
+
+  const biz = isPlainRecord(issuerDirectorAmlStatus) ? issuerDirectorAmlStatus.businessShareholders : undefined;
+  if (Array.isArray(biz)) {
+    for (const row of biz) {
+      if (!isPlainRecord(row)) {
+        trusted = false;
+        continue;
+      }
+      const name = looseCompanyNameKey(
+        strField(row, "businessName") || strField(row, "companyName") || strField(row, "name")
+      );
+      if (name) names.add(name);
+      const key = businessShareholderBrnKey(row);
+      if (key) {
+        ssmKeys.add(key);
+        continue;
+      }
+      const cod = strField(row, "codRequestId");
+      if (!cod || !cods.has(cod)) trusted = false;
+    }
+  }
+
+  return { ssmKeys, names, trusted };
+}
+
+function looseCompanyNameKey(raw: string | null | undefined): string | null {
+  const key = String(raw ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return key || null;
+}
+
+/** Every SSM key the row carries (identity and match key can differ after a master merge). */
+function rowCorporateSsmKeys(row: ApplicationPersonRow): string[] {
+  if (isMissingGovernmentIdPerson(row)) return [];
+  if (isGeneratedUserPartyKey(String(row.matchKey ?? "").trim())) return [];
+  const keys = [
+    normalizeDirectorShareholderIdKey(row.identityNumber),
+    normalizeDirectorShareholderIdKey(row.matchKey),
+  ].filter((key): key is string => Boolean(key));
+  return [...new Set(keys)];
+}
+
+/**
+ * Stamp `inInitialOnboarding` on CORPORATE rows: true when any row SSM (or the company name) is in the
+ * initial onboarding snapshot, false only when the snapshot is trusted and nothing matches.
+ * Unknown stays unset (KYB/AML still required).
+ */
+export function stampInitialOnboardingMembership(
+  people: ApplicationPersonRow[],
+  corporateEntities: unknown,
+  issuerDirectorAmlStatus: unknown
+): ApplicationPersonRow[] {
+  const snapshot = readInitialOnboardingSnapshot(corporateEntities, issuerDirectorAmlStatus);
+  return people.map((row) => {
+    if (row.entityType !== "CORPORATE") return row;
+    const keys = rowCorporateSsmKeys(row);
+    const name = looseCompanyNameKey(row.name);
+    if (keys.some((key) => snapshot.ssmKeys.has(key)) || (name && snapshot.names.has(name))) {
+      return { ...row, inInitialOnboarding: true };
+    }
+    if (keys.length > 0 && snapshot.trusted) return { ...row, inInitialOnboarding: false };
+    return row;
+  });
+}
+
 function strField(r: UnknownRecord | undefined, key: string): string {
   if (!r) return "";
   const v = r[key];
   return typeof v === "string" ? v.trim() : "";
+}
+
+function isPlainRecord(value: unknown): value is UnknownRecord {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+/** SSM key of a `director_aml_status.businessShareholders[]` row. */
+function businessShareholderBrnKey(r: UnknownRecord): string | null {
+  return normalizeDirectorShareholderIdKey(
+    String(r.businessNumber ?? r.registrationNumber ?? r.brn_ssm ?? r.ic_lcno ?? r.additional_registration_no ?? "")
+  );
+}
+
+/** SSM key of a `corporate_entities.corporateShareholders[]` row. */
+function corporateShareholderSsmKey(c: UnknownRecord): string | null {
+  return normalizeDirectorShareholderIdKey(extractBusinessNumber(c.formContent));
+}
+
+/** This corporate shareholder's own COD from `corporate_entities.corporateShareholders[]`. */
+function corporateShareholderCod(c: UnknownRecord): string | null {
+  const corpOnb = c.corporateOnboardingRequest as UnknownRecord | undefined;
+  return (
+    strField(c, "codRequestId") ||
+    strField(corpOnb ?? {}, "requestId") ||
+    strField(c, "requestId") ||
+    null
+  );
 }
 
 /** KYB / RegTank screening: prefer `rawStatus` (e.g. "No Match") over bucketed `amlStatus` when both exist. */
@@ -208,9 +346,7 @@ function buildIssuerDirectorMaps(kycRoot: unknown, amlRoot: unknown): IssuerDire
       const r = row as UnknownRecord;
       const cod = strField(r, "codRequestId");
       if (cod) amlByCod.set(cod, r);
-      const brn = normalizeDirectorShareholderIdKey(
-        String(r.businessNumber ?? r.registrationNumber ?? r.brn_ssm ?? r.ic_lcno ?? r.additional_registration_no ?? "")
-      );
+      const brn = businessShareholderBrnKey(r);
       if (brn) amlByBrn.set(brn, r);
     }
   }
@@ -272,14 +408,9 @@ function buildCePartyRefs(corporateEntities: unknown): Map<string, CePartyRef> {
   for (const corp of corporateShareholders) {
     if (!corp || typeof corp !== "object" || Array.isArray(corp)) continue;
     const c = corp as UnknownRecord;
-    const brnRaw = extractBusinessNumber(c.formContent);
-    const ssmKey = brnRaw ? normalizeDirectorShareholderIdKey(brnRaw) : "";
+    const ssmKey = corporateShareholderSsmKey(c) ?? "";
     const corpOnb = c.corporateOnboardingRequest as UnknownRecord | undefined;
-    const cod =
-      strField(c, "codRequestId") ||
-      strField(corpOnb ?? {}, "requestId") ||
-      strField(c, "requestId") ||
-      null;
+    const cod = corporateShareholderCod(c);
     const kybDto = c.kybRequestDto as UnknownRecord | undefined;
     const kybId = strField(kybDto, "kybId") || strField(c, "kybId") || null;
     // COD onboarding status only. Never use kybRequestDto.status here — that is KYB screening (AML).
@@ -1050,6 +1181,11 @@ export type BuildDirectorShareholderPeopleParams = {
    * Default true so CTOS can be the structure source during admin review.
    */
   initialCorporateOnboarding?: boolean;
+  /**
+   * Issuer only, after initial onboarding completed: stamp `inInitialOnboarding` on company rows.
+   * Off by default so other portals and callers keep existing KYB/AML behaviour.
+   */
+  classifyCompanyOnboardingMembership?: boolean;
 };
 
 function retainMasterActiveOperationalPeople(
@@ -1310,6 +1446,10 @@ export function buildDirectorShareholderPeopleList(
 ): DirectorShareholderPeopleBuildResult {
   const ctosSafe = normalizeCtosCompanyJson(params.ctos);
   const initialCorporateOnboarding = params.initialCorporateOnboarding !== false;
+  const stampMembership = (people: ApplicationPersonRow[]) =>
+    params.classifyCompanyOnboardingMembership && !initialCorporateOnboarding
+      ? stampInitialOnboardingMembership(people, params.corporateEntities, params.issuerDirectorAmlStatus)
+      : people;
 
   let result: DirectorShareholderPeopleBuildResult;
   if (!ctosSafe) {
@@ -1349,7 +1489,9 @@ export function buildDirectorShareholderPeopleList(
   if (!params.masterParties?.length) {
     return {
       ...result,
-      people: stampParentCorporateRequestId(result.people, params.parentCorporateRequestId),
+      people: stampMembership(
+        stampParentCorporateRequestId(result.people, params.parentCorporateRequestId)
+      ),
     };
   }
 
@@ -1359,19 +1501,21 @@ export function buildDirectorShareholderPeopleList(
     : retainMasterActiveOperationalPeople(result.people, params.masterParties);
   return {
     ...result,
-    people: stampParentCorporateRequestId(
-      applyMasterPersonEmail(
-        mergeMasterPartiesIntoPeopleList({
-          people,
-          masterParties: params.masterParties,
-          ctosPartySupplements: params.ctosPartySupplements ?? null,
-          injectLaterAddedOnly: ctosAuthoritative,
-          preserveExistingSharePercentage: ctosAuthoritative,
-          preferMasterValues: !initialCorporateOnboarding,
-        }),
-        params.masterParties
-      ),
-      params.parentCorporateRequestId
+    people: stampMembership(
+      stampParentCorporateRequestId(
+        applyMasterPersonEmail(
+          mergeMasterPartiesIntoPeopleList({
+            people,
+            masterParties: params.masterParties,
+            ctosPartySupplements: params.ctosPartySupplements ?? null,
+            injectLaterAddedOnly: ctosAuthoritative,
+            preserveExistingSharePercentage: ctosAuthoritative,
+            preferMasterValues: !initialCorporateOnboarding,
+          }),
+          params.masterParties
+        ),
+        params.parentCorporateRequestId
+      )
     ),
   };
 }

@@ -2,6 +2,7 @@ import {
   filterVisiblePeopleRows,
   isDirectorShareholderAmlScreeningApproved,
   isReadyOnboardingStatus,
+  requiresRelatedPartyCompliance,
   type ApplicationPersonRow,
 } from "@cashsouk/types";
 
@@ -18,6 +19,7 @@ function partyDisplayName(person: ApplicationPersonRow): string {
 }
 
 function incompletePartyLine(person: ApplicationPersonRow): string | null {
+  if (!requiresRelatedPartyCompliance(person)) return null;
   const onboardingPending = !isReadyOnboardingStatus(person.onboarding?.status);
   const amlPending = !isDirectorShareholderAmlScreeningApproved(person.screening);
   if (!onboardingPending && !amlPending) return null;

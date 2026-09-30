@@ -79,3 +79,49 @@ describe("approval button behavior is unchanged", () => {
     ).toBe(MARC_ASSESSMENT_REQUIRED_MESSAGE);
   });
 });
+
+describe("company related parties outside initial onboarding", () => {
+  const company = (overrides: Partial<ApplicationPersonRow>) =>
+    person({
+      matchKey: "202001234567",
+      name: "Later Co Sdn Bhd",
+      entityType: "CORPORATE",
+      roles: ["SHAREHOLDER"],
+      sharePercentage: 30,
+      onboarding: { status: null, id: null },
+      screening: null,
+      ...overrides,
+    });
+
+  it("does not warn about or block on a confirmed non-onboarding company", () => {
+    const people = [company({ inInitialOnboarding: false })];
+    const message = formatDirectorShareholderReviewHint(people);
+    expect(message).not.toContain("require");
+    expect(message).not.toContain("onboarding pending in RegTank");
+    expect(message).not.toContain("AML pending");
+    expect(financialSectionApproveDisabledReason({ marcAssessment: completeMarc, people })).toBeUndefined();
+  });
+
+  it("counts only the incomplete individual next to an exempt company", () => {
+    const message = formatDirectorShareholderReviewHint([
+      company({ inInitialOnboarding: false }),
+      person({ matchKey: "2", name: "Jamie Lim", onboarding: { status: "IN_PROGRESS" }, screening: null }),
+    ]);
+    expect(message).toContain("1 related party requires attention");
+    expect(message).toContain("Jamie Lim — onboarding pending in RegTank; AML pending");
+    expect(message).not.toContain("Later Co Sdn Bhd");
+  });
+
+  it.each([
+    ["initial-onboarding", true],
+    ["unknown-membership", undefined],
+  ])("still warns and blocks for an incomplete %s company", (_label, inInitialOnboarding) => {
+    const people = [company({ inInitialOnboarding })];
+    expect(formatDirectorShareholderReviewHint(people)).toContain(
+      "Later Co Sdn Bhd — onboarding pending in RegTank; AML pending"
+    );
+    expect(financialSectionApproveDisabledReason({ marcAssessment: completeMarc, people })).toBe(
+      ADMIN_DIRECTOR_SHAREHOLDER_PENDING_LABEL
+    );
+  });
+});

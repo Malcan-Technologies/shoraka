@@ -20,6 +20,10 @@ import { getAmlGroup, getKycGroup } from "./director-shareholder-single-status-d
 import { isReadyOnboardingStatus } from "./onboarding-readiness";
 import { displayGovernmentIdentityNumber } from "./organization-party-key";
 import { isIndividualKycReference } from "./regtank-individual-kyc-reference";
+import {
+  getFinalStatusLabel,
+  type DirectorShareholderFinalStatusPresentation,
+} from "./director-shareholder-final-status";
 
 /** How issuer/investor director-shareholder `people[]` was built (org list + detail APIs). */
 export type DirectorShareholderListSource = "ONBOARDING" | "CTOS" | "CTOS_EMPTY";
@@ -178,6 +182,14 @@ export type ApplicationPersonRow = {
   partyCorporateRequestId?: string | null;
   /** KYC/KYB screening id only. Never used as the primary onboarding View identifier. */
   screeningRequestId?: string | null;
+  /**
+   * CORPORATE rows only. Membership in the issuer's stored initial onboarding snapshot
+   * (`corporate_entities.corporateShareholders` / `director_aml_status.businessShareholders`), by SSM.
+   * - `true`: confirmed part of initial onboarding (KYB/AML required).
+   * - `false`: confirmed not part of initial onboarding (KYB/AML not required).
+   * - absent: unknown (missing SSM or untrusted snapshot) — treated as required.
+   */
+  inInitialOnboarding?: boolean;
   /** IC front image URL from issuer `corporate_entities` (director/shareholder `documents`). */
   icFrontUrl?: string | null;
   /** IC back image URL from issuer `corporate_entities` (director/shareholder `documents`). */
@@ -517,17 +529,44 @@ export function partitionPeopleByIdentityResolution(
   return { verified, unresolved };
 }
 
+export const RELATED_PARTY_COMPLIANCE_NOT_REQUIRED_LABEL = "Not required";
+
+/**
+ * Canonical related-party compliance rule.
+ * Individuals: always required. Companies: required unless confirmed outside the issuer's
+ * initial onboarding (`inInitialOnboarding === false`). Unknown stays required.
+ */
+export function requiresRelatedPartyCompliance(
+  person: Pick<ApplicationPersonRow, "entityType" | "inInitialOnboarding">
+): boolean {
+  if (person.entityType !== "CORPORATE") return true;
+  return person.inInitialOnboarding !== false;
+}
+
+export function relatedPartyComplianceNotRequiredPresentation(): DirectorShareholderFinalStatusPresentation {
+  return { label: RELATED_PARTY_COMPLIANCE_NOT_REQUIRED_LABEL, tone: "neutral", actor: "none" };
+}
+
+/** Director/shareholder status badge: "Not required" for exempt companies, else the normal RegTank status. */
+export function getRelatedPartyFinalStatusLabel(
+  person: Pick<ApplicationPersonRow, "entityType" | "inInitialOnboarding" | "screening" | "onboarding">
+): DirectorShareholderFinalStatusPresentation {
+  if (!requiresRelatedPartyCompliance(person)) return relatedPartyComplianceNotRequiredPresentation();
+  return getFinalStatusLabel({ screening: person.screening, onboarding: person.onboarding });
+}
+
 /**
  * Admin Financial section + application listing: true when director/shareholder verification
  * should be treated as incomplete (blocks approve / shows pending chip).
  * Mirrors visible-row rules: {@link filterVisiblePeopleRows}, {@link isReadyOnboardingStatus},
  * {@link isDirectorShareholderAmlScreeningApproved} on each row’s `screening` snapshot.
+ * Rows where {@link requiresRelatedPartyCompliance} is false are skipped.
  */
 export function computeHasPendingDirectorShareholder(
   people?: ReadonlyArray<ApplicationPersonRow | null | undefined> | null
 ): boolean {
   const list = (people ?? []).filter((p): p is ApplicationPersonRow => p != null);
-  const visible = filterVisiblePeopleRows(list);
+  const visible = filterVisiblePeopleRows(list).filter(requiresRelatedPartyCompliance);
   if (visible.length === 0) return false;
   const onboardingDoneAll = visible.every((p) => isReadyOnboardingStatus(p.onboarding?.status));
   const amlDoneAll = visible.every((p) => isDirectorShareholderAmlScreeningApproved(p.screening));
