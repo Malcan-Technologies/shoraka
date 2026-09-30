@@ -64,15 +64,15 @@ Prospectus Review never fetches CTOS. CTOS reaches the Prospectus only through t
 
 ### Seeds
 
-`apps/api/scripts/lib/seed-note-financial-snapshot.ts` approves Financial through the real approval function and copies the result onto seeded Notes. Used by the Prospectus seeds (`seed-prospectus-demo`, `seed-prospectus-lifecycle`, `seed-prospectus-review-note`) and `seed-approved-invoices-for-notes`. Other seed scripts that insert Notes directly do not; their Notes fail in the Prospectus with `NOTE_FINANCIAL_SNAPSHOT_MISSING`.
+`apps/api/scripts/lib/seed-note-financial-snapshot.ts` approves Financial through the real approval function and copies the result onto seeded Notes. Used by the Prospectus seeds (`seed-prospectus-demo`, `seed-prospectus-lifecycle`, `seed-prospectus-review-note`), `seed-approved-invoices-for-notes` and `seed-paymaster-assignment-scenarios`. Other seed scripts that insert Notes directly do not; their Notes fail in the Prospectus with `NOTE_FINANCIAL_SNAPSHOT_MISSING`.
 
 ### Existing data
 
 No backfill.
 
-- Financial sections approved before this design have no stored result: re-approve while the application is reviewable.
-- Notes without a financial snapshot must be recreated.
-- Prospectus approvals made before this design are invalidated once on GET (the fingerprint sources changed) and must be approved again.
+- Financial sections approved before this design have no stored result. Re-approve while the application is reviewable. A `COMPLETED` application is not reviewable (`prepareForReviewAction` throws `400 INVALID_STATE`), so an application completed before this design cannot create Notes without a data fix.
+- Notes without a financial snapshot fail in the Prospectus with `409 NOTE_FINANCIAL_SNAPSHOT_MISSING`. The API cannot recreate them: Note creation returns the existing Note for the same invoice (`noteRepository.findBySource`), and there is no delete-Note endpoint. Handle them with a data reset (delete those Notes / re-seed on staging).
+- Prospectus approvals made before this design: on a Note with a snapshot, the changed fingerprint sources invalidate the approval once at the next GET (back to `DRAFT`). On a Note without a snapshot, GET and publish fail with `409 NOTE_FINANCIAL_SNAPSHOT_MISSING` before invalidation runs, so the review stays approved but unpublishable until the data is reset.
 
 ## Status transitions
 

@@ -67,6 +67,18 @@ import {
   createSecurityLogRow,
 } from "../../lib/audit";
 
+/** Review row columns for the application detail; never the approved Financial result. */
+export const APPLICATION_REVIEW_DETAIL_SELECT = {
+  id: true,
+  application_id: true,
+  status: true,
+  reviewer_user_id: true,
+  reviewed_at: true,
+  created_at: true,
+  updated_at: true,
+  section: true,
+} satisfies Prisma.ApplicationReviewSelect;
+
 export class AdminRepository {
   private async resolveAdminRoleId(roleKey: AdminRoleKey): Promise<string> {
     await ensureAdminRoleCatalog(prisma);
@@ -3042,7 +3054,8 @@ export class AdminRepository {
             },
           },
         },
-        application_reviews: true,
+        // approved_snapshot is excluded: read it only through loadCurrentApprovedFinancialResult.
+        application_reviews: { select: APPLICATION_REVIEW_DETAIL_SELECT },
         application_review_items: true,
         application_review_remarks: {
           orderBy: { created_at: "desc" },

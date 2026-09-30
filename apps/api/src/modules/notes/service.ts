@@ -2718,21 +2718,27 @@ export class NoteService {
       application,
     });
 
-    const approvedFinancialResult = await loadCurrentApprovedFinancialResult(
-      prisma,
-      application.id
-    );
-    if (!approvedFinancialResult) {
-      throw new AppError(
-        409,
-        "FINANCIAL_APPROVED_RESULT_REQUIRED",
-        "The application's Financial review must be approved before a note can be created."
-      );
-    }
-
     const note = await prisma
       .$transaction(async (tx) => {
+        // Lock the Financial review row: every path that moves it out of APPROVED writes this row,
+        // so the result read below cannot be reopened before the Note row is written.
+        await tx.$queryRaw`
+          SELECT id FROM application_reviews
+          WHERE application_id = ${application.id} AND section = 'financial'
+          FOR UPDATE
+        `;
         await assertSourceFacilityEnabled(tx, sourceFacilityId);
+        const approvedFinancialResult = await loadCurrentApprovedFinancialResult(
+          tx,
+          application.id
+        );
+        if (!approvedFinancialResult) {
+          throw new AppError(
+            409,
+            "FINANCIAL_APPROVED_RESULT_REQUIRED",
+            "The application's Financial review must be approved before a note can be created."
+          );
+        }
         const noteId = generateNoteEntityId();
         const noteCreatedAt = new Date();
         const canonicalReference = await allocateDisplayReference(

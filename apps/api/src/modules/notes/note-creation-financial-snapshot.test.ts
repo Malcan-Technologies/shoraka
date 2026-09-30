@@ -23,6 +23,7 @@ const mockTx: any = {
     findUnique: jest.fn(),
   },
   application: { findUnique: jest.fn(), findFirst: jest.fn() },
+  applicationReview: { findUnique: jest.fn() },
   ctosReport: { findUnique: jest.fn(), findFirst: jest.fn(), findMany: jest.fn() },
 };
 
@@ -220,7 +221,7 @@ function createFromInvoiceSource(overrides: Record<string, unknown> = {}) {
 }
 
 function mockApprovedReviewRow(result: unknown) {
-  mockPrisma.applicationReview.findUnique.mockResolvedValue({
+  mockTx.applicationReview.findUnique.mockResolvedValue({
     status: ReviewStepStatus.APPROVED,
     approved_snapshot: result,
   });
@@ -233,6 +234,20 @@ function noteCreateData() {
 
 function readsLiveFinancials(calls: unknown[][]) {
   return calls.some((args) => JSON.stringify(args).includes("financial_statements"));
+}
+
+function queryRawSql(callIndex: number) {
+  return (mockTx.$queryRaw.mock.calls[callIndex][0] as readonly string[])
+    .join("?")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function expectNoNoteRowWritten() {
+  expect(mockTx.note.create).not.toHaveBeenCalled();
+  expect(mockTx.notePaymentSchedule.create).not.toHaveBeenCalled();
+  expect(mockTx.noteEvent.create).not.toHaveBeenCalled();
+  expect(mockTx.displayReferenceAllocation.create).not.toHaveBeenCalled();
 }
 
 describe("Note creation copies the approved Financial Review result", () => {
@@ -288,7 +303,7 @@ describe("Note creation copies the approved Financial Review result", () => {
 
       expect(note).toMatchObject({ noteReference: "NOTE-ARF-202608-BX5" });
       expect(mockTx.note.create).toHaveBeenCalledTimes(1);
-      expect(mockLoadApproved).toHaveBeenCalledWith(mockPrisma, "app_1");
+      expect(mockLoadApproved).toHaveBeenCalledWith(mockTx, "app_1");
     });
 
     it("still rejects createFromApplication for a non-COMPLETED application", async () => {
@@ -401,10 +416,36 @@ describe("Note creation copies the approved Financial Review result", () => {
       expect(client.ctosReport.findFirst).not.toHaveBeenCalled();
       expect(client.ctosReport.findMany).not.toHaveBeenCalled();
     }
-    expect(mockPrisma.applicationReview.findUnique).toHaveBeenCalledWith({
+    expect(mockPrisma.applicationReview.findUnique).not.toHaveBeenCalled();
+    expect(mockTx.applicationReview.findUnique).toHaveBeenCalledWith({
       where: { application_id_section: { application_id: "app_1", section: "financial" } },
       select: { status: true, approved_snapshot: true },
     });
+  });
+
+  it("locks the Financial review row inside the transaction before reading the approved result", async () => {
+    await createFromInvoiceSource();
+
+    expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(mockLoadApproved).toHaveBeenCalledTimes(1);
+    expect(mockLoadApproved).toHaveBeenCalledWith(mockTx, "app_1");
+    expect(queryRawSql(0)).toBe(
+      "SELECT id FROM application_reviews WHERE application_id = ? AND section = 'financial' FOR UPDATE"
+    );
+    expect(mockTx.$queryRaw.mock.calls[0]).toHaveLength(2);
+    expect(mockTx.$queryRaw.mock.calls[0][1]).toBe("app_1");
+    // Note creation must not take the application row lock (lock order application -> review row).
+    mockTx.$queryRaw.mock.calls.forEach((_call: unknown[], index: number) => {
+      expect(queryRawSql(index)).not.toMatch(/FROM applications\b/);
+    });
+
+    const lockOrder = mockTx.$queryRaw.mock.invocationCallOrder[0];
+    const readOrder = mockTx.applicationReview.findUnique.mock.invocationCallOrder[0];
+    const facilityOrder = mockTx.contract.findUnique.mock.invocationCallOrder[0];
+    expect(lockOrder).toBeLessThan(readOrder);
+    expect(lockOrder).toBeLessThan(facilityOrder);
+    expect(facilityOrder).toBeLessThan(readOrder);
+    expect(readOrder).toBeLessThan(mockTx.note.create.mock.invocationCallOrder[0]);
   });
 
   it.each([
@@ -413,9 +454,9 @@ describe("Note creation copies the approved Financial Review result", () => {
     ["an APPROVED review whose snapshot does not parse", "APPROVED_MALFORMED"],
   ])("rejects with FINANCIAL_APPROVED_RESULT_REQUIRED for %s", async (_label, state) => {
     if (state === null) {
-      mockPrisma.applicationReview.findUnique.mockResolvedValue(null);
+      mockTx.applicationReview.findUnique.mockResolvedValue(null);
     } else if (state === "PENDING") {
-      mockPrisma.applicationReview.findUnique.mockResolvedValue({
+      mockTx.applicationReview.findUnique.mockResolvedValue({
         status: ReviewStepStatus.PENDING,
         approved_snapshot: approvedResult(),
       });
@@ -428,12 +469,17 @@ describe("Note creation copies the approved Financial Review result", () => {
       code: "FINANCIAL_APPROVED_RESULT_REQUIRED",
     });
     expect(mockLoadApproved).toHaveBeenCalledTimes(1);
-    expect(mockPrisma.$transaction).not.toHaveBeenCalled();
-    expect(mockTx.note.create).not.toHaveBeenCalled();
+    expect(mockLoadApproved).toHaveBeenCalledWith(mockTx, "app_1");
+    // The error is thrown inside the transaction callback, so the transaction rolls back.
+    expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
+    await expect(mockPrisma.$transaction.mock.results[0].value).rejects.toMatchObject({
+      code: "FINANCIAL_APPROVED_RESULT_REQUIRED",
+    });
+    expectNoNoteRowWritten();
   });
 
   it("keeps existing validation errors ahead of the missing approved result", async () => {
-    mockPrisma.applicationReview.findUnique.mockResolvedValue(null);
+    mockTx.applicationReview.findUnique.mockResolvedValue(null);
 
     await expect(
       createFromInvoiceSource({
@@ -442,6 +488,17 @@ describe("Note creation copies the approved Financial Review result", () => {
     ).rejects.toMatchObject({ statusCode: 422, code: "PRODUCT_CODE_REQUIRED" });
     expect(mockLoadApproved).not.toHaveBeenCalled();
     expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("keeps FACILITY_DISABLED ahead of the missing approved result", async () => {
+    mockTx.applicationReview.findUnique.mockResolvedValue(null);
+    mockTx.contract.findUnique.mockResolvedValue({
+      contract_details: { facility_enabled: false, facility_disabled_reason: "Paused" },
+    });
+
+    await expect(createFromInvoiceSource()).rejects.toMatchObject({ code: "FACILITY_DISABLED" });
+    expect(mockLoadApproved).not.toHaveBeenCalled();
+    expectNoNoteRowWritten();
   });
 
   it("returns an existing Note for the same source without loading the approved result", async () => {

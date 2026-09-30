@@ -7,6 +7,7 @@
 
 const mockLoadCtosReport = jest.fn();
 const mockUpsert = jest.fn();
+const mockApplicationFindUnique = jest.fn();
 
 jest.mock("../applications/application-owned-ctos", () => ({
   loadApplicationOwnedCtosFinancialReport: (...args: unknown[]) => mockLoadCtosReport(...args),
@@ -23,6 +24,9 @@ jest.mock("../../lib/prisma", () => ({
   prisma: {
     applicationReview: {
       upsert: (...args: unknown[]) => mockUpsert(...args),
+    },
+    application: {
+      findUnique: (...args: unknown[]) => mockApplicationFindUnique(...args),
     },
   },
 }));
@@ -390,5 +394,26 @@ describe("AdminRepository review status writes and the approved snapshot", () =>
       approved_snapshot: Prisma.DbNull,
     });
     expect(args.create.approved_snapshot).toBe(Prisma.DbNull);
+  });
+});
+
+describe("AdminRepository.getApplicationById review rows", () => {
+  it("selects the review row columns without the approved Financial result", async () => {
+    mockApplicationFindUnique.mockResolvedValue(null);
+    await new AdminRepository().getApplicationById("app-1");
+    const reviews = mockApplicationFindUnique.mock.calls[0]![0].include.application_reviews;
+    expect(reviews).toEqual({
+      select: {
+        id: true,
+        application_id: true,
+        status: true,
+        reviewer_user_id: true,
+        reviewed_at: true,
+        created_at: true,
+        updated_at: true,
+        section: true,
+      },
+    });
+    expect(reviews.select).not.toHaveProperty("approved_snapshot");
   });
 });
