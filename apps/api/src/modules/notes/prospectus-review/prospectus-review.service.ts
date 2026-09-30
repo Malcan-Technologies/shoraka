@@ -96,6 +96,7 @@ import {
   prospectusDiag,
   prospectusDiagRethrow,
   reviewRowDiag,
+  reviewRowLogFields,
   setProspectusDiagStash,
   withProspectusDiagError,
 } from "./prospectus-diagnostics";
@@ -218,6 +219,11 @@ function rowDiag(row: NoteProspectusReview | null | undefined) {
 }
 
 // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+function rowLogFields(row: NoteProspectusReview | null | undefined) {
+  return reviewRowLogFields(row, diagHash);
+}
+
+// TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
 type ProspectusInvalidateDiag = {
   reason: "SOURCE" | "EDIT" | "UNPUBLISH" | "OTHER";
   caller: string;
@@ -289,6 +295,36 @@ async function clearApprovalEligibility(
   diag?: ProspectusInvalidateDiag
 ) {
   // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+  prospectusDiag("prospectus.review_row.before_invalidation", () => {
+    const storedRenderFingerprint =
+      diag?.storedFingerprint ?? diag?.before?.render_fingerprint ?? null;
+    const recomputedRenderFingerprint = diag?.currentFingerprint ?? null;
+    return {
+      noteId,
+      point: "before clearApprovalEligibility",
+      caller: diag?.caller ?? "unknown",
+      reason: diag?.reason ?? "OTHER",
+      auditAction: diag?.auditAction ?? null,
+      actorUserId,
+      // The row as this request loaded it. It can be stale if another request wrote since.
+      rowSource: "in-memory row loaded earlier in this request",
+      ...rowLogFields(diag?.before),
+      storedRenderFingerprint,
+      recomputedRenderFingerprint,
+      fingerprintsMatch:
+        recomputedRenderFingerprint == null
+          ? null
+          : recomputedRenderFingerprint === storedRenderFingerprint,
+      recomputedComponentHashes:
+        getFingerprintDiagSummary(recomputedRenderFingerprint)?.hashes ?? null,
+      approveComponentHashes: getFingerprintDiagSummary(storedRenderFingerprint)?.hashes ?? null,
+      changedComponents: diffFingerprintDiagSummaries(
+        getFingerprintDiagSummary(storedRenderFingerprint),
+        getFingerprintDiagSummary(recomputedRenderFingerprint)
+      ),
+    };
+  });
+  // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
   prospectusDiag("prospectus.invalidate.start", () => ({
     noteId,
     reason: diag?.reason ?? "OTHER",
@@ -329,6 +365,27 @@ async function clearApprovalEligibility(
       content_version: { increment: 1 },
       option_catalogue_version: catalogueVersion(),
     },
+  });
+  // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+  prospectusDiag("prospectus.review_row.after_invalidation", () => {
+    const versionBefore = diag?.before?.content_version ?? null;
+    return {
+      noteId,
+      point: "after clearApprovalEligibility",
+      caller: diag?.caller ?? "unknown",
+      reason: diag?.reason ?? "OTHER",
+      auditAction: diag?.auditAction ?? null,
+      rowSource: "row returned by the invalidating UPDATE",
+      ...rowLogFields(row),
+      statusBefore: diag?.before?.status ?? null,
+      contentVersionBefore: versionBefore,
+      updatedAtBefore: diag?.before?.updated_at?.toISOString?.() ?? null,
+      // This write increments by exactly 1. A larger step means another request wrote the row
+      // between this request's load and this write (the in-memory row was stale).
+      contentVersionStep: versionBefore == null ? null : row.content_version - versionBefore,
+      anotherWriteIntervened:
+        versionBefore == null ? null : row.content_version - versionBefore !== 1,
+    };
   });
   // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
   prospectusDiag("prospectus.invalidate.after_write", () => ({
@@ -631,6 +688,12 @@ export class ProspectusReviewService {
       buildProspectusHighlightRecommendations(recommendationInput);
 
     let review = await prisma.noteProspectusReview.findUnique({ where: { note_id: noteId } });
+    // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+    prospectusDiag("prospectus.review_row.loaded", () => ({
+      noteId,
+      point: "GET immediately after loading the review row",
+      ...rowLogFields(review),
+    }));
     if (!review) {
       const empty = emptyProspectusReviewContent(recommendationInput, aboutInvoiceInput);
       review = await prisma.noteProspectusReview.create({
@@ -653,6 +716,12 @@ export class ProspectusReviewService {
           asJson(mapReview(review!))
         );
       });
+      // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+      prospectusDiag("prospectus.review_row.loaded", () => ({
+        noteId,
+        point: "GET created the review row (none existed)",
+        ...rowLogFields(review),
+      }));
       // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
       prospectusDiag("prospectus.get.created", () => ({
         noteId,
@@ -842,6 +911,27 @@ export class ProspectusReviewService {
             approvedSnapshot: snapshot,
           })
         );
+        // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+        prospectusDiag("prospectus.review_row.fingerprint_check", () => {
+          const storedRenderFingerprint = diagApprovedReview.render_fingerprint;
+          return {
+            noteId,
+            point: "GET after recomputing the render fingerprint",
+            ...rowLogFields(diagApprovedReview),
+            storedRenderFingerprint,
+            recomputedRenderFingerprint: currentFp,
+            fingerprintsMatch: currentFp === storedRenderFingerprint,
+            willInvalidate: currentFp !== storedRenderFingerprint,
+            recomputedComponentHashes: getFingerprintDiagSummary(currentFp)?.hashes ?? null,
+            // Only known when Approve ran in this same API process.
+            approveComponentHashes:
+              getFingerprintDiagSummary(storedRenderFingerprint)?.hashes ?? null,
+            changedComponents: diffFingerprintDiagSummaries(
+              getFingerprintDiagSummary(storedRenderFingerprint),
+              getFingerprintDiagSummary(currentFp)
+            ),
+          };
+        });
         // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
         prospectusDiag("prospectus.get.fingerprint", () => ({
           noteId,
@@ -1052,6 +1142,17 @@ export class ProspectusReviewService {
       }),
       () => ({ response })
     );
+    // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+    prospectusDiag("prospectus.review_row.before_response", () => ({
+      noteId,
+      point: "GET immediately before returning the response",
+      // The row this request ends with: as loaded, or as returned by its own write.
+      ...rowLogFields(review),
+      responseStatus: mapped.status,
+      responseContentVersion: mapped.contentVersion,
+      responseUpdatedAt: mapped.updatedAt,
+      publishBlockedReason: publishBlocked,
+    }));
     return response;
   }
 
@@ -1730,6 +1831,22 @@ export class ProspectusReviewService {
       return row;
       // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation (.catch only logs and rethrows)
     }).catch(prospectusDiagRethrow("approve.transaction_write"));
+    // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
+    prospectusDiag("prospectus.review_row.after_approve", () => ({
+      noteId,
+      point: "immediately after the approve transaction committed",
+      rowSource: "row returned by the approve UPDATE inside the committed transaction",
+      ...rowLogFields(updated),
+      statusBefore: diagApproveCurrent.status,
+      contentVersionBefore: diagApproveCurrent.content_version,
+      updatedAtBefore: diagApproveCurrent.updated_at?.toISOString?.() ?? null,
+      // Approve-time component hashes, for comparison with a later GET recompute.
+      approveComponentHashes:
+        getFingerprintDiagSummary(updated.render_fingerprint)?.hashes ?? null,
+      fingerprintSurvivesJsonRoundTrip:
+        getFingerprintDiagSummary(updated.render_fingerprint)?.fingerprintSurvivesJsonRoundTrip ??
+        null,
+    }));
     // TEMP PROSPECTUS DIAGNOSTIC — remove after investigation
     prospectusDiag("prospectus.approve.transaction_committed", () => ({
       noteId,

@@ -319,8 +319,35 @@ type ReviewRowLike = {
   updated_by_user_id: string;
   approved_by_user_id: string | null;
   approved_at: Date | null;
+  created_at?: Date | null;
   updated_at: Date;
 };
+
+/**
+ * Flat fields for the `prospectus.review_row.*` events: the note_prospectus_reviews row as the
+ * code holds it at that point. Hashes only, never the content bodies.
+ */
+export function reviewRowLogFields(row: ReviewRowLike | null | undefined, hash: DiagHash) {
+  if (!row) return { rowFound: false };
+  return {
+    rowFound: true,
+    noteId: row.note_id,
+    reviewId: row.id,
+    status: row.status,
+    contentVersion: row.content_version,
+    renderFingerprint: row.render_fingerprint,
+    approvedPublicationId: row.approved_publication_id,
+    approvedByUserId: row.approved_by_user_id,
+    approvedAt: row.approved_at?.toISOString?.() ?? null,
+    createdAt: row.created_at?.toISOString?.() ?? null,
+    updatedAt: row.updated_at?.toISOString?.() ?? null,
+    hasDraftContent: row.draft_content != null,
+    hasApprovedContent: row.approved_content != null,
+    draftContentHash: row.draft_content != null ? diagSafeHash(hash, row.draft_content) : null,
+    approvedContentHash:
+      row.approved_content != null ? diagSafeHash(hash, row.approved_content) : null,
+  };
+}
 
 /** Compact, comparable state of a review row (raw DB status, no content bodies). */
 export function reviewRowDiag(row: ReviewRowLike | null | undefined, hash: DiagHash) {
