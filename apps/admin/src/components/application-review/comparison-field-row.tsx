@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { Children, type ReactNode } from "react";
 
 /**
  * SECTION: Question-style field in resubmit comparison
@@ -22,6 +22,7 @@ import {
   comparisonSurfaceChangedBeforeClass,
   comparisonLabelColClass,
   comparisonRowGridClass,
+  comparisonRowListClass,
   comparisonSideCaptionClass,
   comparisonSplitAfterColClass,
   comparisonSplitBeforeColClass,
@@ -123,6 +124,50 @@ export function ComparisonSideSlot({
       <span className={comparisonSideCaptionClass}>{side === "before" ? "Before" : "After"}</span>
       {children}
       {hint ? <p className={comparisonValueHintClass}>{hint}</p> : null}
+    </div>
+  );
+}
+
+const comparisonColumnHeaderCellClass = "text-meta font-medium text-muted-foreground";
+
+/**
+ * SECTION: Before/After column header for a block of comparison rows
+ * WHY: The modal banner spans the full width and does not line up with the 3-column rows on desktop.
+ * INPUT: className — same row override the rows below use (e.g. "pl-0") so the columns cannot drift
+ * OUTPUT: md+ only (rows stack with visible captions below md); aria-hidden since rows carry sr-only captions
+ * WHERE USED: ComparisonRowList; SupportingDocumentsComparisonLayout category bodies
+ */
+export function ComparisonColumnHeader({ className }: { className?: string }) {
+  return (
+    // Below md the header is display:none, but space-y-* (v3: :not([hidden]) ~ :not([hidden])) still
+    // spaces the next row off it; cancel that margin so stacked rows start where they did before.
+    <div
+      className={cn(comparisonRowGridClass, "hidden md:grid max-md:[&+*]:!mt-0", className)}
+      aria-hidden
+    >
+      <div aria-hidden />
+      <p className={comparisonColumnHeaderCellClass}>Before</p>
+      <p className={comparisonColumnHeaderCellClass}>After</p>
+    </div>
+  );
+}
+
+/** Comparison row list with one Before/After column header above its rows (omitted when empty). */
+export function ComparisonRowList({
+  children,
+  className,
+  headerClassName,
+}: {
+  children: ReactNode;
+  className?: string;
+  /** Same row className override the rows use, so the header columns match. */
+  headerClassName?: string;
+}) {
+  const hasRows = Children.toArray(children).length > 0;
+  return (
+    <div className={cn(comparisonRowListClass, className)}>
+      {hasRows ? <ComparisonColumnHeader className={headerClassName} /> : null}
+      {children}
     </div>
   );
 }

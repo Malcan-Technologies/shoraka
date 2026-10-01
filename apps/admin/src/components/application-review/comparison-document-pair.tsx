@@ -47,6 +47,7 @@ import {
   type SupportingDocRowRequirementMeta,
 } from "./supporting-documents-admin-meta";
 import {
+  ComparisonColumnHeader,
   ComparisonFieldRow,
   ComparisonSideSlot,
   ComparisonYesNoRadioRow,
@@ -272,8 +273,9 @@ export function ComparisonDocumentTitleRow({
       role="group"
       aria-label={noisy ? `${ariaTitle}, files changed` : ariaTitle}
     >
-      <div className={comparisonLabelColClass}>
-        <p>{title}</p>
+      {/* Label typography on the title only; badges and Remark keep their own component styling. */}
+      <div className="min-w-0">
+        <p className={comparisonLabelColClass}>{title}</p>
         {requirementMeta ? (
           <SupportingDocRequirementBadges meta={requirementMeta} size="compact" className="mt-1" />
         ) : null}
@@ -460,6 +462,7 @@ export function SupportingDocumentsComparisonLayout({
               </CollapsibleTrigger>
               <CollapsibleContent>
                 <div className="border-t pl-8 pr-4 py-3 space-y-3 sm:pl-10">
+                  {block.rows.length > 0 ? <ComparisonColumnHeader className="pl-0" /> : null}
                   {block.rows.map((row, rowIndex) => {
                     const slot = block.rowSlots[rowIndex];
                     const rowAmendmentNotes = amendmentRemarksForDocumentRow(

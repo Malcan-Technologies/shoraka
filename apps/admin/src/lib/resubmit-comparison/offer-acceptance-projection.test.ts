@@ -201,20 +201,29 @@ describe("projectOfferAcceptanceComparison stage order", () => {
     ]);
   });
 
-  it("asides number invoices whose labels collide (unnumbered fallback) by emitted position", () => {
+  it("asides number colliding labels among the duplicates only", () => {
     const invoices = [invoice("x", { number: "" }), invoice("i1"), invoice("y", { number: "" })];
     const p = projectOfferAcceptanceComparison(
       app("invoice_only", { invoices }),
       app("invoice_only", { invoices })
     );
     expect(p.blockAsides).toEqual({
-      "invoice_details:x": "Invoice 1",
-      "invoice_offer:x": "Invoice 1",
+      "invoice_details:x": "Invoice (#1)",
+      "invoice_offer:x": "Invoice (#1)",
       "invoice_details:i1": "INV-i1",
       "invoice_offer:i1": "INV-i1",
-      "invoice_details:y": "Invoice 3",
-      "invoice_offer:y": "Invoice 3",
+      "invoice_details:y": "Invoice (#2)",
+      "invoice_offer:y": "Invoice (#2)",
     });
+  });
+
+  it("a re-added invoice sharing a reference is disambiguated as INV-005 (#1) / (#2)", () => {
+    const p = projectOfferAcceptanceComparison(
+      app("invoice_only", { invoices: [invoice("old", { number: "INV-005" })] }),
+      app("invoice_only", { invoices: [invoice("new", { number: "INV-005" })] })
+    );
+    expect(p.blockAsides["invoice_details:new"]).toBe("INV-005 (#1)");
+    expect(p.blockAsides["invoice_details:old"]).toBe("INV-005 (#2)");
   });
 
   it("new_contract asides cover only the emitted invoice detail blocks", () => {

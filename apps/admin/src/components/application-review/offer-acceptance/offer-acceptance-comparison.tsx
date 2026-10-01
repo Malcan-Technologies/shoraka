@@ -19,9 +19,10 @@ import {
 import type { ComparisonStage } from "@/lib/resubmit-comparison/projection-types";
 import { resubmitTabSections } from "@/lib/resubmit-comparison/modal-tabs";
 import { ComparisonProjectedRow } from "../comparison-document-pair";
+import { ComparisonRowList } from "../comparison-field-row";
 import { ReviewFieldBlock } from "../review-field-block";
 import { ReviewSectionCard } from "../review-section-card";
-import { comparisonRowListClass, reviewEmptyStateClass } from "../review-section-styles";
+import { reviewEmptyStateClass } from "../review-section-styles";
 import type { ReviewTabDescriptor } from "../review-registry";
 import type { ReviewApplicationView } from "../section-content";
 import type { OfferAcceptanceStage, OfferAcceptanceStageId } from "./offer-acceptance-stages";
@@ -79,7 +80,7 @@ function ComparisonBlocks({
               ) : undefined
             }
           >
-            <div className={comparisonRowListClass}>
+            <ComparisonRowList>
               {block.rows.map((row) => (
                 <ComparisonProjectedRow
                   key={row.key}
@@ -89,7 +90,7 @@ function ComparisonBlocks({
                   viewDocumentPending={viewDocumentPending}
                 />
               ))}
-            </div>
+            </ComparisonRowList>
           </ReviewFieldBlock>
         );
       })}

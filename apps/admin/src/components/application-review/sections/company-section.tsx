@@ -17,10 +17,10 @@ import {
   reviewEmptyStateClass,
   REVIEW_EMPTY_LABEL,
   formatReviewValue,
-  comparisonRowListClass,
 } from "../review-section-styles";
 import type { ReviewSectionId } from "../section-types";
 import { ComparisonProjectedRow } from "../comparison-document-pair";
+import { ComparisonRowList } from "../comparison-field-row";
 import {
   COMPANY_BANK_ACCOUNT_NUMBER_HINT,
   formatCompanyAddress as formatAddress,
@@ -102,11 +102,11 @@ export function CompanySection({
       >
         {comparisonBlocks.map((block) => (
           <ReviewFieldBlock key={block.id} title={block.title}>
-            <div className={comparisonRowListClass}>
+            <ComparisonRowList>
               {block.rows.map((row) => (
                 <ComparisonProjectedRow key={row.key} row={row} />
               ))}
-            </div>
+            </ComparisonRowList>
           </ReviewFieldBlock>
         ))}
         {!hideSectionComments ? (

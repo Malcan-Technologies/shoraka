@@ -48,12 +48,11 @@ import {
   reviewEmptyStateClass,
   REVIEW_EMPTY_LABEL,
   comparisonRowGridClass,
-  comparisonRowListClass,
   comparisonSurfaceChangedAfterClass,
   comparisonSurfaceChangedBeforeClass,
 } from "../review-section-styles";
 import { ComparisonProjectedRow } from "../comparison-document-pair";
-import { ComparisonSideSlot } from "../comparison-field-row";
+import { ComparisonRowList, ComparisonSideSlot } from "../comparison-field-row";
 import type { ReviewSectionId } from "../section-types";
 import {
   kycAmlScreeningRiskToken,
@@ -1131,7 +1130,7 @@ function AdminGuarantorComparisonList({
             </summary>
             {/* Body pt-3 + list mt-4 = live first-row offset (pt-3 + reviewRowGridClass mt-4). */}
             <div className="min-w-0 px-4 pb-4 pt-3">
-              <div className={comparisonRowListClass}>
+              <ComparisonRowList>
                 {block.rows.map((row) => (
                   <ComparisonProjectedRow
                     key={row.key}
@@ -1141,7 +1140,7 @@ function AdminGuarantorComparisonList({
                     viewDocumentPending={viewDocumentPending}
                   />
                 ))}
-              </div>
+              </ComparisonRowList>
             </div>
           </details>
         );
@@ -1462,7 +1461,7 @@ export function BusinessSection({
         ) : null}
         {otherBlocks.map((block) => (
           <ReviewFieldBlock key={block.id} title={block.title}>
-            <div className={comparisonRowListClass}>
+            <ComparisonRowList>
               {block.rows.map((row) => (
                 <ComparisonProjectedRow
                   key={row.key}
@@ -1472,7 +1471,7 @@ export function BusinessSection({
                   viewDocumentPending={viewDocumentPending}
                 />
               ))}
-            </div>
+            </ComparisonRowList>
           </ReviewFieldBlock>
         ))}
 
@@ -1489,13 +1488,13 @@ export function BusinessSection({
 
         {declarationRow?.kind === "yesno" ? (
           <ReviewFieldBlock title="Declarations">
-            <div className={comparisonRowListClass}>
+            <ComparisonRowList>
               <ComparisonDeclarationRow
                 label={declarationRow.label}
                 beforeConfirmed={declarationRow.before === true}
                 afterConfirmed={declarationRow.after === true}
               />
-            </div>
+            </ComparisonRowList>
           </ReviewFieldBlock>
         ) : null}
 

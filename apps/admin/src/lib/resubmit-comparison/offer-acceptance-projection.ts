@@ -469,10 +469,14 @@ function invoiceBlockAsides(
   const labels = pairs.map(invoicePairLabel);
   const labelCounts = new Map<string, number>();
   for (const label of labels) labelCounts.set(label, (labelCounts.get(label) ?? 0) + 1);
+  const occurrences = new Map<string, number>();
   const blockAsides: Record<string, string> = {};
   pairs.forEach((pair, index) => {
     const base = labels[index]!;
-    const label = (labelCounts.get(base) ?? 0) > 1 ? `${base} ${index + 1}` : base;
+    // Shared references are numbered among the duplicates only: "INV-005 (#1)", "INV-005 (#2)".
+    const occurrence = (occurrences.get(base) ?? 0) + 1;
+    occurrences.set(base, occurrence);
+    const label = (labelCounts.get(base) ?? 0) > 1 ? `${base} (#${occurrence})` : base;
     blockAsides[invoiceDetailsBlockId(pair.id)] = label;
     if (structure !== "new_contract") blockAsides[invoiceOfferBlockId(pair.id)] = label;
   });
