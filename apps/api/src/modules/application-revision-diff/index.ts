@@ -104,7 +104,11 @@ function stripApplicationGuarantorsArrayForCompare(raw: unknown): unknown {
   return raw.map(stripGuarantorSnapshotRowForCompare);
 }
 
-type FieldChangeLeaf = { path: string; prev: unknown; next: unknown };
+function issuerUnauditedByYear(financialStatements: unknown): unknown {
+  return isPlainObject(financialStatements) ? financialStatements.unaudited_by_year : undefined;
+}
+
+type FieldChangeLeaf ={ path: string; prev: unknown; next: unknown };
 
 function collectFieldChangeLeaves(
   prev: unknown,
@@ -301,6 +305,20 @@ export function summarizeResubmitSnapshotDiff(
 
   if (prevApp && nextApp) {
     for (const key of APPLICATION_JSON_KEYS) {
+      if (key === "financial_statements") {
+        /**
+         * Only issuer User Input is an amendment change. Admin Input / Admin overrides / questionnaire
+         * are skipped here so they cannot fill MAX_FIELD_PATHS before the issuer paths.
+         */
+        collectFieldChangeLeaves(
+          issuerUnauditedByYear(prevApp[key]),
+          issuerUnauditedByYear(nextApp[key]),
+          "financial_statements.unaudited_by_year",
+          fieldLeaves,
+          MAX_FIELD_PATHS
+        );
+        continue;
+      }
       collectFieldChangeLeaves(prevApp[key], nextApp[key], key, fieldLeaves, MAX_FIELD_PATHS);
     }
     /**

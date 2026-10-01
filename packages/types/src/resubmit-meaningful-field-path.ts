@@ -3,6 +3,8 @@
  * Mirrors admin `review-section-has-resubmit-changes` rules so activity text and tab highlights stay aligned.
  */
 
+import { isIssuerFinancialUserInputResubmitPath } from "./issuer-financial-resubmit-diff";
+
 /**
  * True if this diff path should appear in APPLICATION_RESUBMITTED metadata and activity summaries.
  */
@@ -10,6 +12,9 @@ export function isMeaningfulResubmitSnapshotFieldPath(path: string): boolean {
   if (!path || typeof path !== "string") return false;
 
   const first = path.split(/[.[\]]/)[0] ?? "";
+
+  /** Only issuer User Input counts; questionnaire, Admin Input and Admin overrides are not issuer changes. */
+  if (first === "financial_statements") return isIssuerFinancialUserInputResubmitPath(path);
 
   if (first === "contract") {
     if (path === "contract") return false;

@@ -9,6 +9,7 @@ import { ApplicationFinancialReviewComparison } from "@/components/application-f
 import {
   shouldNotifyIssuerDirectorShareholderAfterOrgCtosFromResolvedPeopleSnapshots,
   type ApplicationPersonRow,
+  type IssuerFinancialResubmitYearDiff,
 } from "@cashsouk/types";
 import { formatDirectorShareholderReviewHint } from "@/lib/admin-director-shareholder-review-message";
 import { financialSectionApproveDisabledReason } from "./financial-section-approve-gate";
@@ -83,7 +84,8 @@ export interface FinancialSectionProps {
   sectionComparison?: {
     beforeApp: FinancialSectionAppSlice;
     afterApp: FinancialSectionAppSlice;
-    isPathChanged: (path: string) => boolean;
+    /** Issuer User Input diff between the two consecutive revision snapshots. */
+    financialDiff: IssuerFinancialResubmitYearDiff[];
   };
   hideSectionComments?: boolean;
 }
@@ -278,7 +280,7 @@ export function FinancialSection({
         <ApplicationFinancialReviewComparison
           beforeApp={sectionComparison.beforeApp}
           afterApp={sectionComparison.afterApp}
-          isPathChanged={sectionComparison.isPathChanged}
+          financialDiff={sectionComparison.financialDiff}
         />
         {!hideSectionComments ? (
           <SectionComments comments={comments} onSubmitComment={onAddComment} />

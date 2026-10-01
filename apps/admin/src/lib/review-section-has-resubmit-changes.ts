@@ -4,7 +4,10 @@
  */
 
 import type { ReviewSectionId } from "@/components/application-review/review-registry";
-import { isMeaningfulResubmitSnapshotFieldPath } from "@cashsouk/types";
+import {
+  isIssuerFinancialUserInputResubmitPath,
+  isMeaningfulResubmitSnapshotFieldPath,
+} from "@cashsouk/types";
 
 type FieldChangeWithPath = { path: string };
 
@@ -20,13 +23,8 @@ export function reviewSectionHasResubmitChanges(
 
   switch (reviewSection) {
     case "financial":
-      return fieldChanges.some(
-        (f) =>
-          pathUnderRoot(f.path, "financial_statements") ||
-          pathUnderRoot(f.path, "financing_type") ||
-          pathUnderRoot(f.path, "financing_structure") ||
-          pathUnderRoot(f.path, "issuer_organization")
-      );
+      // Issuer User Input only. Admin Input, Admin overrides, questionnaire, CTOS and metadata never count.
+      return fieldChanges.some((f) => isIssuerFinancialUserInputResubmitPath(f.path));
     case "company_details":
       return fieldChanges.some(
         (f) => pathUnderRoot(f.path, "company_details") || pathUnderRoot(f.path, "issuer_organization")

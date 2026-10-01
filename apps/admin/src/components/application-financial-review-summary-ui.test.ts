@@ -395,6 +395,30 @@ describe("Admin Financial Summary table UI", () => {
     expect(comparisonSource).toContain("Cash Flow / Debt");
   });
 
+  it("resubmit comparison is driven only by the issuer User Input diff (no Admin / CTOS data)", () => {
+    const full = readFileSync(comparisonPath, "utf8");
+    // Skip the file header comment, which documents what is excluded.
+    const comparisonSource = full.slice(full.indexOf("import * as React"));
+    // Years, values and highlighting come from diffIssuerFinancialRevisionSnapshots output.
+    expect(comparisonSource).toContain("financialDiff.map((d) => d.year)");
+    expect(comparisonSource).toContain("field?.issuerBefore");
+    expect(comparisonSource).toContain("field?.issuerAfter");
+    expect(comparisonSource).toContain("field?.changed === true");
+    expect(comparisonSource).toContain("No issuer financial changes in this resubmission.");
+    // Never reads Admin Input, Admin overrides, CTOS or the old 3-year union.
+    for (const forbidden of [
+      "admin_input_by_year",
+      "admin_field_overrides",
+      "parseAdminFieldOverrides",
+      "edit_user_input",
+      "ctos",
+      "years.length - 3",
+      "isPathChanged",
+    ]) {
+      expect(comparisonSource.toLowerCase()).not.toContain(forbidden.toLowerCase());
+    }
+  });
+
   it("renders Source as — for missing CTOS values and for admin add-year placeholders", () => {
     const contentSource = readFileSync(tablePath, "utf8");
 
