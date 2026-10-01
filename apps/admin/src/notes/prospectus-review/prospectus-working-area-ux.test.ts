@@ -33,12 +33,17 @@ describe("Prospectus working area UX cleanup (presentation-only)", () => {
     expect(sharedSource).not.toContain("items-end");
   });
 
-  it("renders source badges only for CTOS/User Input/Admin Input (no audited/management clutter)", () => {
+  it("renders source badges for CTOS/User Input/Admin Input; statement type only for Admin Input", () => {
     const sharedSource = readFileSync(sharedTablePath, "utf8");
     expect(sharedSource).toContain('header.sourceType === "CTOS"');
     expect(sharedSource).toContain('header.sourceType === "ADMIN_INPUT"');
     expect(sharedSource).toContain('header.sourceType === "ISSUER_INPUT"');
-    expect(sharedSource).not.toContain("AUDITED");
+    // Admin Input years show their existing statement type, matching Admin Financial Review.
+    expect(sharedSource).toMatch(
+      /header\.sourceType === "ADMIN_INPUT" &&\s*\(header\.statementType === "AUDITED" \|\|\s*header\.statementType === "NOT_AUDITED"\)/
+    );
+    expect(sharedSource).toContain('"Audited"');
+    expect(sharedSource).toContain('"Not audited"');
     expect(sharedSource).not.toContain("MANAGEMENT_ACCOUNTS");
     expect(sharedSource).not.toContain("Not Audited");
   });
