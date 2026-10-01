@@ -4,7 +4,7 @@
  * SECTION: Before/after file comparison UI
  * WHY: One pattern for supporting docs, consent PDFs, contract uploads, invoice docs, business attachments.
  * INPUT: title, chip lists (s3Key + label) or projected ComparisonRow
- * OUTPUT: Same chip + two-column layout everywhere; changed rows use comparisonSurfaceChanged* like ComparisonFieldRow.
+ * OUTPUT: Same chip + label | Before | After grid everywhere; changed rows use comparisonSurfaceChanged* like ComparisonFieldRow.
  *         File lists differ by s3 key + name only (order and size ignored); an After file that reuses a
  *         Before file name under a new s3 key is badged "Replaced".
  * WHERE USED: SupportingDocumentsComparisonLayout; Invoice "Document"; Business supporting docs; Contract / Customer evidence;
@@ -33,14 +33,12 @@ import { cn } from "@/lib/utils";
 import {
   REVIEW_EMPTY_LABEL,
   reviewEmptyStateClass,
-  reviewLabelClass,
   comparisonCellSurfaceShellClass,
   comparisonFileChipRowShellClass,
+  comparisonLabelColClass,
+  comparisonRowGridClass,
   comparisonSurfaceChangedAfterClass,
   comparisonSurfaceChangedBeforeClass,
-  comparisonSplitAfterColClass,
-  comparisonSplitBeforeColClass,
-  comparisonSplitRowGridClass,
 } from "./review-section-styles";
 import { SUPPORTING_DOC_ACTION_BTN_BASE_CLASS } from "./document-list";
 import { SupportingDocRequirementBadges } from "./supporting-doc-requirement-badges";
@@ -48,7 +46,11 @@ import {
   supportingDocRowRequirementMeta,
   type SupportingDocRowRequirementMeta,
 } from "./supporting-documents-admin-meta";
-import { ComparisonFieldRow, ComparisonYesNoRadioRow } from "./comparison-field-row";
+import {
+  ComparisonFieldRow,
+  ComparisonSideSlot,
+  ComparisonYesNoRadioRow,
+} from "./comparison-field-row";
 import {
   comparisonFilesDiffer,
   comparisonRowDiffers,
@@ -94,7 +96,7 @@ function ReplacedFileBadge() {
 
 export function ComparisonFileChipList({
   files,
-  emptyLabel,
+  emptyLabel = REVIEW_EMPTY_LABEL,
   strikeLabels,
   column = "before",
   accentChanged = false,
@@ -104,7 +106,8 @@ export function ComparisonFileChipList({
   viewDocumentPending,
 }: {
   files: ComparisonFileChip[];
-  emptyLabel: string;
+  /** Shown when the list is empty (live: "Not provided"). */
+  emptyLabel?: string;
   /** When true, primary line uses strikethrough (e.g. superseded before column). */
   strikeLabels?: boolean;
   /** Before: muted like retired submission. After: primary text (full contrast). */
@@ -133,7 +136,9 @@ export function ComparisonFileChipList({
     (column === "before" ? comparisonSurfaceChangedBeforeClass : comparisonSurfaceChangedAfterClass);
   if (files.length === 0) {
     return (
-      <div className={cn(comparisonCellSurfaceShellClass, tone, changedHighlight)}>{emptyLabel}</div>
+      <div className={cn(comparisonCellSurfaceShellClass, "min-w-0", tone, changedHighlight)}>
+        {emptyLabel}
+      </div>
     );
   }
   return (
@@ -147,13 +152,14 @@ export function ComparisonFileChipList({
             key={`${f.s3Key}-${idx}`}
             className={cn(
               comparisonFileChipRowShellClass,
+              "min-w-0",
               changedHighlight,
               tone,
-              (showView || showDownload) &&
-                "flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
+              /** Wrap actions under the name when the column is too narrow for both (no squeezed names). */
+              (showView || showDownload) && "flex-wrap justify-between gap-x-3 gap-y-2"
             )}
           >
-            <div className="flex min-w-0 flex-1 items-start gap-2">
+            <div className="flex min-w-0 grow basis-48 items-start gap-2">
               <DocumentTextIcon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
               <span className="min-w-0 flex-1">
                 <span
@@ -184,7 +190,7 @@ export function ComparisonFileChipList({
               </span>
             </div>
             {showView || showDownload ? (
-              <div className="flex shrink-0 flex-wrap gap-1 sm:justify-end">
+              <div className="flex shrink-0 flex-wrap gap-2">
                 {showView ? (
                   <Button
                     type="button"
@@ -230,6 +236,7 @@ export function ComparisonDocumentTitleRow({
   onViewDocument,
   onDownloadDocument,
   viewDocumentPending,
+  className,
 }: {
   title: string;
   /** From product workflow — badge row under title */
@@ -243,6 +250,8 @@ export function ComparisonDocumentTitleRow({
   onViewDocument?: (s3Key: string) => void;
   onDownloadDocument?: (s3Key: string, fileName?: string) => void;
   viewDocumentPending?: boolean;
+  /** Layout override for the row root (e.g. drop the pl-3 indent inside an already indented body). */
+  className?: string;
 }) {
   const filesDiffer = comparisonFileChipsDiffer(beforeFiles, afterFiles);
   const noisy = filesDiffer || !!markChanged;
@@ -259,17 +268,15 @@ export function ComparisonDocumentTitleRow({
 
   return (
     <div
-      className="py-2 space-y-3"
+      className={cn(comparisonRowGridClass, className)}
       role="group"
       aria-label={noisy ? `${ariaTitle}, files changed` : ariaTitle}
     >
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <p className={reviewLabelClass}>{title}</p>
-          {requirementMeta ? (
-            <SupportingDocRequirementBadges meta={requirementMeta} size="compact" className="mt-1" />
-          ) : null}
-        </div>
+      <div className={comparisonLabelColClass}>
+        <p>{title}</p>
+        {requirementMeta ? (
+          <SupportingDocRequirementBadges meta={requirementMeta} size="compact" className="mt-1" />
+        ) : null}
         {hasAmendmentNotes ? (
           <Popover>
             <PopoverTrigger asChild>
@@ -277,7 +284,7 @@ export function ComparisonDocumentTitleRow({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-8 shrink-0 px-2 text-xs"
+                className={cn(SUPPORTING_DOC_ACTION_BTN_BASE_CLASS, "mt-2")}
                 aria-label={`Remark for ${title}`}
               >
                 Remark
@@ -285,7 +292,7 @@ export function ComparisonDocumentTitleRow({
             </PopoverTrigger>
             <PopoverContent
               className="w-[min(22rem,calc(100vw-2rem))] max-h-[min(26rem,75vh)] overflow-y-auto border-border p-3"
-              align="end"
+              align="start"
               side="bottom"
               sideOffset={8}
             >
@@ -294,32 +301,30 @@ export function ComparisonDocumentTitleRow({
           </Popover>
         ) : null}
       </div>
-      <div className={comparisonSplitRowGridClass}>
-        <div className={comparisonSplitBeforeColClass}>
-          <ComparisonFileChipList
-            files={beforeFiles}
-            emptyLabel="—"
-            strikeLabels={filesDiffer && beforeFiles.length > 0}
-            column="before"
-            accentChanged={colHighlight}
-            onViewDocument={onViewDocument}
-            onDownloadDocument={onDownloadDocument}
-            viewDocumentPending={viewDocumentPending}
-          />
-        </div>
-        <div className={comparisonSplitAfterColClass}>
-          <ComparisonFileChipList
-            files={afterFiles}
-            emptyLabel="—"
-            column="after"
-            accentChanged={colHighlight}
-            replacedAgainst={beforeFiles}
-            onViewDocument={onViewDocument}
-            onDownloadDocument={onDownloadDocument}
-            viewDocumentPending={viewDocumentPending}
-          />
-        </div>
-      </div>
+      <ComparisonSideSlot side="before">
+        <ComparisonFileChipList
+          files={beforeFiles}
+          emptyLabel={REVIEW_EMPTY_LABEL}
+          strikeLabels={filesDiffer && beforeFiles.length > 0}
+          column="before"
+          accentChanged={colHighlight}
+          onViewDocument={onViewDocument}
+          onDownloadDocument={onDownloadDocument}
+          viewDocumentPending={viewDocumentPending}
+        />
+      </ComparisonSideSlot>
+      <ComparisonSideSlot side="after">
+        <ComparisonFileChipList
+          files={afterFiles}
+          emptyLabel={REVIEW_EMPTY_LABEL}
+          column="after"
+          accentChanged={colHighlight}
+          replacedAgainst={beforeFiles}
+          onViewDocument={onViewDocument}
+          onDownloadDocument={onDownloadDocument}
+          viewDocumentPending={viewDocumentPending}
+        />
+      </ComparisonSideSlot>
     </div>
   );
 }
@@ -339,6 +344,7 @@ export function ComparisonProjectedRow({
   onViewDocument,
   onDownloadDocument,
   viewDocumentPending,
+  className,
 }: {
   row: ComparisonRow;
   requirementMeta?: SupportingDocRowRequirementMeta;
@@ -346,27 +352,24 @@ export function ComparisonProjectedRow({
   onViewDocument?: (s3Key: string) => void;
   onDownloadDocument?: (s3Key: string, fileName?: string) => void;
   viewDocumentPending?: boolean;
+  /** Layout override forwarded to the row root. */
+  className?: string;
 }) {
   const differs = comparisonRowDiffers(row);
   switch (row.kind) {
-    case "text": {
-      const field = (
+    case "text":
+      return (
         <ComparisonFieldRow
           label={row.label}
           before={row.before ?? REVIEW_EMPTY_LABEL}
           after={row.after ?? REVIEW_EMPTY_LABEL}
           changed={differs}
           multiline={row.multiline}
+          hint={row.hint}
+          className={className}
+          layout="grid"
         />
       );
-      if (!row.hint) return field;
-      return (
-        <div>
-          {field}
-          <p className="text-xs text-muted-foreground">{row.hint}</p>
-        </div>
-      );
-    }
     case "yesno":
       return (
         <ComparisonYesNoRadioRow
@@ -374,6 +377,8 @@ export function ComparisonProjectedRow({
           beforeValue={row.before}
           afterValue={row.after}
           changed={differs}
+          className={className}
+          layout="grid"
         />
       );
     case "files":
@@ -387,6 +392,7 @@ export function ComparisonProjectedRow({
           onViewDocument={onViewDocument}
           onDownloadDocument={onDownloadDocument}
           viewDocumentPending={viewDocumentPending}
+          className={className}
         />
       );
   }
@@ -424,7 +430,7 @@ export function SupportingDocumentsComparisonLayout({
   );
 
   if (blocks.length === 0) {
-    return <p className={reviewEmptyStateClass}>No supporting documents in these snapshots.</p>;
+    return <p className={reviewEmptyStateClass}>No supporting documents submitted.</p>;
   }
 
   return (
@@ -478,6 +484,7 @@ export function SupportingDocumentsComparisonLayout({
                         onViewDocument={onViewDocument}
                         onDownloadDocument={onDownloadDocument}
                         viewDocumentPending={viewDocumentPending}
+                        className="pl-0"
                       />
                     );
                   })}

@@ -74,6 +74,27 @@ const ROW_GRID_BASE =
 /** Indented row grid for content under section headers. */
 export const reviewRowGridClass = `pl-3 ${ROW_GRID_BASE}`;
 
+/**
+ * Resubmit comparison rows in the live review grid language: 220px label column (as reviewRowGridClass),
+ * then Before | After. Stacks on small screens (label, Before, After) with side captions.
+ */
+const COMPARISON_ROW_COLUMNS = "md:grid-cols-[220px_minmax(0,1fr)_minmax(0,1fr)]";
+
+/** Wrapper for a list of comparison rows under a block header (live: mt-4 + gap-y-4). */
+export const comparisonRowListClass = "mt-4 space-y-4";
+
+/** One comparison row: label | Before | After. */
+export const comparisonRowGridClass = `pl-3 grid min-w-0 w-full grid-cols-1 ${COMPARISON_ROW_COLUMNS} gap-x-6 gap-y-2 items-start [&>*]:min-w-0`;
+
+/** Label cell: live label typography, nudged to sit on the first line of a 36px value cell. */
+export const comparisonLabelColClass = `${reviewLabelClass} md:pt-1.5`;
+
+/** Before/After caption: visible when the row stacks; screen-reader only on md+ (columns carry it visually). */
+export const comparisonSideCaptionClass = "mb-1 block text-meta text-muted-foreground md:sr-only";
+
+/** Helper text under a value cell (live: under the value). */
+export const comparisonValueHintClass = "mt-1 text-xs text-muted-foreground";
+
 export interface FormatReviewValueOptions {
   emptyLabel?: string;
   formatCurrency?: boolean;

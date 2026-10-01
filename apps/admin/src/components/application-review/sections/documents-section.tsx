@@ -209,14 +209,14 @@ export function DocumentsSection({
   if (sectionComparison) {
     const { beforeDocs, afterDocs, amendmentRemarks } = sectionComparison;
     return (
-      <Card className="rounded-2xl">
+      <Card className="min-w-0 rounded-2xl">
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
             <DocumentTextIcon className="h-5 w-5 text-primary" />
             <CardTitle className={reviewCardTitleClass}>Supporting Documents</CardTitle>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-10">
           <SupportingDocumentsComparisonLayout
             beforeDocs={beforeDocs}
             afterDocs={afterDocs}

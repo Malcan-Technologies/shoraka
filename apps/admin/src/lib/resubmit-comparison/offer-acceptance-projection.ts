@@ -51,6 +51,11 @@ export type OfferAcceptanceComparisonProjection = {
   contract_details: ComparisonStage[];
   /** Invoice review (or the new_contract invoice block) + invoice Send offer. */
   invoice_details: ComparisonStage[];
+  /**
+   * Display-only: invoice label shown beside per-invoice block titles, keyed by block id.
+   * Not part of the Diff result.
+   */
+  blockAsides: Record<string, string>;
 };
 
 export type OfferAcceptanceComparisonStructure =
@@ -58,7 +63,7 @@ export type OfferAcceptanceComparisonStructure =
   | "existing_contract"
   | "invoice_only";
 
-/** Stage id for the new_contract invoice block rendered below the live rail. */
+/** Stage id for the new_contract Invoice card rendered below the live rail (live InvoiceSection). */
 export const OFFER_ACCEPTANCE_COMPARISON_INVOICES_STAGE_ID = "invoices";
 
 type Rec = Record<string, unknown> | null | undefined;
@@ -322,12 +327,20 @@ function pairInvoices(
   ];
 }
 
-function invoiceTitle(
-  base: string,
-  pair: { before?: ComparisonInvoice; after?: ComparisonInvoice }
-): string {
-  const inv = pair.after ?? pair.before;
-  return inv ? `${base} — ${invoiceTabLabel(inv)}` : base;
+type InvoicePair = ReturnType<typeof pairInvoices>[number];
+
+/** Invoice label for the block title aside (after side wins; removed invoices keep their before label). */
+function invoicePairLabel(pair: InvoicePair): string {
+  // pairInvoices always sets at least one side.
+  return invoiceTabLabel((pair.after ?? pair.before)!);
+}
+
+function invoiceDetailsBlockId(pairId: string): string {
+  return `invoice_details:${pairId}`;
+}
+
+function invoiceOfferBlockId(pairId: string): string {
+  return `invoice_offer:${pairId}`;
 }
 
 /** InvoiceStackedFields rows, labels and order. */
@@ -340,8 +353,8 @@ function invoiceDetailsBlock(pair: {
   const text = (inv: ComparisonInvoice | undefined, field: (inv: ComparisonInvoice) => string) =>
     inv ? field(inv) : null;
   return {
-    id: `invoice_details:${pair.id}`,
-    title: invoiceTitle("Invoice details", pair),
+    id: invoiceDetailsBlockId(pair.id),
+    title: "Invoice details",
     rows: [
       textRow(
         "number",
@@ -410,12 +423,12 @@ function invoiceOfferBlock(pair: {
   after?: ComparisonInvoice;
 }): ComparisonBlock {
   return {
-    id: `invoice_offer:${pair.id}`,
-    title: invoiceTitle("Offer to issuer", pair),
+    id: invoiceOfferBlockId(pair.id),
+    title: "Offer to issuer",
     rows: [
       textRow(
         "offered_amount",
-        "Financing amount (offered)",
+        "Offered financing amount",
         pair.before ? invoiceOfferedAmountDisplay(pair.before) : null,
         pair.after ? invoiceOfferedAmountDisplay(pair.after) : null
       ),
@@ -423,18 +436,17 @@ function invoiceOfferBlock(pair: {
   };
 }
 
+/** Invoice stages for the structure (details per invoice; existing/invoice_only add Send offer). */
 function projectInvoiceStages(
   structure: OfferAcceptanceComparisonStructure,
-  beforeApp: ReviewApplicationView,
-  afterApp: ReviewApplicationView
+  pairs: InvoicePair[]
 ): ComparisonStage[] {
-  const pairs = pairInvoices(beforeApp, afterApp);
   const detailBlocks = pairs.map(invoiceDetailsBlock);
   if (structure === "new_contract") {
     return [
       {
         id: OFFER_ACCEPTANCE_COMPARISON_INVOICES_STAGE_ID,
-        title: "Invoices",
+        title: "Invoice",
         blocks: detailBlocks,
       },
     ];
@@ -445,21 +457,51 @@ function projectInvoiceStages(
   ];
 }
 
+/**
+ * Per-invoice block title asides, keyed by the blocks projectInvoiceStages emits for the structure
+ * (no offer blocks for new_contract). Labels shared by several invoices (e.g. the "Invoice" fallback)
+ * get the invoice's 1-based position in emitted order so each aside names one invoice.
+ */
+function invoiceBlockAsides(
+  structure: OfferAcceptanceComparisonStructure,
+  pairs: InvoicePair[]
+): Record<string, string> {
+  const labels = pairs.map(invoicePairLabel);
+  const labelCounts = new Map<string, number>();
+  for (const label of labels) labelCounts.set(label, (labelCounts.get(label) ?? 0) + 1);
+  const blockAsides: Record<string, string> = {};
+  pairs.forEach((pair, index) => {
+    const base = labels[index]!;
+    const label = (labelCounts.get(base) ?? 0) > 1 ? `${base} ${index + 1}` : base;
+    blockAsides[invoiceDetailsBlockId(pair.id)] = label;
+    if (structure !== "new_contract") blockAsides[invoiceOfferBlockId(pair.id)] = label;
+  });
+  return blockAsides;
+}
+
 export function projectOfferAcceptanceComparison(
   beforeApp: ReviewApplicationView,
   afterApp: ReviewApplicationView
 ): OfferAcceptanceComparisonProjection {
   const structure = resolveOfferAcceptanceComparisonStructure(afterApp);
+  const pairs = pairInvoices(beforeApp, afterApp);
   return {
     contract_details: projectContractStages(structure, beforeApp, afterApp),
-    invoice_details: projectInvoiceStages(structure, beforeApp, afterApp),
+    invoice_details: projectInvoiceStages(structure, pairs),
+    blockAsides: invoiceBlockAsides(structure, pairs),
   };
 }
 
+/** Diff check projects only the requested section's stages. */
 export function offerAcceptanceComparisonHasChanges(
   section: "contract_details" | "invoice_details",
   beforeApp: ReviewApplicationView,
   afterApp: ReviewApplicationView
 ): boolean {
-  return stagesHaveChanges(projectOfferAcceptanceComparison(beforeApp, afterApp)[section]);
+  const structure = resolveOfferAcceptanceComparisonStructure(afterApp);
+  const stages =
+    section === "contract_details"
+      ? projectContractStages(structure, beforeApp, afterApp)
+      : projectInvoiceStages(structure, pairInvoices(beforeApp, afterApp));
+  return stagesHaveChanges(stages);
 }

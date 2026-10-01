@@ -42,7 +42,7 @@ export function ResubmitTabAmendmentNotesBar({
     <div className="mb-6 w-fit">
       <Popover>
         <PopoverTrigger asChild>
-          <Button type="button" variant="outline" size="sm" className="text-[13px]">
+          <Button type="button" variant="outline" size="sm">
             Remark
           </Button>
         </PopoverTrigger>

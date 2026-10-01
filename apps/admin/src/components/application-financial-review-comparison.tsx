@@ -225,9 +225,11 @@ export function ApplicationFinancialReviewComparison({
                       colSpan={2}
                       className={cn(applicationTableHeaderClass, "border-r border-border text-center last:border-r-0")}
                     >
-                      <span className="flex flex-col items-center gap-0.5 font-semibold text-foreground">
-                        <span>{`FY${year}`}</span>
-                        <span className="text-meta font-normal leading-snug text-muted-foreground">User Input</span>
+                      <span className="flex flex-col items-center gap-0.5 text-foreground">
+                        <span className="text-ui font-normal leading-snug text-foreground">{`FY${year}`}</span>
+                        <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-md border border-border bg-muted/50 px-2.5 py-0.5 text-meta font-normal leading-tight text-foreground">
+                          User Input
+                        </span>
                         {periodLine ? (
                           <span className="text-meta font-normal leading-snug text-muted-foreground">
                             {adminFyPeriodLines(periodLine).map((line) => (
@@ -272,7 +274,10 @@ export function ApplicationFinancialReviewComparison({
                 <TableRow key={`cat-${category.title}`} className={applicationTableRowClass}>
                   <TableCell
                     colSpan={colSpan}
-                    className={cn(applicationTableCellClass, "bg-muted/30 font-semibold text-foreground py-3")}
+                    className={cn(
+                      applicationTableCellClass,
+                      "bg-muted/35 py-3 border-t border-b border-border/70 text-sm font-semibold text-foreground"
+                    )}
                   >
                     {category.title}
                   </TableCell>

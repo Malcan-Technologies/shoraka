@@ -43,8 +43,7 @@ import {
   documentsComparisonHasChanges,
   unmatchedDocumentAmendmentRemarks,
 } from "@/lib/resubmit-comparison/documents-projection";
-import { projectOfferAcceptanceComparison } from "@/lib/resubmit-comparison/offer-acceptance-projection";
-import { stagesHaveChanges } from "@/lib/resubmit-comparison/projection-types";
+import { offerAcceptanceComparisonHasChanges } from "@/lib/resubmit-comparison/offer-acceptance-projection";
 import { diffIssuerFinancialRevisionSnapshots, formatApplicationReference } from "@cashsouk/types";
 import {
   USE_MOCK_GUARANTOR_COMPARISON,
@@ -144,8 +143,6 @@ export function ResubmitComparisonModal({
    */
   const sectionHasChanges = React.useMemo(() => {
     const result = new Map<ReviewSectionId, boolean>();
-    /** Offer & acceptance projects contract + invoice stages together; project once for both. */
-    let offerAcceptance: ReturnType<typeof projectOfferAcceptanceComparison> | null = null;
     const compute = (section: ReviewSectionId): boolean => {
       if (section === "financial") return financialDiff.length > 0;
       if (!comparisonBeforeApp || !comparisonAfterApp) return false;
@@ -158,8 +155,7 @@ export function ResubmitComparisonModal({
           return documentsComparisonHasChanges(comparisonBeforeApp, comparisonAfterApp);
         case "contract_details":
         case "invoice_details":
-          offerAcceptance ??= projectOfferAcceptanceComparison(comparisonBeforeApp, comparisonAfterApp);
-          return stagesHaveChanges(offerAcceptance[section]);
+          return offerAcceptanceComparisonHasChanges(section, comparisonBeforeApp, comparisonAfterApp);
         default:
           return false;
       }
@@ -258,7 +254,7 @@ export function ResubmitComparisonModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[95vw] w-full max-h-[90vh] flex flex-col overflow-hidden rounded-2xl p-0 gap-0 border border-border bg-background shadow-lg">
-        <DialogHeader className="space-y-1 shrink-0 border-b border-border/80 px-6 pb-1.5 pt-6">
+        <DialogHeader className="space-y-1 shrink-0 px-6 pb-4 pt-6">
           <DialogTitle className="text-dialog-title">What changed in this application</DialogTitle>
           <DialogDescription className="text-sm">
             {applicationId

@@ -6,8 +6,7 @@
  */
 
 import * as React from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@cashsouk/ui";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge, Tabs, TabsContent, TabsList, TabsTrigger } from "@cashsouk/ui";
 import { cn } from "@/lib/utils";
 import { getReviewStatusPresentation } from "@/components/application-review/status-presentation";
 import type { ReviewSectionId, ReviewTabDescriptor } from "@/components/application-review/review-registry";
@@ -92,13 +91,10 @@ export function ApplicationReviewTabs({
               <StatusDot status={sectionStatus} />
               <span className="truncate">{tab.label}</span>
               {hasResubmitDiff ? (
-                <Badge
-                  variant="outline"
-                  className="h-5 shrink-0 border-border px-1.5 text-[10px] font-normal text-muted-foreground"
-                >
+                <>
                   <span className="sr-only">This section has edits in this resubmit. </span>
-                  Diff
-                </Badge>
+                  <StatusBadge label="Diff" status="neutral" size="sm" showDot={false} />
+                </>
               ) : null}
             </TabsTrigger>
           );

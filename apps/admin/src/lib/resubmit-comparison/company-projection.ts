@@ -171,7 +171,6 @@ export function projectCompanyComparison(
           kind: "text",
           before: b.businessAddress,
           after: a.businessAddress,
-          multiline: true,
         },
         {
           key: "registered_address",
@@ -179,7 +178,6 @@ export function projectCompanyComparison(
           kind: "text",
           before: b.registeredAddress,
           after: a.registeredAddress,
-          multiline: true,
         },
       ],
     },

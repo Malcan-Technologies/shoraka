@@ -47,14 +47,13 @@ import {
   reviewRowGridClass,
   reviewEmptyStateClass,
   REVIEW_EMPTY_LABEL,
-  comparisonCellSurfaceShellClass,
+  comparisonRowGridClass,
+  comparisonRowListClass,
   comparisonSurfaceChangedAfterClass,
   comparisonSurfaceChangedBeforeClass,
-  comparisonSplitAfterColClass,
-  comparisonSplitBeforeColClass,
-  comparisonSplitRowGridClass,
 } from "../review-section-styles";
 import { ComparisonProjectedRow } from "../comparison-document-pair";
+import { ComparisonSideSlot } from "../comparison-field-row";
 import type { ReviewSectionId } from "../section-types";
 import {
   kycAmlScreeningRiskToken,
@@ -137,6 +136,12 @@ export interface BusinessSectionProps {
 const DECLARATION_TEXT =
   "I confirm that all information provided is true, accurate, and not misleading, and I understand that false or incomplete information may result in removal from the platform and regulatory action.";
 
+/**
+ * SECTION: One side of the declaration comparison row
+ * WHY: Renders the live declaration box once per side; the changed tint sits on that box (no outer shell).
+ * INPUT: confirmed per side, whether Before and After differ
+ * OUTPUT: live checkbox + statement + Confirmed caption
+ */
 function ComparisonDeclarationCell({
   confirmed,
   side,
@@ -146,56 +151,46 @@ function ComparisonDeclarationCell({
   side: "before" | "after";
   valuesDiffer: boolean;
 }) {
-  const shell = comparisonCellSurfaceShellClass;
   const changedHighlight =
     valuesDiffer &&
     (side === "before" ? comparisonSurfaceChangedBeforeClass : comparisonSurfaceChangedAfterClass);
   return (
-    <div
-      className={cn(
-        shell,
-        "items-start",
-        side === "before" ? "text-muted-foreground" : "text-foreground",
-        changedHighlight
-      )}
-    >
-      <div className="w-full rounded-lg border border-input bg-background p-3">
-        <div className="flex items-start gap-3">
-          <div
-            className={cn(
-              "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border",
-              confirmed ? "border-primary bg-primary" : "border-muted-foreground"
-            )}
-            aria-hidden
-          >
-            {confirmed ? (
-              <svg
-                className="h-2.5 w-2.5 text-primary-foreground"
-                viewBox="0 0 12 12"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden
-              >
-                <path d="M2 6l3 3 5-6" />
-              </svg>
-            ) : null}
-          </div>
-          <span
-            className={cn(
-              "text-sm",
-              side === "before" ? "text-muted-foreground" : "text-foreground"
-            )}
-          >
-            {DECLARATION_TEXT}
-          </span>
+    <div className={cn("rounded-lg border border-input bg-background p-3", changedHighlight)}>
+      <div className="flex items-start gap-3">
+        <div
+          className={cn(
+            "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border",
+            confirmed ? "border-primary bg-primary" : "border-muted-foreground"
+          )}
+          aria-hidden
+        >
+          {confirmed ? (
+            <svg
+              className="h-2.5 w-2.5 text-primary-foreground"
+              viewBox="0 0 12 12"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <path d="M2 6l3 3 5-6" />
+            </svg>
+          ) : null}
         </div>
-        <p className="mt-1.5 text-xs text-muted-foreground">
-          {confirmed ? "Confirmed" : "Not confirmed"}
-        </p>
+        <span
+          className={cn(
+            "text-sm",
+            side === "before" ? "text-muted-foreground" : "text-foreground"
+          )}
+        >
+          {DECLARATION_TEXT}
+        </span>
       </div>
+      <p className="mt-1.5 text-xs text-muted-foreground">
+        {confirmed ? "Confirmed" : "Not confirmed"}
+      </p>
     </div>
   );
 }
@@ -1134,16 +1129,19 @@ function AdminGuarantorComparisonList({
                 </div>
               </div>
             </summary>
-            <div className="min-w-0 space-y-2 px-4 pb-4 pt-3">
-              {block.rows.map((row) => (
-                <ComparisonProjectedRow
-                  key={row.key}
-                  row={row}
-                  onViewDocument={onViewDocument}
-                  onDownloadDocument={onDownloadDocument}
-                  viewDocumentPending={viewDocumentPending}
-                />
-              ))}
+            {/* Body pt-3 + list mt-4 = live first-row offset (pt-3 + reviewRowGridClass mt-4). */}
+            <div className="min-w-0 px-4 pb-4 pt-3">
+              <div className={comparisonRowListClass}>
+                {block.rows.map((row) => (
+                  <ComparisonProjectedRow
+                    key={row.key}
+                    row={row}
+                    onViewDocument={onViewDocument}
+                    onDownloadDocument={onDownloadDocument}
+                    viewDocumentPending={viewDocumentPending}
+                  />
+                ))}
+              </div>
             </div>
           </details>
         );
@@ -1158,37 +1156,37 @@ function AdminGuarantorComparisonList({
  * INPUT: business_details.declaration_confirmed per side (projection row)
  */
 function ComparisonDeclarationRow({
+  label,
   beforeConfirmed,
   afterConfirmed,
 }: {
+  label: string;
   beforeConfirmed: boolean;
   afterConfirmed: boolean;
 }) {
   const valuesDiffer = beforeConfirmed !== afterConfirmed;
   return (
     <div
-      className="py-2 space-y-3"
+      className={comparisonRowGridClass}
       role="group"
-      aria-label={
-        valuesDiffer ? "Declarations, confirmation differs between revisions" : "Declarations"
-      }
+      aria-label={valuesDiffer ? `${label}, confirmation differs between revisions` : label}
     >
-      <div className={comparisonSplitRowGridClass}>
-        <div className={comparisonSplitBeforeColClass}>
-          <ComparisonDeclarationCell
-            confirmed={beforeConfirmed}
-            side="before"
-            valuesDiffer={valuesDiffer}
-          />
-        </div>
-        <div className={comparisonSplitAfterColClass}>
-          <ComparisonDeclarationCell
-            confirmed={afterConfirmed}
-            side="after"
-            valuesDiffer={valuesDiffer}
-          />
-        </div>
-      </div>
+      {/* The block heading already reads "Declarations": keep the 220px column empty; the group aria-label names it. */}
+      <div aria-hidden className="hidden md:block" />
+      <ComparisonSideSlot side="before">
+        <ComparisonDeclarationCell
+          confirmed={beforeConfirmed}
+          side="before"
+          valuesDiffer={valuesDiffer}
+        />
+      </ComparisonSideSlot>
+      <ComparisonSideSlot side="after">
+        <ComparisonDeclarationCell
+          confirmed={afterConfirmed}
+          side="after"
+          valuesDiffer={valuesDiffer}
+        />
+      </ComparisonSideSlot>
     </div>
   );
 }
@@ -1439,7 +1437,7 @@ export function BusinessSection({
           section={section}
           isReviewable={false}
         >
-          <p className={reviewEmptyStateClass}>No business details in these snapshots.</p>
+          <p className={reviewEmptyStateClass}>No business details submitted.</p>
         </ReviewSectionCard>
       );
     }
@@ -1464,7 +1462,7 @@ export function BusinessSection({
         ) : null}
         {otherBlocks.map((block) => (
           <ReviewFieldBlock key={block.id} title={block.title}>
-            <div className="space-y-2">
+            <div className={comparisonRowListClass}>
               {block.rows.map((row) => (
                 <ComparisonProjectedRow
                   key={row.key}
@@ -1491,10 +1489,13 @@ export function BusinessSection({
 
         {declarationRow?.kind === "yesno" ? (
           <ReviewFieldBlock title="Declarations">
-            <ComparisonDeclarationRow
-              beforeConfirmed={declarationRow.before === true}
-              afterConfirmed={declarationRow.after === true}
-            />
+            <div className={comparisonRowListClass}>
+              <ComparisonDeclarationRow
+                label={declarationRow.label}
+                beforeConfirmed={declarationRow.before === true}
+                afterConfirmed={declarationRow.after === true}
+              />
+            </div>
           </ReviewFieldBlock>
         ) : null}
 

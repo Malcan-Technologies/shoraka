@@ -133,7 +133,7 @@ describe("projectOfferAcceptanceComparison stage order", () => {
       "Collect upfront now",
     ]);
     expect(stageIds(p.invoice_details)).toEqual(["invoices"]);
-    expect(p.invoice_details[0]!.title).toBe("Invoices");
+    expect(p.invoice_details[0]!.title).toBe("Invoice");
   });
 
   it("existing_contract: Facility reference, then Invoice review → Send offer", () => {
@@ -144,7 +144,7 @@ describe("projectOfferAcceptanceComparison stage order", () => {
     expect(customer.rows.map((r) => r.key)).not.toContain("is_large_private_company");
     expect(stageIds(p.invoice_details)).toEqual(["invoice_review", "send_offer"]);
     expect(p.invoice_details[1]!.blocks[0]!.rows.map((r) => r.label)).toEqual([
-      "Financing amount (offered)",
+      "Offered financing amount",
     ]);
   });
 
@@ -165,7 +165,11 @@ describe("projectOfferAcceptanceComparison stage order", () => {
   it("invoice rows follow InvoiceStackedFields labels and formatting", () => {
     const p = projectOfferAcceptanceComparison(app("invoice_only"), app("invoice_only"));
     const block = p.invoice_details[0]!.blocks[0]!;
-    expect(block.title).toBe("Invoice details — INV-i1");
+    expect(block.title).toBe("Invoice details");
+    expect(p.blockAsides[block.id]).toBe("INV-i1");
+    const offerBlock = p.invoice_details[1]!.blocks[0]!;
+    expect(offerBlock.title).toBe("Offer to issuer");
+    expect(p.blockAsides[offerBlock.id]).toBe("INV-i1");
     expect(block.rows.map((r) => r.label)).toEqual([
       "Invoice number",
       "Maturity date",
@@ -195,6 +199,29 @@ describe("projectOfferAcceptanceComparison stage order", () => {
       "invoice_details:a",
       "invoice_details:old",
     ]);
+  });
+
+  it("asides number invoices whose labels collide (unnumbered fallback) by emitted position", () => {
+    const invoices = [invoice("x", { number: "" }), invoice("i1"), invoice("y", { number: "" })];
+    const p = projectOfferAcceptanceComparison(
+      app("invoice_only", { invoices }),
+      app("invoice_only", { invoices })
+    );
+    expect(p.blockAsides).toEqual({
+      "invoice_details:x": "Invoice 1",
+      "invoice_offer:x": "Invoice 1",
+      "invoice_details:i1": "INV-i1",
+      "invoice_offer:i1": "INV-i1",
+      "invoice_details:y": "Invoice 3",
+      "invoice_offer:y": "Invoice 3",
+    });
+  });
+
+  it("new_contract asides cover only the emitted invoice detail blocks", () => {
+    const p = projectOfferAcceptanceComparison(app("new_contract"), app("new_contract"));
+    const emittedIds = p.invoice_details.flatMap((s) => s.blocks.map((b) => b.id));
+    expect(emittedIds).toEqual(["invoice_details:i1"]);
+    expect(p.blockAsides).toEqual({ "invoice_details:i1": "INV-i1" });
   });
 });
 
