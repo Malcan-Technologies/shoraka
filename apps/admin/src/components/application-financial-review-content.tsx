@@ -58,7 +58,6 @@ import {
 } from "@cashsouk/types";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { applicationsKeys } from "@/applications/query-keys";
 import { AdminAddFinancialStatementDialog } from "@/notes/prospectus-review/admin-add-financial-statement-dialog";
 import { AdminEditFinancialFieldDialog } from "@/notes/prospectus-review/admin-edit-financial-field-dialog";
 import { AdminEditFinancialStatementDialog } from "@/notes/prospectus-review/admin-edit-financial-statement-dialog";
@@ -81,6 +80,7 @@ import {
   resolveFinancialReviewReferenceDate,
 } from "./application-financial-review-calculated-cell";
 import { getReturnOfEquityMissingReason } from "./application-financial-review-roe-fallback";
+import { invalidateFinancialReviewAfterSave } from "./application-financial-review-refresh";
 
 export { extractQuestionnaireAndUnaudited } from "@/lib/stored-unaudited-years";
 
@@ -309,13 +309,13 @@ export function ApplicationFinancialReviewContent({
 
   const onAddFinancialStatementSaved = React.useCallback(() => {
     if (!applicationId) return;
-    queryClient.invalidateQueries({ queryKey: applicationsKeys.detail(applicationId) });
+    invalidateFinancialReviewAfterSave(queryClient, applicationId);
     setAddFinancialStatementOpen(false);
   }, [applicationId, queryClient, setAddFinancialStatementOpen]);
 
   const onEditFinancialStatementSaved = React.useCallback(() => {
     if (!applicationId) return;
-    queryClient.invalidateQueries({ queryKey: applicationsKeys.detail(applicationId) });
+    invalidateFinancialReviewAfterSave(queryClient, applicationId);
     setEditFinancialStatementOpen(false);
     setEditFinancialStatementTarget(null);
   }, [applicationId, queryClient, setEditFinancialStatementOpen, setEditFinancialStatementTarget]);
