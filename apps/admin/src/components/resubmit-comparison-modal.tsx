@@ -36,7 +36,7 @@ import {
 } from "@/lib/resubmit-comparison-paths";
 import { reviewSectionHasResubmitChanges } from "@/lib/review-section-has-resubmit-changes";
 import type { ResubmitFieldChangeItem } from "@/components/application-revision-diff-panel";
-import { formatApplicationReference } from "@cashsouk/types";
+import { diffIssuerFinancialRevisionSnapshots, formatApplicationReference } from "@cashsouk/types";
 import {
   USE_MOCK_GUARANTOR_COMPARISON,
   getMockGuarantorFieldChanges,
@@ -100,9 +100,19 @@ export function ResubmitComparisonModal({
     [changedPaths]
   );
 
+  /** Issuer User Input diff from the two consecutive ApplicationRevision snapshots (raw values only). */
+  const financialDiff = React.useMemo(
+    () =>
+      data ? diffIssuerFinancialRevisionSnapshots(data.previous_snapshot, data.next_snapshot) : [],
+    [data]
+  );
+
   const resubmitTabHasChanges = React.useCallback(
-    (section: ReviewSectionId) => reviewSectionHasResubmitChanges(section, effectiveFieldChanges),
-    [effectiveFieldChanges]
+    (section: ReviewSectionId) =>
+      section === "financial"
+        ? financialDiff.length > 0
+        : reviewSectionHasResubmitChanges(section, effectiveFieldChanges),
+    [effectiveFieldChanges, financialDiff]
   );
 
   const beforeApp = React.useMemo(() => {
@@ -275,6 +285,7 @@ export function ResubmitComparisonModal({
                           beforeApp: comparisonBeforeApp,
                           afterApp: comparisonAfterApp,
                           isPathChanged,
+                          financialDiff,
                         }}
                         resubmitAmendmentRemarks={amendmentRemarks}
                         hideSectionComments

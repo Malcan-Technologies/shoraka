@@ -1,10 +1,12 @@
 "use client";
 
 /**
- * SECTION: Financial tab resubmit comparison (unaudited figures only)
- * WHY: Resubmit diff for issuer unaudited_by_year only (up to two years). Directors not compared here.
- * INPUT: before/after app slices, path matcher
- * OUTPUT: Financial Summary table (before/after unaudited)
+ * SECTION: Financial tab resubmit comparison (issuer User Input diff)
+ * WHY: Shows what the issuer actually changed between two consecutive ApplicationRevision snapshots.
+ *      Only FYs with at least one issuer value change are shown; changed rows are highlighted.
+ *      Raw issuer unaudited_by_year only. Never Admin Input, Admin overrides, CTOS or gap fills.
+ * INPUT: before/after app slices (period line only), financialDiff from diffIssuerFinancialRevisionSnapshots
+ * OUTPUT: Financial Summary table (before/after issuer values per changed FY)
  * WHERE USED: FinancialSection comparison mode
  */
 
@@ -13,11 +15,10 @@ import { formatCurrency } from "@cashsouk/config";
 import {
   APPLICATION_COMREP_OPTIONAL_KEYS,
   FINANCIAL_FIELD_LABELS,
-  getIssuerFinancialTabYears,
-  issuerUnauditedPlddForFyEndYear,
-  parseAdminFieldOverrides,
   type FinancialStatementsQuestionnaire,
+  type IssuerFinancialResubmitYearDiff,
 } from "@cashsouk/types";
+
 import { ReviewFieldBlock } from "@/components/application-review/review-field-block";
 import {
   comparisonSurfaceChangedAfterClass,
@@ -45,230 +46,39 @@ import {
   applicationTableWrapperClass,
 } from "@/components/application-review/application-table-styles";
 
-/**
- * TEMP: set true to preview unaudited before/after without real resubmit snapshots.
- * Set false before shipping.
- */
-const USE_MOCK_FINANCIAL_RESUBMIT_COMPARISON = false;
-
-/**
- * Mock only: 1 = single unaudited year (narrow table, one Unaudited group). 2 = two years (two groups).
- * Real data: slot count follows max(before years, after years), capped at 2.
- */
-const MOCK_UNAUDITED_YEAR_COUNT: 1 | 2 = 1;
-
-const MOCK_Q_TWO_TABS: FinancialStatementsQuestionnaire = { financial_year_end: "2027-03-31" };
-const MOCK_REF_TWO_TABS = new Date("2026-01-10");
-const [MOCK_Y1, MOCK_Y2] = getIssuerFinancialTabYears(MOCK_Q_TWO_TABS, MOCK_REF_TWO_TABS);
-
-const MOCK_Q_ONE_TAB: FinancialStatementsQuestionnaire = { financial_year_end: "2029-03-31" };
-const MOCK_REF_ONE_TAB = new Date("2028-11-15");
-const MOCK_Y_SUBMITTED = getIssuerFinancialTabYears(MOCK_Q_ONE_TAB, MOCK_REF_ONE_TAB)[0];
-
-function mockUnauditedYearBlock(
-  fyEndYear: number,
-  q: FinancialStatementsQuestionnaire,
-  overrides: Record<string, unknown> = {}
-): Record<string, unknown> {
-  return {
-    pldd: issuerUnauditedPlddForFyEndYear(fyEndYear, q),
-    bsfatot: 180_000,
-    othass: 45_000,
-    bscatot: 220_000,
-    bsclbank: 30_000,
-    curlib: 95_000,
-    bsslltd: 110_000,
-    bsclstd: 25_000,
-    bsqpuc: 160_000,
-    turnover: 1_000_000,
-    plnpbt: 85_000,
-    plnpat: 52_000,
-    plnetdiv: 5_000,
-    plyear: 12_000,
-    ...overrides,
-  };
-}
-
-type MockFinancialResubmitPayload = {
-  before: Record<string, unknown>;
-  after: Record<string, unknown>;
-  changedPaths: Set<string>;
-};
-
-function buildMockFinancialResubmitPayload(yearCount: 1 | 2): MockFinancialResubmitPayload {
-  if (yearCount === 1) {
-    return {
-      before: {
-        questionnaire: MOCK_Q_ONE_TAB,
-        unaudited_by_year: {
-          [String(MOCK_Y_SUBMITTED)]: mockUnauditedYearBlock(MOCK_Y_SUBMITTED, MOCK_Q_ONE_TAB, {
-            turnover: 1_050_000,
-            plnpat: 48_000,
-          }),
-        },
-      },
-      after: {
-        questionnaire: MOCK_Q_ONE_TAB,
-        unaudited_by_year: {
-          [String(MOCK_Y_SUBMITTED)]: mockUnauditedYearBlock(MOCK_Y_SUBMITTED, MOCK_Q_ONE_TAB, {
-            turnover: 1_180_000,
-            plnpat: 48_000,
-          }),
-        },
-      },
-      changedPaths: new Set([`financial_statements.unaudited_by_year.${MOCK_Y_SUBMITTED}.turnover`]),
-    };
-  }
-  return {
-    before: {
-      questionnaire: MOCK_Q_TWO_TABS,
-      unaudited_by_year: {
-        [String(MOCK_Y1)]: mockUnauditedYearBlock(MOCK_Y1, MOCK_Q_TWO_TABS, { turnover: 880_000, plnpat: 41_000 }),
-        [String(MOCK_Y2)]: mockUnauditedYearBlock(MOCK_Y2, MOCK_Q_TWO_TABS, { turnover: 1_050_000, plnpat: 48_000 }),
-      },
-    },
-    after: {
-      questionnaire: MOCK_Q_TWO_TABS,
-      unaudited_by_year: {
-        [String(MOCK_Y1)]: mockUnauditedYearBlock(MOCK_Y1, MOCK_Q_TWO_TABS, { turnover: 965_000, plnpat: 41_000 }),
-        [String(MOCK_Y2)]: mockUnauditedYearBlock(MOCK_Y2, MOCK_Q_TWO_TABS, { turnover: 1_050_000, plnpat: 61_000 }),
-      },
-    },
-    changedPaths: new Set([
-      `financial_statements.unaudited_by_year.${MOCK_Y1}.turnover`,
-      `financial_statements.unaudited_by_year.${MOCK_Y2}.plnpat`,
-    ]),
-  };
-}
-
-// (Legacy-only helpers removed; modern comparison UI does not use these.)
-
-function toNum(v: unknown): number {
-  if (typeof v === "number" && !Number.isNaN(v)) return v;
-  const n = Number(String(v).replace(/,/g, ""));
-  return Number.isNaN(n) ? 0 : n;
+function questionnaireOf(financialStatements: unknown): FinancialStatementsQuestionnaire | null {
+  const fs =
+    financialStatements && typeof financialStatements === "object" && !Array.isArray(financialStatements)
+      ? (financialStatements as Record<string, unknown>)
+      : null;
+  const q = fs?.questionnaire;
+  return q && typeof q === "object" && !Array.isArray(q) ? (q as FinancialStatementsQuestionnaire) : null;
 }
 
 export function ApplicationFinancialReviewComparison({
   beforeApp,
   afterApp,
-  isPathChanged,
+  financialDiff,
 }: {
-  beforeApp: {
-    financial_statements?: unknown;
-    issuer_organization?: {
-      corporate_entities?: unknown;
-    } | null;
-  };
-  afterApp: typeof beforeApp;
-  isPathChanged: (path: string) => boolean;
+  beforeApp: { financial_statements?: unknown };
+  afterApp: { financial_statements?: unknown };
+  financialDiff: IssuerFinancialResubmitYearDiff[];
 }) {
-  // Modern comparison UI: compare historical revision snapshots (incl. admin supplements) instead of
-  // the legacy unaudited-only snapshot slice.
-  const __mockFinancialPayload = React.useMemo(
-    () =>
-      USE_MOCK_FINANCIAL_RESUBMIT_COMPARISON
-        ? buildMockFinancialResubmitPayload(MOCK_UNAUDITED_YEAR_COUNT)
-        : null,
-    []
+  // Modern comparison UI: compare historical revision snapshots (issuer User Input only).
+  const beforeQuestionnaire = React.useMemo(
+    () => questionnaireOf(beforeApp.financial_statements),
+    [beforeApp.financial_statements]
+  );
+  const afterQuestionnaire = React.useMemo(
+    () => questionnaireOf(afterApp.financial_statements),
+    [afterApp.financial_statements]
   );
 
-  const __effectiveBeforeApp = React.useMemo(() => {
-    if (!__mockFinancialPayload) return beforeApp;
-    return { ...beforeApp, financial_statements: __mockFinancialPayload.before };
-  }, [beforeApp, __mockFinancialPayload]);
-
-  const __effectiveAfterApp = React.useMemo(() => {
-    if (!__mockFinancialPayload) return afterApp;
-    return { ...afterApp, financial_statements: __mockFinancialPayload.after };
-  }, [afterApp, __mockFinancialPayload]);
-
-  const __effectiveIsPathChanged = React.useCallback(
-    (path: string) => {
-      if (__mockFinancialPayload && path.startsWith("financial_statements")) {
-        return __mockFinancialPayload.changedPaths.has(path);
-      }
-      return isPathChanged(path);
-    },
-    [isPathChanged, __mockFinancialPayload]
+  const yearKeys = React.useMemo(() => financialDiff.map((d) => d.year), [financialDiff]);
+  const diffByYear = React.useMemo(
+    () => new Map(financialDiff.map((d) => [d.year, d] as const)),
+    [financialDiff]
   );
-
-  type FinancialSide = {
-    questionnaire: FinancialStatementsQuestionnaire | null;
-    unauditedByYear: Record<string, Record<string, unknown>>;
-    adminInputByYear: Record<string, Record<string, unknown>>;
-    overridesByYear: Record<string, Record<string, { value: number | string | null }>>;
-  };
-
-  const toSide = React.useCallback((financialStatements: unknown): FinancialSide => {
-    const fs =
-      financialStatements && typeof financialStatements === "object" && !Array.isArray(financialStatements)
-        ? (financialStatements as Record<string, unknown>)
-        : {};
-
-    const questionnaireRaw = fs.questionnaire;
-    const questionnaire =
-      questionnaireRaw && typeof questionnaireRaw === "object" && !Array.isArray(questionnaireRaw)
-        ? (questionnaireRaw as FinancialStatementsQuestionnaire)
-        : null;
-
-    const unauditedRaw = fs.unaudited_by_year;
-    const unauditedByYear =
-      unauditedRaw && typeof unauditedRaw === "object" && !Array.isArray(unauditedRaw)
-        ? (unauditedRaw as Record<string, Record<string, unknown>>)
-        : {};
-
-    const adminInputRaw = fs.admin_input_by_year;
-    const adminInputByYear =
-      adminInputRaw && typeof adminInputRaw === "object" && !Array.isArray(adminInputRaw)
-        ? (adminInputRaw as Record<string, Record<string, unknown>>)
-        : {};
-
-    const overridesByYearRaw = parseAdminFieldOverrides(fs);
-    const overridesByYear: FinancialSide["overridesByYear"] = {};
-    for (const [year, fields] of Object.entries(overridesByYearRaw)) {
-      overridesByYear[year] = {};
-      for (const [fieldKey, slot] of Object.entries(fields)) {
-        const override =
-          slot.edit_user_input ?? slot.add_missing_ctos_field ?? slot.edit_admin_input ?? slot.add_missing_fy;
-        if (!override) continue;
-        overridesByYear[year]![fieldKey] = { value: override.value };
-      }
-    }
-
-    return { questionnaire, unauditedByYear, adminInputByYear, overridesByYear };
-  }, []);
-
-  const beforeSide = React.useMemo(
-    () => toSide(__effectiveBeforeApp.financial_statements),
-    [__effectiveBeforeApp, toSide]
-  );
-  const afterSide = React.useMemo(
-    () => toSide(__effectiveAfterApp.financial_statements),
-    [__effectiveAfterApp, toSide]
-  );
-
-  const yearKeys = React.useMemo(() => {
-    const collect = (byYear: Record<string, unknown>) => Object.keys(byYear);
-    const fromBefore = [
-      ...collect(beforeSide.unauditedByYear),
-      ...collect(beforeSide.adminInputByYear),
-      ...collect(beforeSide.overridesByYear),
-    ];
-    const fromAfter = [
-      ...collect(afterSide.unauditedByYear),
-      ...collect(afterSide.adminInputByYear),
-      ...collect(afterSide.overridesByYear),
-    ];
-
-    const years = [...new Set([...fromBefore, ...fromAfter])]
-      .map((k) => Number(k))
-      .filter((n) => Number.isInteger(n))
-      .sort((a, b) => a - b);
-
-    // Keep the table readable while still supporting Admin-added FY.
-    return years.slice(Math.max(0, years.length - 3));
-  }, [afterSide, beforeSide]);
 
   type EquityIfApplicableKey = (typeof APPLICATION_COMREP_OPTIONAL_KEYS)[number];
 
@@ -368,47 +178,23 @@ export function ApplicationFinancialReviewComparison({
         : "min-w-[1280px]";
   const colSpan = 1 + yearKeys.length * 2;
 
-  const formatMaybeMoney = React.useCallback((val: unknown) => {
+  const formatMaybeMoney = React.useCallback((val: number | null | undefined) => {
     if (val == null) return "—";
-    if (typeof val === "string" && val.trim() === "") return "—";
-    return formatCurrency(toNum(val), { decimals: 0 });
+    return formatCurrency(val, { decimals: 0 });
   }, []);
 
   const getPeriodLine = React.useCallback(
-    (side: FinancialSide, year: number) => {
-      const { periodLine } = adminUnauditedYearPresentation(side.questionnaire, year);
+    (questionnaire: FinancialStatementsQuestionnaire | null, year: number) => {
+      const { periodLine } = adminUnauditedYearPresentation(questionnaire, year);
       return periodLine ?? "";
     },
     []
   );
 
-  const getEffectiveRawValue = React.useCallback((side: FinancialSide, year: number, key: string) => {
-    const y = String(year);
-    const override = side.overridesByYear?.[y]?.[key];
-    if (override?.value != null) return override.value;
-    const adminVal = side.adminInputByYear?.[y]?.[key];
-    if (adminVal != null) return adminVal;
-    return side.unauditedByYear?.[y]?.[key] ?? null;
-  }, []);
-
-  const rowIsMarkedChanged = React.useCallback(
-    (year: number, key: string) => {
-      if (__effectiveIsPathChanged("financial_statements")) return true;
-      if (__effectiveIsPathChanged(`financial_statements.${key}`)) return true;
-      if (__effectiveIsPathChanged(`financial_statements.unaudited_by_year.${year}.${key}`)) return true;
-      if (__effectiveIsPathChanged(`financial_statements.admin_input_by_year.${year}.${key}`)) return true;
-      if (__effectiveIsPathChanged(`financial_statements.admin_field_overrides.${year}.${key}`)) return true;
-      return false;
-    },
-    [__effectiveIsPathChanged]
-  );
-
-  const normCell = (text: string) => (text === "—" ? "" : text.trim());
-
   if (yearKeys.length === 0) {
     return (
       <ReviewFieldBlock title="Financial Summary">
-        <p className={reviewEmptyStateClass}>No financial data in these snapshots.</p>
+        <p className={reviewEmptyStateClass}>No issuer financial changes in this resubmission.</p>
       </ReviewFieldBlock>
     );
   }
@@ -432,7 +218,7 @@ export function ApplicationFinancialReviewComparison({
                 </TableHead>
                 {yearKeys.map((year) => {
                   const periodLine =
-                    getPeriodLine(beforeSide, year) || getPeriodLine(afterSide, year) || "";
+                    getPeriodLine(afterQuestionnaire, year) || getPeriodLine(beforeQuestionnaire, year) || "";
                   return (
                     <TableHead
                       key={`g-${year}`}
@@ -441,6 +227,7 @@ export function ApplicationFinancialReviewComparison({
                     >
                       <span className="flex flex-col items-center gap-0.5 font-semibold text-foreground">
                         <span>{`FY${year}`}</span>
+                        <span className="text-meta font-normal leading-snug text-muted-foreground">User Input</span>
                         {periodLine ? (
                           <span className="text-meta font-normal leading-snug text-muted-foreground">
                             {adminFyPeriodLines(periodLine).map((line) => (
@@ -504,12 +291,10 @@ export function ApplicationFinancialReviewComparison({
                         {label}
                       </TableCell>
                       {yearKeys.flatMap((year) => {
-                        const beforeVal = getEffectiveRawValue(beforeSide, year, key);
-                        const afterVal = getEffectiveRawValue(afterSide, year, key);
-                        const b = formatMaybeMoney(beforeVal);
-                        const a = formatMaybeMoney(afterVal);
-                        const differs = normCell(b) !== normCell(a);
-                        const markedChanged = differs && rowIsMarkedChanged(year, key);
+                        const field = diffByYear.get(year)?.fields[key];
+                        const b = formatMaybeMoney(field?.issuerBefore);
+                        const a = formatMaybeMoney(field?.issuerAfter);
+                        const markedChanged = field?.changed === true;
                         return [
                           <TableCell
                             key={`${key}-${year}-b`}

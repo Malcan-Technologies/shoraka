@@ -36,6 +36,56 @@ describe("summarizeResubmitSnapshotDiff", () => {
     expect(fc?.next_value).toBeDefined();
   });
 
+  describe("financial_statements (issuer User Input only)", () => {
+    const fs = (extra: Record<string, unknown> = {}, bsfatot = 100) => ({
+      questionnaire: { financial_year_end: "2027-03-31" },
+      unaudited_by_year: { "2026": { bsfatot, othass: 50 }, "2027": { bsfatot: 200 } },
+      ...extra,
+    });
+    const snap = (financial_statements: unknown) => ({
+      application: { ...baseApp, financial_statements },
+      contract: null,
+      invoices: [],
+    });
+
+    it("Admin Input / Admin override-only changes do not report Financial statements", () => {
+      const s = summarizeResubmitSnapshotDiff(
+        snap(fs()),
+        snap(
+          fs({
+            admin_input_by_year: { "2025": { bsfatot: 1 } },
+            admin_field_overrides: {
+              "2026": { bsfatot: { edit_user_input: { value: 120, baseSource: "user_input" } } },
+            },
+          })
+        )
+      );
+      expect(s.field_changes).toEqual([]);
+      expect(s.changedSectionKeys).not.toContain("financial_statements");
+    });
+
+    it("questionnaire / FYE-only change does not report Financial statements", () => {
+      const s = summarizeResubmitSnapshotDiff(
+        snap(fs()),
+        snap(fs({ questionnaire: { financial_year_end: "2027-06-30" } }))
+      );
+      expect(s.changedSectionKeys).not.toContain("financial_statements");
+    });
+
+    it("issuer value change reports only the changed unaudited_by_year path", () => {
+      const s = summarizeResubmitSnapshotDiff(snap(fs()), snap(fs({}, 120)));
+      expect(s.field_changes.map((f) => f.path)).toEqual(["financial_statements.unaudited_by_year.2026.bsfatot"]);
+      expect(s.changedSectionLabels).toEqual(["Financial statements"]);
+    });
+
+    it("many Admin override paths cannot crowd out the issuer change (path cap)", () => {
+      const overrides: Record<string, unknown> = {};
+      for (let y = 1900; y < 2000; y++) overrides[String(y)] = { bsfatot: { add_missing_fy: { value: y, baseSource: "admin_input" } } };
+      const s = summarizeResubmitSnapshotDiff(snap(fs()), snap(fs({ admin_field_overrides: overrides }, 120)));
+      expect(s.field_changes.map((f) => f.path)).toEqual(["financial_statements.unaudited_by_year.2026.bsfatot"]);
+    });
+  });
+
   it("returns no paths when snapshots match", () => {
     const snap = {
       application: baseApp,
