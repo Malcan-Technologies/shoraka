@@ -497,9 +497,9 @@ describe("resolveFinancialReviewResult — prior-year rule (turnover growth, rec
       { turnover: 800, tradeReceivables: 200 },
     ],
     [
-      "Admin Input year: prior Admin Input, never prior User Input",
+      "Admin Input year: prior Admin Input",
       {
-        unaudited: { "2024": { turnover: 1000, tradeReceivables: 100 }, "2026": current },
+        unaudited: { "2026": current },
         admin: {
           "2024": { turnover: 600, tradeReceivables: 50 },
           "2025": { turnover: 1200, tradeReceivables: 300 },
@@ -530,6 +530,18 @@ describe("resolveFinancialReviewResult — prior-year rule (turnover growth, rec
       {
         unaudited: { "2024": { turnover: 1000, tradeReceivables: 100 }, "2026": current },
         admin: { "2025": { turnover: 1200, tradeReceivables: 300 } },
+      },
+      2025,
+      "admin_input" as const,
+    ],
+    [
+      "Admin Input year whose prior FY has User Input (prior Admin Input inactive)",
+      {
+        unaudited: { "2024": { turnover: 1000, tradeReceivables: 100 }, "2026": current },
+        admin: {
+          "2024": { turnover: 600, tradeReceivables: 50 },
+          "2025": { turnover: 1200, tradeReceivables: 300 },
+        },
       },
       2025,
       "admin_input" as const,
@@ -602,7 +614,7 @@ describe("resolveFinancialReviewResult — year selection", () => {
     expect(fy2022.calculated_values.profit_margin).toBeCloseTo((5 / 20220) * 100, 10);
   });
 
-  it("orders by year, then CTOS, Admin Input, User Input; one selected source per year", () => {
+  it("orders by year, then CTOS, User Input; same-FY User Input hides Admin Input and adds no year", () => {
     const result = resolve({
       unaudited: {
         "2024": { turnover: 1 },
@@ -615,8 +627,7 @@ describe("resolveFinancialReviewResult — year selection", () => {
     expect(result.years.map((year) => [year.year, year.kind, year.selected])).toEqual([
       [2024, "ctos", false],
       [2024, "unaudited", true],
-      [2025, "admin_input", false],
-      [2025, "unaudited", true],
+      [2025, "unaudited", false],
       [2026, "unaudited", true],
     ]);
   });
@@ -650,6 +661,53 @@ describe("resolveFinancialReviewResult — year selection", () => {
     expect(entry(result, 2025, "unaudited").financial_year_end_iso).toBe("2025-06-30");
     expect(entry(result, 2024, "ctos").financial_year_end_iso).toBe("2024-12-31");
     expect(entry(result, 2026, "unaudited").financial_year_end_iso).toBe("2026-12-31");
+  });
+});
+
+describe("resolveFinancialReviewResult — inactive Admin Input does not leak (Case B)", () => {
+  /** FYE 2027-12-31 before the FY2026 SSM deadline: issuer tabs [2026, 2027], window FY2024–FY2026. */
+  function resolveCaseB(userFy2026: Record<string, unknown>): FinancialReviewResult {
+    return resolveFinancialReviewResult({
+      financialStatements: {
+        questionnaire: { financial_year_end: "2027-12-31" },
+        unaudited_by_year: {
+          "2026": userFy2026,
+          "2027": { turnover: 1200, tradeReceivables: 300, pldd: "2027-12-31" },
+        },
+        admin_input_by_year: {
+          "2026": { turnover: 400, tradeReceivables: 20, pldd: "2026-12-31", statementType: "AUDITED" },
+        },
+        admin_field_overrides: {},
+      },
+      ctosFinancials: [ctosRow(2024, { turnover: 500 }), ctosRow(2025, { turnover: 700 })],
+      referenceDate: new Date("2027-03-01T00:00:00.000Z"),
+      ctosFetchState: "has_data",
+    });
+  }
+
+  it("User Input FY2027 metrics use User Input FY2026, never stored Admin Input FY2026", () => {
+    const result = resolveCaseB({ turnover: 1000, tradeReceivables: 100, pldd: "2026-12-31" });
+    const fy2027 = entry(result, 2027, "unaudited").calculated_values;
+    expect(fy2027.turnover_growth).toBeCloseTo(((1200 - 1000) / 1000) * 100, 10);
+    expect(fy2027.receivablesDays).toBe(computeReceivablesDays(100, 300, 1200));
+
+    expect(result.years.some((year) => year.kind === "admin_input")).toBe(false);
+    expect(result.years.some((year) => year.record_source === "admin_input")).toBe(false);
+    expect(result.years.filter((year) => year.selected).map((year) => [year.year, year.kind])).toEqual([
+      [2025, "ctos"],
+      [2026, "unaudited"],
+      [2027, "unaudited"],
+    ]);
+    for (const year of result.years) {
+      expect(year.source_trace.inputs.admin_input).toBeNull();
+    }
+  });
+
+  it("a field missing from User Input FY2026 stays missing; inactive Admin Input does not fill it", () => {
+    const result = resolveCaseB({ turnover: 1000, pldd: "2026-12-31" });
+    const fy2027 = entry(result, 2027, "unaudited").calculated_values;
+    expect(fy2027.turnover_growth).toBeCloseTo(20, 10);
+    expect(fy2027.receivablesDays).toBeNull();
   });
 });
 

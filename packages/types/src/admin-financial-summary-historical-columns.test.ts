@@ -36,7 +36,7 @@ describe("Admin historical FY columns", () => {
     expect(historical(columns).map((column) => column.year)).toEqual([2023, 2024, 2025]);
   });
 
-  it("column test 2: user FY2025 does not shift the historical window", () => {
+  it("column test 2: user FY2025 does not shift the historical window and covers its slot", () => {
     const columns = resolveAdminFinancialReviewColumns({
       financialStatements: statements({
         unaudited: { "2025": { turnover: 5 }, "2026": { turnover: 10 } },
@@ -44,10 +44,10 @@ describe("Admin historical FY columns", () => {
       ctosFinancials: [],
       ctosFetchState: "not_pulled",
     });
+    // FY2025 has User Input and no CTOS row: the User Input lane covers it, no read-only CTOS gap.
     expect(historical(columns).map((column) => [column.year, column.kind])).toEqual([
       [2023, "ctos"],
       [2024, "ctos"],
-      [2025, "ctos"],
     ]);
     expect(columns.filter((column) => column.kind === "unaudited").map((column) => column.year)).toEqual([
       2025, 2026,
@@ -106,19 +106,23 @@ describe("Admin historical FY columns", () => {
     expect(columns.some((column) => column.year === 2025 && column.kind === "admin_input")).toBe(false);
   });
 
-  it("column test 7: overlapping user FY stays beside historical Admin Input", () => {
+  it("column test 7: User Input in a historical FY makes stored Admin Input inactive (not deleted)", () => {
+    const financialStatements = statements({
+      unaudited: { "2025": { turnover: 5 }, "2026": { turnover: 10 } },
+      admin: { "2025": { turnover: 8, statementType: "NOT_AUDITED" } },
+    });
     const columns = resolveAdminFinancialReviewColumns({
-      financialStatements: statements({
-        unaudited: { "2025": { turnover: 5 }, "2026": { turnover: 10 } },
-        admin: { "2025": { turnover: 8, statementType: "NOT_AUDITED" } },
-      }),
+      financialStatements,
       ctosFinancials: [],
       ctosFetchState: "no_records",
     });
     expect(columns.filter((column) => column.year === 2025).map((column) => column.kind)).toEqual([
-      "admin_input",
       "unaudited",
     ]);
+    expect(financialStatements.admin_input_by_year["2025"]).toEqual({
+      turnover: 8,
+      statementType: "NOT_AUDITED",
+    });
     expect(columns.some((column) => column.year === 2026 && column.kind === "unaudited")).toBe(true);
   });
 
@@ -183,6 +187,86 @@ describe("Admin historical FY columns", () => {
     expect(
       decideAdminFinancialFieldEdit({ columns, financialYear: 2025, fieldKey: "turnover" }).ok
     ).toBe(false);
+  });
+});
+
+describe("Admin historical FY columns — CTOS / User Input / Admin Input cases", () => {
+  // Latest User Input FY2027 → historical window FY2024–FY2026.
+  const userInput = { "2026": { turnover: 90 }, "2027": { turnover: 120 } };
+
+  function kinds(columns: ReturnType<typeof resolveAdminFinancialReviewColumns>) {
+    return columns.map((column) => [column.year, column.kind]);
+  }
+
+  it("Case A: CTOS and User Input for the same FY → both columns", () => {
+    const columns = resolveAdminFinancialReviewColumns({
+      financialStatements: statements({ unaudited: userInput }),
+      ctosFinancials: [ctosYear(2024), ctosYear(2025), ctosYear(2026)],
+      ctosFetchState: "has_data",
+    });
+    expect(kinds(columns)).toEqual([
+      [2024, "ctos"],
+      [2025, "ctos"],
+      [2026, "ctos"],
+      [2026, "unaudited"],
+      [2027, "unaudited"],
+    ]);
+  });
+
+  it("Case B: no CTOS but User Input for a window FY → User Input only; stored Admin Input inactive", () => {
+    const financialStatements = statements({
+      unaudited: userInput,
+      admin: { "2026": { turnover: 70, statementType: "AUDITED" } },
+    });
+    const columns = resolveAdminFinancialReviewColumns({
+      financialStatements,
+      ctosFinancials: [ctosYear(2024), ctosYear(2025)],
+      ctosFetchState: "has_data",
+    });
+    expect(kinds(columns)).toEqual([
+      [2024, "ctos"],
+      [2025, "ctos"],
+      [2026, "unaudited"],
+      [2027, "unaudited"],
+    ]);
+    expect(columns.some((column) => column.kind === "admin_input")).toBe(false);
+    expect(columns.some((column) => column.kind === "admin_fallback_placeholder")).toBe(false);
+    expect(financialStatements.admin_input_by_year["2026"]).toEqual({
+      turnover: 70,
+      statementType: "AUDITED",
+    });
+  });
+
+  it("Case B with CTOS not pulled: User Input covers the FY, no read-only CTOS gap", () => {
+    const columns = resolveAdminFinancialReviewColumns({
+      financialStatements: statements({ unaudited: userInput }),
+      ctosFinancials: [],
+      ctosFetchState: "not_pulled",
+    });
+    expect(kinds(columns)).toEqual([
+      [2024, "ctos"],
+      [2025, "ctos"],
+      [2026, "unaudited"],
+      [2027, "unaudited"],
+    ]);
+  });
+
+  it("Case C: no CTOS and no User Input → Admin Input column, else placeholder", () => {
+    const columns = resolveAdminFinancialReviewColumns({
+      financialStatements: statements({
+        unaudited: { "2027": { turnover: 120 } },
+        admin: { "2025": { turnover: 50, statementType: "AUDITED" } },
+      }),
+      ctosFinancials: [ctosYear(2024)],
+      ctosFetchState: "has_data",
+    });
+    expect(kinds(columns)).toEqual([
+      [2024, "ctos"],
+      [2025, "admin_input"],
+      [2026, "admin_fallback_placeholder"],
+      [2027, "unaudited"],
+    ]);
+    expect(columns.find((column) => column.year === 2025)?.primarySource).toBe("admin_input");
   });
 });
 

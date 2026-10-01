@@ -50,7 +50,7 @@ describe("Admin Financial Summary CTOS padding audit", () => {
     expect(columns.some((c) => c.kind === "admin_fallback_placeholder")).toBe(false);
   });
 
-  it("Scenario B: FY2025+FY2026 user input => display window pads FY2024 (values remain missing)", () => {
+  it("Scenario B: FY2025+FY2026 user input => display window pads FY2023/FY2024; FY2025 is User Input only", () => {
     // For financial_year_end=2026-12-31:
     // - deadline=2026-06-30
     // - choosing ref before deadline yields issuer/Admin tab years = [2025, 2026] (two-year window)
@@ -78,8 +78,9 @@ describe("Admin Financial Summary CTOS padding audit", () => {
       eligibleAdminInputYears,
     });
 
-    expect(columns.map((c) => c.year)).toEqual([2023, 2024, 2025, 2025, 2026]);
-    expect(columns.map((c) => c.kind)).toEqual(["ctos", "ctos", "ctos", "unaudited", "unaudited"]);
+    // FY2025 User Input covers its historical slot: no read-only CTOS gap for FY2025.
+    expect(columns.map((c) => c.year)).toEqual([2023, 2024, 2025, 2026]);
+    expect(columns.map((c) => c.kind)).toEqual(["ctos", "ctos", "unaudited", "unaudited"]);
     expect(columns.some((c) => c.kind === "admin_fallback_placeholder")).toBe(false);
   });
 

@@ -152,6 +152,7 @@ import {
   getEligibleAdminInputYears,
   decideAdminFinancialFieldEdit,
   adminHistoricalFinancialYearWindow,
+  financialYearBlockHasActualData,
   isAdminFinancialReviewEditLocked,
   isApplicationReviewableStatus,
   parseCtosFinancialStatementRows,
@@ -5706,14 +5707,28 @@ export class ApplicationService {
       ref: now,
     }).filter((year) => !ctosOwnedYears.has(year));
 
-    // CTOS pulled: every historical slot CTOS does not own can be a whole-year Admin Input,
-    // including years outside the narrower issuer tab window and years that also have User Input.
+    // CTOS pulled: a historical slot owned by neither CTOS nor issuer User Input can be a
+    // whole-year Admin Input, including years outside the narrower issuer tab window.
+    // A year with User Input is covered by the User Input column (Admin Summary Case B).
     if (ctosReport) {
+      const unauditedByYear = (
+        application.financial_statements as Record<string, unknown> | null | undefined
+      )?.unaudited_by_year as Record<string, unknown> | null | undefined;
+      const hasUserInput = (year: number): boolean => {
+        const block = unauditedByYear?.[String(year)];
+        return (
+          block != null &&
+          typeof block === "object" &&
+          !Array.isArray(block) &&
+          financialYearBlockHasActualData(block as Record<string, unknown>)
+        );
+      };
       for (const year of adminHistoricalFinancialYearWindow({
         financialStatements: application.financial_statements,
         ref: now,
       })) {
-        if (ctosOwnedYears.has(year) || eligibleYears.includes(year)) continue;
+        if (ctosOwnedYears.has(year) || eligibleYears.includes(year) || hasUserInput(year))
+          continue;
         eligibleYears.push(year);
       }
     }

@@ -57,6 +57,7 @@ import {
   isFinancialYearPeriodOpen,
   issuerUnauditedPlddForFyEndYear,
   isPresentFinancialValue,
+  issuerSubmittedBlocksByYear,
   normalizeFinancialStatementsQuestionnaire,
   parseFinancialStatementsQuestionnaireShape,
   type FinancialStatementsQuestionnaire,
@@ -545,21 +546,10 @@ export function FinancialStatementsStep({
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
   const [autoPrefillApplied, setAutoPrefillApplied] = React.useState(false);
   const [prefillEnabled, setPrefillEnabled] = React.useState(false);
-  const [prefillOrgFs, setPrefillOrgFs] = React.useState<unknown>(null);
   const [prefillCtos, setPrefillCtos] = React.useState<unknown>(null);
-  const [prefillSubmittedByYear, setPrefillSubmittedByYear] = React.useState<
+  const [prefillIssuerSubmittedByYear, setPrefillIssuerSubmittedByYear] = React.useState<
     Record<string, Record<string, unknown>>
   >({});
-  const [prefillAdminInputByYear, setPrefillAdminInputByYear] = React.useState<
-    Record<string, Record<string, unknown>>
-  >({});
-  const [prefillCtosGapFillsByYear, setPrefillCtosGapFillsByYear] = React.useState<
-    Record<string, Record<string, unknown>>
-  >({});
-  const [prefillUserEditedKeysByYear, setPrefillUserEditedKeysByYear] = React.useState<
-    Record<string, string[]>
-  >({});
-  const [prefillIncludesAdminValues, setPrefillIncludesAdminValues] = React.useState(false);
   const prevInProgressYearRef = React.useRef<number | null>(null);
 
   const appShape = application as
@@ -599,13 +589,8 @@ export function FinancialStatementsStep({
     setIsInitialized(false);
     setAutoPrefillApplied(false);
     setPrefillEnabled(false);
-    setPrefillOrgFs(null);
     setPrefillCtos(null);
-    setPrefillSubmittedByYear({});
-    setPrefillAdminInputByYear({});
-    setPrefillCtosGapFillsByYear({});
-    setPrefillUserEditedKeysByYear({});
-    setPrefillIncludesAdminValues(false);
+    setPrefillIssuerSubmittedByYear({});
     prevInProgressYearRef.current = null;
     setFyeDateInput("");
     setFormsByYear({});
@@ -670,29 +655,19 @@ export function FinancialStatementsStep({
         return;
       }
 
-      // No financial_statements on the app yet: load CTOS + submitted same-FY history for prefill.
+      // No financial_statements on the app yet: load raw CTOS + issuer-submitted User Input history for prefill.
       // Org JSON may seed FYE only when it is still inside the live window; year amounts are not copied from profile.
       if (shouldAttemptAutoPrefill) {
         if (orgLatestFinancialStatementsQuery.isLoading) return;
 
         const latest = orgLatestFinancialStatementsQuery.data ?? null;
-        setPrefillOrgFs(latest?.financial_statements ?? null);
         setPrefillCtos(latest?.ctos_financials ?? null);
-        setPrefillSubmittedByYear(latest?.submitted_by_year ?? {});
-        setPrefillAdminInputByYear(latest?.admin_input_by_year ?? {});
-        setPrefillCtosGapFillsByYear(
-          latest?.ctos_gap_fills_by_year ?? latest?.admin_supplements_by_year ?? {}
-        );
-        setPrefillUserEditedKeysByYear(latest?.user_edited_keys_by_year ?? {});
+        setPrefillIssuerSubmittedByYear(issuerSubmittedBlocksByYear(latest?.submitted_financial_years));
         setPrefillEnabled(true);
 
-        const orgSaved =
-          latest?.financial_statements && isV2FinancialSaved(latest.financial_statements)
-            ? latest.financial_statements
-            : null;
-        const prefillFye = orgSaved
-          ? newApplicationOrgPrefillFinancialYearEnd(orgSaved.questionnaire)
-          : "";
+        const prefillFye = newApplicationOrgPrefillFinancialYearEnd(
+          latest?.financial_statements?.questionnaire
+        );
         if (prefillFye) {
           setFyeDateInput(isoToApplicationFlowDateDisplay(prefillFye));
         }
@@ -786,15 +761,13 @@ export function FinancialStatementsStep({
     }
     preserveStoredYearsRef.current = false;
 
-    const built = prefillEnabled
+    // Once financial data is saved, the application owns its values: never reapply prefill.
+    const applyPrefill = prefillEnabled && !hasV2FinancialStatements;
+    const built = applyPrefill
       ? buildApplicationFinancialPrefillByYear({
           questionnaire: questionnaireDto,
-          orgFinancialStatements: prefillOrgFs,
-          submittedByYear: prefillSubmittedByYear,
-          adminInputByYear: prefillAdminInputByYear,
-          ctosGapFillsByYear: prefillCtosGapFillsByYear,
-          userEditedKeysByYear: prefillUserEditedKeysByYear,
           ctosFinancials: prefillCtos,
+          issuerSubmittedByYear: prefillIssuerSubmittedByYear,
         })
       : null;
 
@@ -803,7 +776,7 @@ export function FinancialStatementsStep({
       for (const y of yearsToShow) {
         const k = String(y);
         const p = issuerUnauditedPlddForFyEndYear(y, questionnaireDto);
-        if (!prefillEnabled || !built) {
+        if (!built) {
           if (!prev[k]) next[k] = { ...emptyQuestionnaireBlock(), pldd: p };
           else next[k] = { ...prev[k], pldd: p };
           continue;
@@ -840,13 +813,7 @@ export function FinancialStatementsStep({
         const source = built.years[String(year)]?.source;
         return source === "ctos" || source === "submitted";
       });
-      if (filledHistorical) {
-        setAutoPrefillApplied(true);
-        const hasAdmin = built.tabYears.some((year) =>
-          Object.values(built.years[String(year)]?.fieldSources ?? {}).includes("previous_admin")
-        );
-        setPrefillIncludesAdminValues(hasAdmin);
-      }
+      if (filledHistorical) setAutoPrefillApplied(true);
     }
   }, [
     readOnly,
@@ -856,12 +823,9 @@ export function FinancialStatementsStep({
     yearsToShow,
     questionnaireDto,
     prefillEnabled,
-    prefillOrgFs,
+    hasV2FinancialStatements,
     prefillCtos,
-    prefillSubmittedByYear,
-    prefillAdminInputByYear,
-    prefillCtosGapFillsByYear,
-    prefillUserEditedKeysByYear,
+    prefillIssuerSubmittedByYear,
   ]);
 
   React.useEffect(() => {
@@ -1461,9 +1425,6 @@ export function FinancialStatementsStep({
               <p className="text-xs text-muted-foreground">
                 Previous financial year auto-filled from company records or a previous financing. Please
                 review before continuing.
-                {prefillIncludesAdminValues
-                  ? " Some figures were prefilled from a previous Admin Input and are not provider-supplied values."
-                  : ""}
               </p>
             ) : null}
           {!readOnly && !questionnaireDto ? (

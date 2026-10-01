@@ -14,6 +14,7 @@ import {
 import type {
   Application,
   CreateApplicationInput,
+  IssuerSubmittedFinancialYear,
   UpdateApplicationStepInput,
   UtilisationOfferConsentId,
 } from "@cashsouk/types";
@@ -385,16 +386,9 @@ export function useIssuerOrganizationLatestFinancialStatements(organizationId?: 
   const apiClient = createApiClient(API_URL, getAccessToken);
 
   type LatestOrgFinancialStatementsResponse = {
-    financial_statements: unknown | null;
+    financial_statements: { questionnaire: unknown } | null;
     ctos_financials: unknown | null;
-    submitted_by_year?: Record<string, Record<string, unknown>>;
-    admin_input_by_year?: Record<string, Record<string, unknown>>;
-    ctos_gap_fills_by_year?: Record<string, Record<string, unknown>>;
-    user_edited_keys_by_year?: Record<string, string[]>;
-    admin_supplements_by_year?: Record<string, Record<string, unknown>>;
-    source_application_id: string | null;
-    source_application_revision_id: string | null;
-    updated_at: string | null;
+    submitted_financial_years: Record<string, IssuerSubmittedFinancialYear>;
   };
 
   return useQuery({

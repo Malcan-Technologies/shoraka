@@ -337,6 +337,37 @@ describe("reconcileAdminFieldOverridesAfterIssuerSave with slots", () => {
     ).toEqual({});
   });
 
+  it("drops stale edit_user_input only on changed fields; other actions and unchanged fields stay", () => {
+    expect(
+      reconcileAdminFieldOverridesAfterIssuerSave({
+        existingFinancialStatements: {
+          admin_field_overrides: {
+            "2025": { plnpat: { edit_admin_input: adminEdit(7) } },
+            "2026": {
+              turnover: { edit_user_input: userEdit(120) },
+              tradeReceivables: { edit_user_input: userEdit(60) },
+              cashAndBank: { add_missing_ctos_field: gap(500) },
+            },
+          },
+        },
+        previousUnauditedByYear: {
+          "2025": { plnpat: 1 },
+          "2026": { turnover: 100, tradeReceivables: 40, cashAndBank: 1 },
+        },
+        nextUnauditedByYear: {
+          "2025": { plnpat: 2 },
+          "2026": { turnover: 110, tradeReceivables: 40, cashAndBank: 2 },
+        },
+      })
+    ).toEqual({
+      "2025": { plnpat: { edit_admin_input: adminEdit(7) } },
+      "2026": {
+        tradeReceivables: { edit_user_input: userEdit(60) },
+        cashAndBank: { add_missing_ctos_field: gap(500) },
+      },
+    });
+  });
+
   it("a kept legacy entry stays legacy; a changed legacy user edit is dropped", () => {
     expect(
       reconcileAdminFieldOverridesAfterIssuerSave({

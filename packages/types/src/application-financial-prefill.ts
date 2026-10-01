@@ -1,9 +1,8 @@
 /**
- * New-application financial prefill copies completed years once.
+ * New-application financial prefill copies the eligible previous FY once.
  * Current / in-progress FY stays blank.
- * Each previous FY uses one source, then only the supplements that belong to that source:
- * CTOS + explicit CTOS gap fills → else Admin Input → else User Input + Admin edits of that User Input → else blank.
- * Organisation profile JSON is not a source and is not a field-level fallback.
+ * Previous FY: raw CTOS for that FY (whole year) → else latest issuer-submitted User Input → else blank.
+ * Admin Input, Admin CTOS gap fills, Admin edits of User Input and organisation JSON are never sources.
  *
  * Does not write org master, CTOS storage, or an already-created application.
  */
@@ -16,11 +15,7 @@ import {
   FINANCIAL_FIELD_LABELS,
   type ApplicationComrepDetailKey,
 } from "./financial-field-labels";
-import {
-  ADMIN_EDITABLE_RAW_FINANCIAL_KEYS,
-  parseAdminFieldOverrides,
-  readFiniteFinancialNumber,
-} from "./financial-field-resolution";
+import { ADMIN_EDITABLE_RAW_FINANCIAL_KEYS } from "./financial-field-resolution";
 import {
   ctosFinancialRowToFsFields,
   financialYearBlockHasActualData,
@@ -39,17 +34,11 @@ export type ApplicationFinancialPrefillKey = (typeof APPLICATION_FINANCIAL_PREFI
 
 export type ApplicationFinancialPrefillSource = "ctos" | "submitted" | "blank";
 
-export type ApplicationFinancialPrefillFieldSource = "ctos" | "previous_admin" | "previous_user" | "submitted";
-
 export type ApplicationFinancialYearPrefill = {
   year: number;
   source: ApplicationFinancialPrefillSource;
   fields: Record<string, unknown> | null;
-  /** Present only for keys copied from a previous resolved record or CTOS. */
-  fieldSources?: Record<string, ApplicationFinancialPrefillFieldSource>;
 };
-
-const YEAR_KEY_RE = /^\d{4}$/;
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -148,290 +137,28 @@ export function financialStatementsFromRevisionSnapshot(snapshot: unknown): unkn
 }
 
 /**
- * Newest-first submitted revisions → one year block per FY key.
- * A later revision without FY N does not hide an older revision that has FY N.
+ * One eligible previous FY for a new application.
+ * A CTOS row for that exact FY owns the whole year: raw CTOS values only, no Admin gap fills,
+ * no field-by-field fallback (a CTOS row without actual amounts → blank).
+ * Otherwise the latest issuer-submitted User Input for that FY. Otherwise blank.
+ * Never receives Admin Input, CTOS gap fills or `edit_user_input`.
  */
-export function indexLatestSubmittedFinancialsByYear(
-  revisions: Array<{ snapshot: unknown }>
-): Record<string, Record<string, unknown>> {
-  const out: Record<string, Record<string, unknown>> = {};
-  for (const revision of revisions) {
-    const fs = financialStatementsFromRevisionSnapshot(revision.snapshot);
-    const byYear = asRecord(asRecord(fs)?.unaudited_by_year);
-    if (!byYear) continue;
-    for (const [yearKey, blockUnknown] of Object.entries(byYear)) {
-      if (!YEAR_KEY_RE.test(yearKey) || out[yearKey]) continue;
-      const mapped = pickSubmittedApplicationFinancialYearFields(asRecord(blockUnknown));
-      if (!financialYearBlockHasActualData(mapped)) continue;
-      out[yearKey] = mapped;
-    }
-  }
-  return out;
-}
-
-export type ResolvedSubmittedFinancialIndex = {
-  /** Newest User Input year block, with `edit_user_input` applied on that same block. */
-  submittedByYear: Record<string, Record<string, unknown>>;
-  /** Keys on `submittedByYear` that came from `edit_user_input`, not the issuer snapshot. */
-  userEditedKeysByYear: Record<string, string[]>;
-  /** Newest active Admin Input year block, including `edit_admin_input` on that block. */
-  adminInputByYear: Record<string, Record<string, unknown>>;
-  /** Explicit `add_missing_ctos_field` values only. Never a whole Admin Input or User Input block. */
-  ctosGapFillsByYear: Record<string, Record<string, unknown>>;
-  /** Alias of `ctosGapFillsByYear` for callers that still pass CTOS supplements under the old name. */
-  adminSupplementsByYear: Record<string, Record<string, unknown>>;
-};
-
-/**
- * Newest-first application financial JSON.
- * Each FY is one whole block from the newest row that contains that lane.
- * Missing keys are not filled from an older row.
- * Revision snapshots stay immutable. Live non-draft application JSON carries Admin edits.
- */
-export function indexResolvedApplicationFinancials(
-  rows: Array<{ financialStatements: unknown }>
-): ResolvedSubmittedFinancialIndex {
-  const submittedByYear: Record<string, Record<string, unknown>> = {};
-  const userEditedKeysByYear: Record<string, string[]> = {};
-  const adminInputByYear: Record<string, Record<string, unknown>> = {};
-  const ctosGapFillsByYear: Record<string, Record<string, unknown>> = {};
-
-  for (const row of rows) {
-    const fs = asRecord(row.financialStatements);
-    if (!fs) continue;
-    const unaudited = asRecord(fs.unaudited_by_year);
-    const adminInput = asRecord(fs.admin_input_by_year);
-    const overrides = parseAdminFieldOverrides(fs);
-
-    if (unaudited) {
-      for (const [yearKey, blockUnknown] of Object.entries(unaudited)) {
-        if (!YEAR_KEY_RE.test(yearKey) || submittedByYear[yearKey]) continue;
-        const mapped = pickSubmittedApplicationFinancialYearFields(asRecord(blockUnknown));
-        const edited: string[] = [];
-        const yearOverrides = overrides[yearKey];
-        if (yearOverrides) {
-          for (const [key, slot] of Object.entries(yearOverrides)) {
-            const override = slot.edit_user_input;
-            if (!override) continue;
-            const value = readFiniteFinancialNumber(override.value);
-            if (value == null) continue;
-            mapped[key] = value;
-            edited.push(key);
-          }
-        }
-        if (!financialYearBlockHasActualData(mapped)) continue;
-        submittedByYear[yearKey] = mapped;
-        if (edited.length > 0) userEditedKeysByYear[yearKey] = edited;
-      }
-    }
-
-    if (adminInput) {
-      for (const [yearKey, blockUnknown] of Object.entries(adminInput)) {
-        if (!YEAR_KEY_RE.test(yearKey) || adminInputByYear[yearKey]) continue;
-        const mapped = pickSubmittedApplicationFinancialYearFields(asRecord(blockUnknown));
-        const yearOverrides = overrides[yearKey];
-        if (yearOverrides) {
-          for (const [key, slot] of Object.entries(yearOverrides)) {
-            const override = slot.edit_admin_input;
-            if (!override) continue;
-            const value = readFiniteFinancialNumber(override.value);
-            if (value == null) continue;
-            mapped[key] = value;
-          }
-        }
-        if (!financialYearBlockHasActualData(mapped)) continue;
-        adminInputByYear[yearKey] = mapped;
-      }
-    }
-
-    for (const [yearKey, fields] of Object.entries(overrides)) {
-      if (!YEAR_KEY_RE.test(yearKey)) continue;
-      const gap = ctosGapFillsByYear[yearKey] ? { ...ctosGapFillsByYear[yearKey] } : {};
-      let added = false;
-      for (const [key, slot] of Object.entries(fields)) {
-        const override = slot.add_missing_ctos_field;
-        if (!override) continue;
-        if (gap[key] != null) continue;
-        const value = readFiniteFinancialNumber(override.value);
-        if (value == null) continue;
-        gap[key] = value;
-        added = true;
-      }
-      if (added) ctosGapFillsByYear[yearKey] = gap;
-    }
-  }
-
-  return {
-    submittedByYear,
-    userEditedKeysByYear,
-    adminInputByYear,
-    ctosGapFillsByYear,
-    adminSupplementsByYear: ctosGapFillsByYear,
-  };
-}
-
-export type HistoricalFinancialYearSource = "ctos" | "admin_input" | "user_input";
-
-export type HistoricalFinancialYearResolution = {
-  source: HistoricalFinancialYearSource;
-  fields: Record<string, unknown>;
-  fieldSources: Record<string, ApplicationFinancialPrefillFieldSource>;
-};
-
-/**
- * One previous FY. Source is chosen for the year, then only that source's supplements apply.
- * `orgFinancialStatements` is accepted and ignored so callers cannot use it as a fallback.
- */
-export function resolveHistoricalFinancialYearFields(params: {
+export function resolveNewApplicationHistoricalPrefill(params: {
   year: number;
   ctosFinancials: unknown;
-  userByYear?: Record<string, Record<string, unknown>> | null;
-  adminInputByYear?: Record<string, Record<string, unknown>> | null;
-  ctosGapFillsByYear?: Record<string, Record<string, unknown>> | null;
-  userEditedKeysByYear?: Record<string, string[]> | null;
-  orgFinancialStatements?: unknown;
-}): HistoricalFinancialYearResolution | null {
-  void params.orgFinancialStatements;
-  const yearKey = String(params.year);
-  const ctosRow = findCtosExactYearRow(params.ctosFinancials, params.year);
-  if (ctosRow) {
-    const fromCtos = mapCtosRowToCoreApplicationFields(ctosRow) ?? {};
-    const fields = { ...fromCtos };
-    const fieldSources: Record<string, ApplicationFinancialPrefillFieldSource> = {};
-    for (const key of Object.keys(fromCtos)) fieldSources[key] = "ctos";
-    const gaps = params.ctosGapFillsByYear?.[yearKey];
-    if (gaps) {
-      for (const [key, value] of Object.entries(gaps)) {
-        if (!isPresentFinancialValue(value)) continue;
-        if (isPresentFinancialValue(fields[key])) continue;
-        fields[key] = value;
-        fieldSources[key] = "previous_admin";
-      }
-    }
-    if (!financialYearBlockHasActualData(fields)) return null;
-    return { source: "ctos", fields, fieldSources };
-  }
-
-  const admin = params.adminInputByYear?.[yearKey];
-  if (admin && financialYearBlockHasActualData(admin)) {
-    const fields = { ...admin };
-    const fieldSources: Record<string, ApplicationFinancialPrefillFieldSource> = {};
-    for (const key of Object.keys(fields)) fieldSources[key] = "previous_admin";
-    return { source: "admin_input", fields, fieldSources };
-  }
-
-  const user = params.userByYear?.[yearKey];
-  if (user && financialYearBlockHasActualData(user)) {
-    const fields = { ...user };
-    const edited = new Set(params.userEditedKeysByYear?.[yearKey] ?? []);
-    const fieldSources: Record<string, ApplicationFinancialPrefillFieldSource> = {};
-    for (const key of Object.keys(fields)) {
-      fieldSources[key] = edited.has(key) ? "previous_admin" : "submitted";
-    }
-    return { source: "user_input", fields, fieldSources };
-  }
-
-  return null;
-}
-
-/** Profile history for every FY. Same source order as historical prefill, including the latest submitted FY. */
-export function effectiveFinancialHistoryEntries(params: {
-  ctosFinancials: unknown;
-  userByYear?: Record<string, Record<string, unknown>> | null;
-  adminInputByYear?: Record<string, Record<string, unknown>> | null;
-  ctosGapFillsByYear?: Record<string, Record<string, unknown>> | null;
-  userEditedKeysByYear?: Record<string, string[]> | null;
-  orgFinancialStatements?: unknown;
-}): Array<{ year: string; block: Record<string, unknown> }> {
-  const years = new Set<number>();
-  for (const row of parseCtosFinancialStatementRows(params.ctosFinancials)) {
-    if (row.financial_year != null && Number.isFinite(row.financial_year)) {
-      years.add(row.financial_year);
-    }
-  }
-  for (const map of [params.userByYear, params.adminInputByYear]) {
-    if (!map) continue;
-    for (const key of Object.keys(map)) {
-      if (YEAR_KEY_RE.test(key)) years.add(Number(key));
-    }
-  }
-  const entries: Array<{ year: string; block: Record<string, unknown> }> = [];
-  for (const year of years) {
-    const resolved = resolveHistoricalFinancialYearFields({
-      year,
-      ctosFinancials: params.ctosFinancials,
-      userByYear: params.userByYear,
-      adminInputByYear: params.adminInputByYear,
-      ctosGapFillsByYear: params.ctosGapFillsByYear,
-      userEditedKeysByYear: params.userEditedKeysByYear,
-      orgFinancialStatements: params.orgFinancialStatements,
-    });
-    if (!resolved) continue;
-    entries.push({ year: String(year), block: resolved.fields });
-  }
-  entries.sort((a, b) => Number(b.year) - Number(a.year));
-  return entries;
-}
-
-export function resolveLatestSubmittedFinancialsForYear(
-  submittedByYear: Record<string, Record<string, unknown>> | null | undefined,
-  year: number
-): Record<string, unknown> | null {
-  if (!submittedByYear) return null;
-  const mapped = submittedByYear[String(year)];
-  if (!mapped || !financialYearBlockHasActualData(mapped)) return null;
-  return mapped;
-}
-
-function prefillFromHistorical(
-  year: number,
-  resolved: HistoricalFinancialYearResolution | null
-): ApplicationFinancialYearPrefill {
-  if (!resolved) return { year, source: "blank", fields: null };
-  const source: ApplicationFinancialPrefillSource = resolved.source === "ctos" ? "ctos" : "submitted";
-  const usedAdmin = Object.values(resolved.fieldSources).includes("previous_admin");
-  return usedAdmin
-    ? { year, source, fields: resolved.fields, fieldSources: resolved.fieldSources }
-    : { year, source, fields: resolved.fields };
-}
-
-/**
- * Effective starting values for one application tab year.
- * In-progress year is always blank, even when history already has that FY.
- * Previous years: CTOS + CTOS gap fills, else Admin Input, else reviewed User Input, else blank.
- */
-export function resolveApplicationFinancialYearPrefill(params: {
-  year: number;
-  inProgressYear: number | null;
-  ctosFinancials: unknown;
-  submittedByYear?: Record<string, Record<string, unknown>> | null;
-  adminInputByYear?: Record<string, Record<string, unknown>> | null;
-  ctosGapFillsByYear?: Record<string, Record<string, unknown>> | null;
-  userEditedKeysByYear?: Record<string, string[]> | null;
-  /**
-   * Treated as CTOS gap fills when `ctosGapFillsByYear` is omitted.
-   * Not applied onto Admin Input or User Input, and not used as a whole-year source.
-   */
-  adminSupplementsByYear?: Record<string, Record<string, unknown>> | null;
-  /** Ignored. Organisation profile is not an application prefill source. */
-  orgFinancialStatements?: unknown;
+  issuerSubmittedByYear: Record<string, Record<string, unknown>> | null | undefined;
 }): ApplicationFinancialYearPrefill {
-  const { year, inProgressYear } = params;
-  if (inProgressYear != null && year === inProgressYear) {
-    return { year, source: "blank", fields: null };
+  const { year } = params;
+  const ctosRow = findCtosExactYearRow(params.ctosFinancials, year);
+  if (ctosRow) {
+    const fields = mapCtosRowToCoreApplicationFields(ctosRow);
+    return fields ? { year, source: "ctos", fields } : { year, source: "blank", fields: null };
   }
-  return prefillFromHistorical(
-    year,
-    resolveHistoricalFinancialYearFields({
-      year,
-      ctosFinancials: params.ctosFinancials,
-      userByYear: params.submittedByYear,
-      adminInputByYear: params.adminInputByYear,
-      ctosGapFillsByYear: params.ctosGapFillsByYear ?? params.adminSupplementsByYear,
-      userEditedKeysByYear: params.userEditedKeysByYear,
-      orgFinancialStatements: params.orgFinancialStatements,
-    })
-  );
+  const submitted = params.issuerSubmittedByYear?.[String(year)];
+  if (submitted && financialYearBlockHasActualData(submitted)) {
+    return { year, source: "submitted", fields: { ...submitted } };
+  }
+  return { year, source: "blank", fields: null };
 }
 
 export type ApplicationFinancialPrefillByYear = {
@@ -442,19 +169,14 @@ export type ApplicationFinancialPrefillByYear = {
 
 /**
  * Prefill map for the issuer financial step.
+ * The in-progress (current) FY is always blank and is never passed to the historical resolver.
  * No questionnaire (stale / not yet selected FYE) → no year copies.
  */
 export function buildApplicationFinancialPrefillByYear(params: {
   questionnaire: FinancialStatementsQuestionnaire | null;
   ctosFinancials: unknown;
-  submittedByYear?: Record<string, Record<string, unknown>> | null;
-  adminInputByYear?: Record<string, Record<string, unknown>> | null;
-  ctosGapFillsByYear?: Record<string, Record<string, unknown>> | null;
-  userEditedKeysByYear?: Record<string, string[]> | null;
-  adminSupplementsByYear?: Record<string, Record<string, unknown>> | null;
+  issuerSubmittedByYear: Record<string, Record<string, unknown>> | null | undefined;
   ref?: Date;
-  /** Ignored. Organisation profile is not an application prefill source. */
-  orgFinancialStatements?: unknown;
 }): ApplicationFinancialPrefillByYear {
   const { questionnaire, ref } = params;
   if (!questionnaire) {
@@ -464,17 +186,14 @@ export function buildApplicationFinancialPrefillByYear(params: {
   const inProgressYear = getInProgressFinancialYearEndYear(questionnaire);
   const years: Record<string, ApplicationFinancialYearPrefill> = {};
   for (const year of tabYears) {
-    years[String(year)] = resolveApplicationFinancialYearPrefill({
-      year,
-      inProgressYear,
-      ctosFinancials: params.ctosFinancials,
-      submittedByYear: params.submittedByYear,
-      adminInputByYear: params.adminInputByYear,
-      ctosGapFillsByYear: params.ctosGapFillsByYear,
-      userEditedKeysByYear: params.userEditedKeysByYear,
-      adminSupplementsByYear: params.adminSupplementsByYear,
-      orgFinancialStatements: params.orgFinancialStatements,
-    });
+    years[String(year)] =
+      inProgressYear != null && year === inProgressYear
+        ? { year, source: "blank", fields: null }
+        : resolveNewApplicationHistoricalPrefill({
+            year,
+            ctosFinancials: params.ctosFinancials,
+            issuerSubmittedByYear: params.issuerSubmittedByYear,
+          });
   }
   return { tabYears, inProgressYear, years };
 }
