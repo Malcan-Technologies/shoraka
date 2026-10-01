@@ -3,10 +3,10 @@
 /**
  * SECTION: Financial tab resubmit comparison (issuer User Input diff)
  * WHY: Shows what the issuer actually changed between two consecutive ApplicationRevision snapshots.
- *      Only FYs with at least one issuer value change are shown; changed rows are highlighted.
+ *      Every issuer User Input FY in either revision is shown; only changed cells are highlighted.
  *      Raw issuer unaudited_by_year only. Never Admin Input, Admin overrides, CTOS or gap fills.
- * INPUT: before/after app slices (period line only), financialDiff from diffIssuerFinancialRevisionSnapshots
- * OUTPUT: Financial Summary table (before/after issuer values per changed FY)
+ * INPUT: before/after app slices (period line only), financialYears from compareIssuerFinancialRevisionSnapshots
+ * OUTPUT: Financial Summary table (before/after issuer values per issuer FY)
  * WHERE USED: FinancialSection comparison mode
  */
 
@@ -16,7 +16,7 @@ import {
   APPLICATION_COMREP_OPTIONAL_KEYS,
   FINANCIAL_FIELD_LABELS,
   type FinancialStatementsQuestionnaire,
-  type IssuerFinancialResubmitYearDiff,
+  type IssuerFinancialResubmitYearComparison,
 } from "@cashsouk/types";
 
 import { ReviewFieldBlock } from "@/components/application-review/review-field-block";
@@ -58,11 +58,11 @@ function questionnaireOf(financialStatements: unknown): FinancialStatementsQuest
 export function ApplicationFinancialReviewComparison({
   beforeApp,
   afterApp,
-  financialDiff,
+  financialYears,
 }: {
   beforeApp: { financial_statements?: unknown };
   afterApp: { financial_statements?: unknown };
-  financialDiff: IssuerFinancialResubmitYearDiff[];
+  financialYears: IssuerFinancialResubmitYearComparison[];
 }) {
   // Modern comparison UI: compare historical revision snapshots (issuer User Input only).
   const beforeQuestionnaire = React.useMemo(
@@ -74,10 +74,10 @@ export function ApplicationFinancialReviewComparison({
     [afterApp.financial_statements]
   );
 
-  const yearKeys = React.useMemo(() => financialDiff.map((d) => d.year), [financialDiff]);
+  const yearKeys = React.useMemo(() => financialYears.map((d) => d.year), [financialYears]);
   const diffByYear = React.useMemo(
-    () => new Map(financialDiff.map((d) => [d.year, d] as const)),
-    [financialDiff]
+    () => new Map(financialYears.map((d) => [d.year, d] as const)),
+    [financialYears]
   );
 
   type EquityIfApplicableKey = (typeof APPLICATION_COMREP_OPTIONAL_KEYS)[number];
@@ -194,7 +194,7 @@ export function ApplicationFinancialReviewComparison({
   if (yearKeys.length === 0) {
     return (
       <ReviewFieldBlock title="Financial Summary">
-        <p className={reviewEmptyStateClass}>No issuer financial changes in this resubmission.</p>
+        <p className={reviewEmptyStateClass}>No issuer financial statements in these revisions.</p>
       </ReviewFieldBlock>
     );
   }

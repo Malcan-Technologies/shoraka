@@ -44,7 +44,11 @@ import {
   unmatchedDocumentAmendmentRemarks,
 } from "@/lib/resubmit-comparison/documents-projection";
 import { offerAcceptanceComparisonHasChanges } from "@/lib/resubmit-comparison/offer-acceptance-projection";
-import { diffIssuerFinancialRevisionSnapshots, formatApplicationReference } from "@cashsouk/types";
+import {
+  compareIssuerFinancialRevisionSnapshots,
+  formatApplicationReference,
+  issuerFinancialComparisonHasChanges,
+} from "@cashsouk/types";
 import {
   USE_MOCK_GUARANTOR_COMPARISON,
   applyMockGuarantorComparisonApps,
@@ -96,10 +100,10 @@ export function ResubmitComparisonModal({
     return getSupportingDocumentsStepConfig(comparisonWorkflow);
   }, [comparisonWorkflow]);
 
-  /** Issuer User Input diff from the two consecutive ApplicationRevision snapshots (raw values only). */
-  const financialDiff = React.useMemo(
+  /** Every issuer User Input FY across the two consecutive ApplicationRevision snapshots (raw values only). */
+  const financialYears = React.useMemo(
     () =>
-      data ? diffIssuerFinancialRevisionSnapshots(data.previous_snapshot, data.next_snapshot) : [],
+      data ? compareIssuerFinancialRevisionSnapshots(data.previous_snapshot, data.next_snapshot) : [],
     [data]
   );
 
@@ -144,7 +148,7 @@ export function ResubmitComparisonModal({
   const sectionHasChanges = React.useMemo(() => {
     const result = new Map<ReviewSectionId, boolean>();
     const compute = (section: ReviewSectionId): boolean => {
-      if (section === "financial") return financialDiff.length > 0;
+      if (section === "financial") return issuerFinancialComparisonHasChanges(financialYears);
       if (!comparisonBeforeApp || !comparisonAfterApp) return false;
       switch (section) {
         case "company_details":
@@ -166,7 +170,7 @@ export function ResubmitComparisonModal({
       }
     }
     return result;
-  }, [effectiveTabDescriptors, financialDiff, comparisonBeforeApp, comparisonAfterApp]);
+  }, [effectiveTabDescriptors, financialYears, comparisonBeforeApp, comparisonAfterApp]);
 
   const resubmitTabHasChanges = React.useCallback(
     (section: ReviewSectionId) => sectionHasChanges.get(section) ?? false,
@@ -316,7 +320,7 @@ export function ResubmitComparisonModal({
                         sectionComparison={{
                           beforeApp: comparisonBeforeApp,
                           afterApp: comparisonAfterApp,
-                          financialDiff,
+                          financialYears,
                         }}
                         resubmitAmendmentRemarks={amendmentRemarks}
                         hideSectionComments

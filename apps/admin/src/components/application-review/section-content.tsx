@@ -36,7 +36,7 @@ import {
   isInheritedFacilityGuarantorReview,
   type ContractProductRules,
   type InvoiceProductRules,
-  type IssuerFinancialResubmitYearDiff,
+  type IssuerFinancialResubmitYearComparison,
 } from "@cashsouk/types";
 
 function acceptanceHubItemType(itemId: string, itemType?: ReviewItemType): ReviewItemType {
@@ -156,8 +156,8 @@ export type ReviewApplicationView = {
 export type SectionContentComparison = {
   beforeApp: ReviewApplicationView;
   afterApp: ReviewApplicationView;
-  /** Issuer User Input diff between the two revision snapshots (Financial tab only). */
-  financialDiff?: IssuerFinancialResubmitYearDiff[];
+  /** Every issuer User Input FY across the two revision snapshots, with changed flags (Financial tab only). */
+  financialYears?: IssuerFinancialResubmitYearComparison[];
 };
 
 export interface SectionContentProps {
@@ -339,7 +339,7 @@ export function SectionContent({
               ? {
                   beforeApp: sectionComparison.beforeApp,
                   afterApp: sectionComparison.afterApp,
-                  financialDiff: sectionComparison.financialDiff ?? [],
+                  financialYears: sectionComparison.financialYears ?? [],
                 }
               : undefined
           }

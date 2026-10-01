@@ -29,6 +29,15 @@ export type IssuerFinancialResubmitYearDiff = {
   fields: Record<string, IssuerFinancialResubmitFieldDiff>;
 };
 
+/** One issuer FY in the comparison; `changedKeys` may be empty (unchanged FY still displayed). */
+export type IssuerFinancialResubmitYearComparison = {
+  year: number;
+  /** Raw keys whose issuer value changed, in `ADMIN_EDITABLE_RAW_FINANCIAL_KEYS` order. Empty when unchanged. */
+  changedKeys: string[];
+  /** Every raw key for this FY, changed or not. */
+  fields: Record<string, IssuerFinancialResubmitFieldDiff>;
+};
+
 const YEAR_KEY_RE = /^\d{4}$/;
 const RAW_KEY_SET = new Set<string>(ADMIN_EDITABLE_RAW_FINANCIAL_KEYS);
 const UNAUDITED_ROOT = "financial_statements.unaudited_by_year";
@@ -52,19 +61,20 @@ function issuerYearBlocks(snapshot: unknown): Record<string, Record<string, unkn
 }
 
 /**
- * FYs where at least one issuer User Input value differs between the previous and next revision.
- * Missing equals missing; 0 is not missing. Ascending by year.
+ * Every issuer User Input FY present in either revision (union of both `unaudited_by_year`
+ * year keys), ascending, with per-key Before/After and `changed` flags. `changedKeys` is empty
+ * for an unchanged FY. Admin Input, overrides and CTOS never add a year.
+ * Missing equals missing; 0 is not missing.
  */
-export function diffIssuerFinancialRevisionSnapshots(
+export function compareIssuerFinancialRevisionSnapshots(
   previousSnapshot: unknown,
   nextSnapshot: unknown
-): IssuerFinancialResubmitYearDiff[] {
+): IssuerFinancialResubmitYearComparison[] {
   const before = issuerYearBlocks(previousSnapshot);
   const after = issuerYearBlocks(nextSnapshot);
   const years = [...new Set([...Object.keys(before), ...Object.keys(after)])].sort();
 
-  const out: IssuerFinancialResubmitYearDiff[] = [];
-  for (const yearKey of years) {
+  return years.map((yearKey) => {
     const fields: Record<string, IssuerFinancialResubmitFieldDiff> = {};
     const changedKeys: string[] = [];
     for (const key of ADMIN_EDITABLE_RAW_FINANCIAL_KEYS) {
@@ -74,9 +84,28 @@ export function diffIssuerFinancialRevisionSnapshots(
       fields[key] = { issuerBefore, issuerAfter, changed };
       if (changed) changedKeys.push(key);
     }
-    if (changedKeys.length > 0) out.push({ year: Number(yearKey), changedKeys, fields });
-  }
-  return out;
+    return { year: Number(yearKey), changedKeys, fields };
+  });
+}
+
+/** True when at least one issuer User Input value changed (drives the Financial Diff badge). */
+export function issuerFinancialComparisonHasChanges(
+  years: readonly IssuerFinancialResubmitYearComparison[]
+): boolean {
+  return years.some((y) => y.changedKeys.length > 0);
+}
+
+/**
+ * FYs where at least one issuer User Input value differs between the previous and next revision.
+ * Missing equals missing; 0 is not missing. Ascending by year.
+ */
+export function diffIssuerFinancialRevisionSnapshots(
+  previousSnapshot: unknown,
+  nextSnapshot: unknown
+): IssuerFinancialResubmitYearDiff[] {
+  return compareIssuerFinancialRevisionSnapshots(previousSnapshot, nextSnapshot).filter(
+    (y) => y.changedKeys.length > 0
+  );
 }
 
 /**
