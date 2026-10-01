@@ -6,12 +6,12 @@
  */
 
 import * as React from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@cashsouk/ui";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge, Tabs, TabsContent, TabsList, TabsTrigger } from "@cashsouk/ui";
 import { cn } from "@/lib/utils";
 import { getReviewStatusPresentation } from "@/components/application-review/status-presentation";
 import type { ReviewSectionId, ReviewTabDescriptor } from "@/components/application-review/review-registry";
 import { resolveReviewTabStatus } from "@/components/application-review/offer-acceptance/unified-tab-descriptor";
+import { resubmitTabDescriptorHasChanges } from "@/lib/resubmit-comparison/modal-tabs";
 
 export type { ReviewTabDescriptor } from "@/components/application-review/review-registry";
 
@@ -73,9 +73,9 @@ export function ApplicationReviewTabs({
     <div className="w-full min-w-0 overflow-x-auto overflow-y-hidden rounded-xl bg-muted p-1 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground/30">
       <TabsList className="flex h-auto min-h-11 w-max min-w-full flex-nowrap justify-center gap-2 bg-transparent p-0 text-muted-foreground">
         {tabDescriptors.map((tab) => {
-          const hasResubmitDiff = tab.mergedSections?.length
-            ? tab.mergedSections.some((section) => resubmitTabHasChanges?.(section) ?? false)
-            : (resubmitTabHasChanges?.(tab.reviewSection) ?? false);
+          const hasResubmitDiff = resubmitTabHasChanges
+            ? resubmitTabDescriptorHasChanges(tab, resubmitTabHasChanges)
+            : false;
           const sectionStatus = resolveReviewTabStatus(tab, sectionMap);
           return (
             <TabsTrigger
@@ -91,13 +91,10 @@ export function ApplicationReviewTabs({
               <StatusDot status={sectionStatus} />
               <span className="truncate">{tab.label}</span>
               {hasResubmitDiff ? (
-                <Badge
-                  variant="outline"
-                  className="h-5 shrink-0 border-border px-1.5 text-[10px] font-normal text-muted-foreground"
-                >
+                <>
                   <span className="sr-only">This section has edits in this resubmit. </span>
-                  Diff
-                </Badge>
+                  <StatusBadge label="Diff" status="neutral" size="sm" showDot={false} />
+                </>
               ) : null}
             </TabsTrigger>
           );

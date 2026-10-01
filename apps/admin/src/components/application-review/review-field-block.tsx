@@ -14,6 +14,8 @@ export interface ReviewFieldBlockProps {
   titleAside?: React.ReactNode;
   /** Optional trailing content on the title row (e.g. Download all). */
   titleEnd?: React.ReactNode;
+  /** Optional accessible name for the block's section (e.g. to tell same-titled blocks apart). */
+  ariaLabel?: string;
 }
 
 /**
@@ -26,9 +28,10 @@ export function ReviewFieldBlock({
   titleTooltip,
   titleAside,
   titleEnd,
+  ariaLabel,
 }: ReviewFieldBlockProps) {
   return (
-    <section className="min-w-0 space-y-3">
+    <section className="min-w-0 space-y-3" aria-label={ariaLabel}>
       <div>
         <div className="flex min-w-0 items-center gap-2">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">

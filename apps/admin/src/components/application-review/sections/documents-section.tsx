@@ -2,7 +2,8 @@
 
 /**
  * SECTION: Supporting documents card — live review list or resubmit comparison
- * WHY: Comparison reuses the same category grouping as DocumentList without field-value rows.
+ * WHY: Comparison reuses the same category grouping and payload order as DocumentList, rendered
+ *      from the Documents projection so row highlights match the tab Diff badge.
  * INPUT: supporting_documents payload; optional before/after snapshots for modal
  * OUTPUT: Card with DocumentList or comparison panels
  * WHERE USED: Application review Supporting Documents tab
@@ -125,7 +126,6 @@ export interface DocumentsSectionProps {
   sectionComparison?: {
     beforeDocs: unknown;
     afterDocs: unknown;
-    isPathChanged: (path: string) => boolean;
     amendmentRemarks?: Array<{ scope: string; scope_key: string; remark: string }>;
   };
   hideSectionComments?: boolean;
@@ -209,19 +209,20 @@ export function DocumentsSection({
   if (sectionComparison) {
     const { beforeDocs, afterDocs, amendmentRemarks } = sectionComparison;
     return (
-      <Card className="rounded-2xl">
+      <Card className="min-w-0 rounded-2xl">
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
             <DocumentTextIcon className="h-5 w-5 text-primary" />
             <CardTitle className={reviewCardTitleClass}>Supporting Documents</CardTitle>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-10">
           <SupportingDocumentsComparisonLayout
             beforeDocs={beforeDocs}
             afterDocs={afterDocs}
             supportingDocumentsStepConfig={supportingDocumentsStepConfig}
             amendmentRemarks={amendmentRemarks}
+            facilityLockedCategoryKeys={facilityLockedCategoryKeys}
             onViewDocument={onViewDocument}
             onDownloadDocument={onDownloadDocument}
             viewDocumentPending={viewDocumentPending}

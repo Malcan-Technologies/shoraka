@@ -1,0 +1,377 @@
+import type { ReviewApplicationView } from "@/components/application-review/section-content";
+import { comparisonRowDiffers, replacedComparisonFiles, type ComparisonRow } from "./projection-types";
+import {
+  amendmentRemarksForDocumentRow,
+  documentsComparisonHasChanges,
+  projectDocumentsComparison,
+  projectDocumentsComparisonWithSlots,
+  unmatchedDocumentAmendmentRemarks,
+} from "./documents-projection";
+
+type FileJson = { s3_key: string; file_name: string; file_size?: number; uploaded_at?: string };
+type DocJson = { title?: string; files?: FileJson[]; workflow_document_index?: number };
+type CategoryJson = { name: string; documents: DocJson[] };
+
+function app(categories: CategoryJson[]): ReviewApplicationView {
+  return { supporting_documents: { categories } };
+}
+
+const bankStatement = (overrides: Partial<FileJson> = {}): FileJson => ({
+  s3_key: "k/bank-1",
+  file_name: "bank.pdf",
+  file_size: 2048,
+  uploaded_at: "2026-01-01T00:00:00Z",
+  ...overrides,
+});
+
+function base(): CategoryJson[] {
+  return [
+    {
+      name: "Legal Docs",
+      documents: [{ title: "SSM Profile", files: [{ s3_key: "k/ssm", file_name: "ssm.pdf" }] }],
+    },
+    {
+      name: "Financial Docs",
+      documents: [
+        {
+          title: "Bank statements",
+          files: [bankStatement(), { s3_key: "k/bank-2", file_name: "bank-2.pdf" }],
+        },
+      ],
+    },
+  ];
+}
+
+function rows(before: ReviewApplicationView, after: ReviewApplicationView): ComparisonRow[] {
+  return projectDocumentsComparison(before, after).flatMap((b) => b.rows);
+}
+
+describe("projectDocumentsComparison", () => {
+  it("keeps categories in payload order like the live DocumentList", () => {
+    const blocks = projectDocumentsComparison(app(base()), app(base()));
+    expect(blocks.map((b) => [b.id, b.title])).toEqual([
+      ["legal_docs", "Legal Docs"],
+      ["financial_docs", "Financial Docs"],
+    ]);
+    expect(documentsComparisonHasChanges(app(base()), app(base()))).toBe(false);
+  });
+
+  it("appends categories that only exist before after the current payload order", () => {
+    const after = app([base()[1]!]);
+    const blocks = projectDocumentsComparison(app(base()), after);
+    expect(blocks.map((b) => b.id)).toEqual(["financial_docs", "legal_docs"]);
+    expect(documentsComparisonHasChanges(app(base()), after)).toBe(true);
+  });
+
+  it("uploaded_at re-hydration, file size and workflow_document_index never count", () => {
+    const after = base();
+    after[1]!.documents[0] = {
+      title: "Bank statements",
+      workflow_document_index: 7,
+      files: [
+        bankStatement({ uploaded_at: "2026-05-05T10:00:00Z", file_size: 999_999 }),
+        { s3_key: "k/bank-2", file_name: "bank-2.pdf" },
+      ],
+    };
+    expect(documentsComparisonHasChanges(app(base()), app(after))).toBe(false);
+  });
+
+  it("reordered files within a slot do not differ", () => {
+    const after = base();
+    after[1]!.documents[0]!.files = [...after[1]!.documents[0]!.files!].reverse();
+    expect(rows(app(base()), app(after)).some(comparisonRowDiffers)).toBe(false);
+  });
+
+  it("a document added to a category differs", () => {
+    const after = base();
+    after[0]!.documents.push({ title: "Directors IC", files: [{ s3_key: "k/ic", file_name: "ic.pdf" }] });
+    const changed = rows(app(base()), app(after)).filter(comparisonRowDiffers);
+    expect(changed.map((r) => r.label)).toEqual(["Directors IC"]);
+  });
+
+  it("a removed file differs", () => {
+    const after = base();
+    after[1]!.documents[0]!.files = [bankStatement()];
+    expect(documentsComparisonHasChanges(app(base()), app(after))).toBe(true);
+  });
+
+  it("same file name under a new s3 key differs and is reported as replaced", () => {
+    const after = base();
+    after[0]!.documents[0]!.files = [{ s3_key: "k/ssm-v2", file_name: "ssm.pdf" }];
+    const row = rows(app(base()), app(after)).find((r) => r.label === "SSM Profile")!;
+    expect(row.kind).toBe("files");
+    expect(comparisonRowDiffers(row)).toBe(true);
+    if (row.kind !== "files") return;
+    expect(replacedComparisonFiles(row.before, row.after).map((f) => f.s3Key)).toEqual(["k/ssm-v2"]);
+  });
+
+  it("emits display strings the UI shows (file name + size secondary)", () => {
+    const row = rows(app(base()), app(base())).find((r) => r.kind === "files" && r.label.startsWith("Bank"));
+    expect(row).toMatchObject({
+      label: "Bank statements (2 files)",
+      after: [
+        { s3Key: "k/bank-1", fileName: "bank.pdf", secondary: "2.00 KB" },
+        { s3Key: "k/bank-2", fileName: "bank-2.pdf" },
+      ],
+    });
+  });
+
+  it("removing the first slot only flags that slot; later slots keep their own key and label", () => {
+    const threeSlots = (): CategoryJson[] => [
+      {
+        name: "Legal Docs",
+        documents: [
+          { title: "SSM Profile", files: [{ s3_key: "k/ssm", file_name: "ssm.pdf" }] },
+          { title: "Directors IC", files: [{ s3_key: "k/ic", file_name: "ic.pdf" }] },
+          { title: "Board Resolution", files: [{ s3_key: "k/br", file_name: "br.pdf" }] },
+        ],
+      },
+    ];
+    const after = threeSlots();
+    after[0]!.documents.shift();
+    const [block] = projectDocumentsComparisonWithSlots(app(threeSlots()), app(after));
+    expect(block!.rows.filter(comparisonRowDiffers).map((r) => r.label)).toEqual(["SSM Profile"]);
+    expect(block!.rows.map((r) => [r.key, r.label])).toEqual([
+      ["legal_docs:b1:a0", "Directors IC"],
+      ["legal_docs:b2:a1", "Board Resolution"],
+      ["legal_docs:b0:a-", "SSM Profile"],
+    ]);
+    // Requirement badges: after index (after workflow config); before-only rows get none.
+    // Remarks: the before slot's item key.
+    expect(block!.rowSlots).toEqual([
+      { requirementSlotIndex: 0, remarkScopeKey: "supporting_documents:legal_docs:1:Directors_IC" },
+      { requirementSlotIndex: 1, remarkScopeKey: "supporting_documents:legal_docs:2:Board_Resolution" },
+      { requirementSlotIndex: null, remarkScopeKey: "supporting_documents:legal_docs:0:SSM_Profile" },
+    ]);
+  });
+
+  it("row keys stay unique when before-only and after-only slots share index and 32-char slug", () => {
+    const fs = (year: string): CategoryJson[] => [
+      {
+        name: "Financial Docs",
+        documents: [
+          {
+            title: `Audited Financial Statement ${year}`,
+            files: [{ s3_key: `k/afs-${year}`, file_name: `afs-${year}.pdf` }],
+          },
+        ],
+      },
+    ];
+    const [block] = projectDocumentsComparisonWithSlots(app(fs("FY2023")), app(fs("FY2024")));
+    expect(block!.rows.map((r) => r.label)).toEqual([
+      "Audited Financial Statement FY2024",
+      "Audited Financial Statement FY2023",
+    ]);
+    const keys = block!.rows.map((r) => r.key);
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(block!.rowSlots).toEqual([
+      { requirementSlotIndex: 0, remarkScopeKey: null },
+      {
+        requirementSlotIndex: null,
+        remarkScopeKey: "supporting_documents:financial_docs:0:Audited_Financial_Statement_FY20",
+      },
+    ]);
+  });
+
+  it("an untitled slot whose file is replaced stays one changed row (file name is not its identity)", () => {
+    const untitled = (fileName: string, s3Key: string): CategoryJson[] => [
+      { name: "Legal Docs", documents: [{ files: [{ s3_key: s3Key, file_name: fileName }] }] },
+    ];
+    const [block] = projectDocumentsComparisonWithSlots(
+      app(untitled("a.pdf", "k/a")),
+      app(untitled("b.pdf", "k/b"))
+    );
+    expect(block!.rows).toHaveLength(1);
+    const row = block!.rows[0]!;
+    expect(comparisonRowDiffers(row)).toBe(true);
+    expect(row).toMatchObject({
+      kind: "files",
+      before: [{ s3Key: "k/a", fileName: "a.pdf" }],
+      after: [{ s3Key: "k/b", fileName: "b.pdf" }],
+    });
+    expect(block!.rowSlots).toEqual([
+      { requirementSlotIndex: 0, remarkScopeKey: "supporting_documents:legal_docs:0:a_pdf" },
+    ]);
+  });
+
+  it("reordered identical slots do not differ", () => {
+    const after = base();
+    after[0]!.documents.push({ title: "Directors IC", files: [{ s3_key: "k/ic", file_name: "ic.pdf" }] });
+    const before = base();
+    before[0]!.documents.unshift({ title: "Directors IC", files: [{ s3_key: "k/ic", file_name: "ic.pdf" }] });
+    expect(rows(app(before), app(after)).some(comparisonRowDiffers)).toBe(false);
+    expect(documentsComparisonHasChanges(app(before), app(after))).toBe(false);
+  });
+
+  it("empty snapshots produce no blocks", () => {
+    expect(projectDocumentsComparison({}, {})).toEqual([]);
+  });
+});
+
+describe("amendmentRemarksForDocumentRow", () => {
+  const remarks = [
+    { scope: "item", scope_key: "supporting_documents:legal_docs:0:SSM_Profile", remark: "Re-upload SSM" },
+    { scope: "section", scope_key: "supporting_documents", remark: "Section remark" },
+    { scope: "item", scope_key: "supporting_documents:financial_docs:0:Bank", remark: "Other category" },
+  ];
+
+  it("matches the before slot by category + index (title slug may change)", () => {
+    expect(
+      amendmentRemarksForDocumentRow(remarks, "supporting_documents:legal_docs:0:SSM_Profile_v2")
+    ).toEqual([{ remark: "Re-upload SSM" }]);
+  });
+
+  it("after-only rows (no before slot) get no remarks even when their after index matches", () => {
+    const after = base();
+    after[0]!.documents = [
+      { title: "Directors IC", files: [{ s3_key: "k/ic", file_name: "ic.pdf" }] },
+      ...after[0]!.documents,
+    ];
+    const before = base();
+    before[0]!.documents = [{ title: "Board Resolution", files: [{ s3_key: "k/br", file_name: "br.pdf" }] }];
+    const legal = projectDocumentsComparisonWithSlots(app(before), app(after)).find(
+      (b) => b.id === "legal_docs"
+    )!;
+    const notes = legal.rows.map((row, i) => [
+      row.label,
+      amendmentRemarksForDocumentRow(
+        [{ scope: "item", scope_key: "supporting_documents:legal_docs:0:Board_Resolution", remark: "Fix BR" }],
+        legal.rowSlots[i]!.remarkScopeKey
+      ),
+    ]);
+    expect(notes).toEqual([
+      ["Directors IC", []],
+      ["SSM Profile", []],
+      ["Board Resolution", [{ remark: "Fix BR" }]],
+    ]);
+  });
+
+  it("returns nothing without remarks", () => {
+    expect(amendmentRemarksForDocumentRow(undefined, "supporting_documents:legal_docs:0:x")).toEqual([]);
+  });
+});
+
+describe("projectDocumentsComparison — category matching", () => {
+  const custom = (name: string, title: string, s3Key: string): CategoryJson => ({
+    name,
+    documents: [{ title, files: [{ s3_key: s3Key, file_name: `${title}.pdf` }] }],
+  });
+  const bank = () => custom("Bank Statements", "Jan", "k/jan");
+  const licences = () => custom("Licences", "Trading", "k/trading");
+  const tax = () => custom("Tax", "Form C", "k/form-c");
+
+  it("inserting a custom category pairs the others by label, not position", () => {
+    const before = app([bank(), licences()]);
+    const after = app([tax(), bank(), licences()]);
+    const blocks = projectDocumentsComparisonWithSlots(before, after);
+    expect(blocks.map((b) => b.title)).toEqual(["Tax", "Bank Statements", "Licences"]);
+    expect(blocks.map((b) => b.id)).toEqual([
+      "custom:tax#0",
+      "custom:bank statements#0",
+      "custom:licences#0",
+    ]);
+    const [taxBlock, bankBlock, licBlock] = blocks;
+    expect(bankBlock!.rows.some(comparisonRowDiffers)).toBe(false);
+    expect(licBlock!.rows.some(comparisonRowDiffers)).toBe(false);
+    expect(taxBlock!.rows).toHaveLength(1);
+    expect(taxBlock!.rows[0]).toMatchObject({ before: [], after: [{ s3Key: "k/form-c" }] });
+    // Lookups use buildCategoryGroups keys: requirement badges after's, remarks before's item key.
+    expect(taxBlock!).toMatchObject({ afterCategoryKey: "cat_0", beforeCategoryKey: null });
+    expect(bankBlock!).toMatchObject({ afterCategoryKey: "cat_1", beforeCategoryKey: "cat_0" });
+    expect(bankBlock!.rowSlots).toEqual([
+      { requirementSlotIndex: 0, remarkScopeKey: "supporting_documents:cat_0:0:Jan" },
+    ]);
+  });
+
+  it("reordered custom categories with identical content have no Diff; order follows after", () => {
+    const before = app([bank(), licences()]);
+    const after = app([licences(), bank()]);
+    expect(projectDocumentsComparison(before, after).map((b) => b.title)).toEqual([
+      "Licences",
+      "Bank Statements",
+    ]);
+    expect(documentsComparisonHasChanges(before, after)).toBe(false);
+  });
+
+  it("custom labels match trimmed and case-insensitively; after label is shown", () => {
+    const before = app([custom(" bank statements ", "Jan", "k/jan")]);
+    const after = app([bank()]);
+    const blocks = projectDocumentsComparison(before, after);
+    expect(blocks.map((b) => b.title)).toEqual(["Bank Statements"]);
+    expect(documentsComparisonHasChanges(before, after)).toBe(false);
+  });
+
+  it("duplicate custom labels pair by occurrence among same-label categories", () => {
+    const before = app([custom("Misc", "A", "k/a"), licences(), custom("Misc", "B", "k/b")]);
+    const after = app([tax(), custom("Misc", "A", "k/a"), custom("Misc", "B", "k/b2")]);
+    const blocks = projectDocumentsComparisonWithSlots(before, after);
+    expect(blocks.map((b) => b.id)).toEqual([
+      "custom:tax#0",
+      "custom:misc#0",
+      "custom:misc#1",
+      "custom:licences#0",
+    ]);
+    const ids = blocks.map((b) => b.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(blocks[1]!.rows.some(comparisonRowDiffers)).toBe(false);
+    expect(blocks[2]!.rows.filter(comparisonRowDiffers).map((r) => r.label)).toEqual(["B"]);
+    expect(blocks[3]!).toMatchObject({ afterCategoryKey: null, beforeCategoryKey: "cat_1" });
+  });
+
+  it("standard categories keep their standard key as block id and pair regardless of position", () => {
+    const before = app([tax(), ...base()]);
+    const after = app([...base()].reverse());
+    const blocks = projectDocumentsComparisonWithSlots(before, after);
+    expect(blocks.map((b) => b.id)).toEqual(["financial_docs", "legal_docs", "custom:tax#0"]);
+    expect(blocks[0]!).toMatchObject({ afterCategoryKey: "financial_docs", beforeCategoryKey: "financial_docs" });
+    expect(blocks.slice(0, 2).some((b) => b.rows.some(comparisonRowDiffers))).toBe(false);
+  });
+});
+
+describe("unmatchedDocumentAmendmentRemarks", () => {
+  const before = app(base());
+  const after = app(base());
+
+  it("a remark matching a before slot is shown on its row, not returned as unmatched", () => {
+    const remarks = [
+      { scope: "item", scope_key: "supporting_documents:legal_docs:0:SSM_Profile", remark: "Re-upload SSM" },
+    ];
+    const legal = projectDocumentsComparisonWithSlots(before, after).find((b) => b.id === "legal_docs")!;
+    expect(amendmentRemarksForDocumentRow(remarks, legal.rowSlots[0]!.remarkScopeKey)).toEqual([
+      { remark: "Re-upload SSM" },
+    ]);
+    expect(unmatchedDocumentAmendmentRemarks(remarks, before, after)).toEqual([]);
+  });
+
+  it("a remark whose slot or category is missing from before is returned (and no row shows it)", () => {
+    const remarks = [
+      { scope: "item", scope_key: "supporting_documents:legal_docs:5:Gone", remark: "Out of range" },
+      { scope: "item", scope_key: "supporting_documents:compliance_docs:0:X", remark: "No category" },
+    ];
+    expect(unmatchedDocumentAmendmentRemarks(remarks, before, after)).toEqual(remarks);
+    const shownOnRows = projectDocumentsComparisonWithSlots(before, after).flatMap((b) =>
+      b.rowSlots.flatMap((slot) => amendmentRemarksForDocumentRow(remarks, slot.remarkScopeKey))
+    );
+    expect(shownOnRows).toEqual([]);
+  });
+
+  it("a remark on a slot only present after (no before slot) is unmatched", () => {
+    const afterWithNew = base();
+    afterWithNew[0]!.documents.push({ title: "Directors IC", files: [{ s3_key: "k/ic", file_name: "ic.pdf" }] });
+    const remarks = [{ scope: "item", scope_key: "supporting_documents:legal_docs:1:Directors_IC", remark: "x" }];
+    expect(unmatchedDocumentAmendmentRemarks(remarks, before, app(afterWithNew))).toEqual(remarks);
+  });
+
+  it("section-level and non-document remarks are not returned", () => {
+    const remarks = [
+      { scope: "section", scope_key: "supporting_documents", remark: "Section remark" },
+      { scope: "item", scope_key: "business_details:why", remark: "Other tab" },
+    ];
+    expect(unmatchedDocumentAmendmentRemarks(remarks, before, after)).toEqual([]);
+  });
+
+  it("no remarks → []", () => {
+    expect(unmatchedDocumentAmendmentRemarks(undefined, before, after)).toEqual([]);
+    expect(unmatchedDocumentAmendmentRemarks([], before, after)).toEqual([]);
+  });
+});

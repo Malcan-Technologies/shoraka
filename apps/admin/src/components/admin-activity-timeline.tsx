@@ -20,10 +20,7 @@ import { ChevronDownIcon, ClockIcon } from "@heroicons/react/24/outline";
 import { Button } from "@/components/ui/button";
 import { getReviewTabLabel } from "@/components/application-review/review-registry";
 import { formatApplicationReference, formatSigningDocumentSignedTitle, getItemDisplayNameFromScopeKey } from "@cashsouk/types";
-import type {
-  ResubmitChangesMetadata,
-  ResubmitFieldChangeItem,
-} from "@/components/application-revision-diff-panel";
+import type { ResubmitChangesMetadata } from "@/components/application-revision-diff-panel";
 import { ResubmitComparisonModal } from "@/components/resubmit-comparison-modal";
 import { reviewSectionHasResubmitChanges } from "@/lib/review-section-has-resubmit-changes";
 import type { ReviewSectionId } from "@/components/application-review/review-registry";
@@ -360,7 +357,6 @@ export function AdminActivityTimeline({
   const [comparisonModalOpen, setComparisonModalOpen] = React.useState(false);
   const [comparisonContext, setComparisonContext] = React.useState<{
     reviewCycle: number;
-    fieldChanges?: ResubmitFieldChangeItem[];
   } | null>(null);
   const [visibleCount, setVisibleCount] = React.useState(ACTIVITY_PAGE_SIZE);
 
@@ -512,9 +508,6 @@ export function AdminActivityTimeline({
                               onClick={() => {
                                 setComparisonContext({
                                   reviewCycle: reviewCycleFromLog!,
-                                  fieldChanges: Array.isArray(resubmitChanges?.field_changes)
-                                    ? (resubmitChanges!.field_changes as ResubmitFieldChangeItem[])
-                                    : undefined,
                                 });
                                 setComparisonModalOpen(true);
                               }}
@@ -567,7 +560,6 @@ export function AdminActivityTimeline({
         applicationDisplayReference={applicationDisplayReference}
         productKey={productKey ?? null}
         reviewCycle={comparisonContext?.reviewCycle ?? null}
-        fieldChanges={comparisonContext?.fieldChanges}
         reviewTabSections={reviewTabSections}
         visibleReviewSections={visibleReviewSections}
       />

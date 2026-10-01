@@ -1,5 +1,7 @@
 import {
+  compareIssuerFinancialRevisionSnapshots,
   diffIssuerFinancialRevisionSnapshots,
+  issuerFinancialComparisonHasChanges,
   isIssuerFinancialUserInputResubmitPath,
 } from "./issuer-financial-resubmit-diff";
 import { isMeaningfulResubmitSnapshotFieldPath } from "./resubmit-meaningful-field-path";
@@ -182,5 +184,81 @@ describe("isMeaningfulResubmitSnapshotFieldPath (financial_statements)", () => {
     expect(isMeaningfulResubmitSnapshotFieldPath("supporting_documents.categories[0].name")).toBe(true);
     expect(isMeaningfulResubmitSnapshotFieldPath("contract.status")).toBe(false);
     expect(isMeaningfulResubmitSnapshotFieldPath("contract.contract_details.value")).toBe(true);
+  });
+});
+
+describe("compareIssuerFinancialRevisionSnapshots (Financial comparison display years)", () => {
+  it("FY2026 unchanged + FY2027 changed → both FYs shown, only FY2027 rows changed, Diff", () => {
+    const years = compareIssuerFinancialRevisionSnapshots(
+      issuer({ "2026": fy(100), "2027": fy(200) }),
+      issuer({ "2026": fy(100), "2027": fy(250) })
+    );
+    expect(years.map((y) => y.year)).toEqual([2026, 2027]);
+    expect(years[0]!.changedKeys).toEqual([]);
+    expect(Object.values(years[0]!.fields).some((f) => f.changed)).toBe(false);
+    expect(years[0]!.fields.bsfatot).toEqual({ issuerBefore: 100, issuerAfter: 100, changed: false });
+    expect(years[1]!.changedKeys).toEqual(["bsfatot"]);
+    expect(years[1]!.fields.othass!.changed).toBe(false);
+    expect(issuerFinancialComparisonHasChanges(years)).toBe(true);
+  });
+
+  it("FY2026 + FY2027 both unchanged → both FYs still shown, nothing changed, no Diff", () => {
+    const years = compareIssuerFinancialRevisionSnapshots(
+      issuer({ "2026": fy(100), "2027": fy(200) }),
+      issuer({ "2026": fy(100), "2027": fy(200) })
+    );
+    expect(years.map((y) => y.year)).toEqual([2026, 2027]);
+    expect(years.every((y) => y.changedKeys.length === 0)).toBe(true);
+    expect(issuerFinancialComparisonHasChanges(years)).toBe(false);
+    expect(diffIssuerFinancialRevisionSnapshots(
+      issuer({ "2026": fy(100), "2027": fy(200) }),
+      issuer({ "2026": fy(100), "2027": fy(200) })
+    )).toEqual([]);
+  });
+
+  it("Admin Input / overrides / CTOS-only changes → only issuer FYs shown, no Diff", () => {
+    const years = compareIssuerFinancialRevisionSnapshots(
+      issuer(
+        { "2026": fy(100), "2027": fy(200) },
+        {
+          admin_input_by_year: { "2025": { bsfatot: 1 } },
+          admin_field_overrides: { "2027": { bsfatot: { edit_user_input: { value: 5 } } } },
+          ctos_gap_fill_by_year: { "2024": { bsfatot: 7 } },
+        }
+      ),
+      issuer(
+        { "2026": fy(100), "2027": fy(200) },
+        {
+          admin_input_by_year: { "2025": { bsfatot: 999 } },
+          admin_field_overrides: { "2027": { bsfatot: { edit_user_input: { value: 6 } } } },
+          ctos_gap_fill_by_year: { "2024": { bsfatot: 8 }, "2023": { bsfatot: 1 } },
+        }
+      )
+    );
+    expect(years.map((y) => y.year)).toEqual([2026, 2027]);
+    expect(issuerFinancialComparisonHasChanges(years)).toBe(false);
+  });
+
+  it("a FY present on one side only is shown and compared against missing", () => {
+    const years = compareIssuerFinancialRevisionSnapshots(
+      issuer({ "2026": fy(100) }),
+      issuer({ "2026": fy(100), "2027": fy(200) })
+    );
+    expect(years.map((y) => y.year)).toEqual([2026, 2027]);
+    expect(years[0]!.changedKeys).toEqual([]);
+    expect(years[1]!.fields.bsfatot).toEqual({ issuerBefore: null, issuerAfter: 200, changed: true });
+    expect(issuerFinancialComparisonHasChanges(years)).toBe(true);
+  });
+
+  it("diffIssuerFinancialRevisionSnapshots equals the changed subset of the comparison", () => {
+    const before = issuer({ "2025": fy(80), "2026": fy(100), "2027": fy(200) });
+    const after = issuer({ "2026": fy(100), "2027": fy(250) });
+    expect(diffIssuerFinancialRevisionSnapshots(before, after)).toEqual(
+      compareIssuerFinancialRevisionSnapshots(before, after).filter((y) => y.changedKeys.length > 0)
+    );
+  });
+
+  it("missing snapshots → no years", () => {
+    expect(compareIssuerFinancialRevisionSnapshots(null, undefined)).toEqual([]);
   });
 });

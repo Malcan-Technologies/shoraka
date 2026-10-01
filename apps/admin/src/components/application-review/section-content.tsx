@@ -18,6 +18,7 @@ import { ContractSection } from "./sections/contract-section";
 import { CustomerSection } from "./sections/customer-section";
 import { InvoiceSection } from "./sections/invoice-section";
 import { OfferAcceptanceSection } from "./offer-acceptance/offer-acceptance-section";
+import { OfferAcceptanceComparison } from "./offer-acceptance/offer-acceptance-comparison";
 import type { ReviewSectionId } from "./section-types";
 import type { ReviewTabDescriptor } from "./review-registry";
 import type {
@@ -35,7 +36,7 @@ import {
   isInheritedFacilityGuarantorReview,
   type ContractProductRules,
   type InvoiceProductRules,
-  type IssuerFinancialResubmitYearDiff,
+  type IssuerFinancialResubmitYearComparison,
 } from "@cashsouk/types";
 
 function acceptanceHubItemType(itemId: string, itemType?: ReviewItemType): ReviewItemType {
@@ -155,9 +156,8 @@ export type ReviewApplicationView = {
 export type SectionContentComparison = {
   beforeApp: ReviewApplicationView;
   afterApp: ReviewApplicationView;
-  isPathChanged: (path: string) => boolean;
-  /** Issuer User Input diff between the two revision snapshots (Financial tab only). */
-  financialDiff?: IssuerFinancialResubmitYearDiff[];
+  /** Every issuer User Input FY across the two revision snapshots, with changed flags (Financial tab only). */
+  financialYears?: IssuerFinancialResubmitYearComparison[];
 };
 
 export interface SectionContentProps {
@@ -339,7 +339,7 @@ export function SectionContent({
               ? {
                   beforeApp: sectionComparison.beforeApp,
                   afterApp: sectionComparison.afterApp,
-                  financialDiff: sectionComparison.financialDiff ?? [],
+                  financialYears: sectionComparison.financialYears ?? [],
                 }
               : undefined
           }
@@ -389,7 +389,6 @@ export function SectionContent({
                   afterGuarantors:
                     (sectionComparison.afterApp as { application?: { guarantors?: unknown } })
                       ?.application?.guarantors ?? sectionComparison.afterApp.application_guarantors,
-                  isPathChanged: sectionComparison.isPathChanged,
                 }
               : undefined
           }
@@ -427,7 +426,6 @@ export function SectionContent({
               ? {
                   beforeApp: sectionComparison.beforeApp,
                   afterApp: sectionComparison.afterApp,
-                  isPathChanged: sectionComparison.isPathChanged,
                 }
               : undefined
           }
@@ -459,7 +457,6 @@ export function SectionContent({
               ? {
                   beforeDocs: sectionComparison.beforeApp.supporting_documents,
                   afterDocs: sectionComparison.afterApp.supporting_documents,
-                  isPathChanged: sectionComparison.isPathChanged,
                   amendmentRemarks: resubmitAmendmentRemarks,
                 }
               : undefined
@@ -576,15 +573,6 @@ export function SectionContent({
             viewDocumentPending={viewDocumentPending}
             comments={sectionComments}
             onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
-            sectionComparison={
-              sectionComparison
-                ? {
-                    beforeCustomer: sectionComparison.beforeApp.contract?.customer_details,
-                    afterCustomer: sectionComparison.afterApp.contract?.customer_details,
-                    isPathChanged: sectionComparison.isPathChanged,
-                  }
-                : undefined
-            }
             hideSectionComments={hideSectionComments}
           />
         );
@@ -622,25 +610,6 @@ export function SectionContent({
           signedContractOfferLetterAvailable={signedContractOfferLetterAvailable}
           viewSignedOfferLetterPending={viewSignedOfferLetterPending}
           reviewOccupancy={adminReviewTabCapacity?.contract}
-          sectionComparison={
-            sectionComparison
-              ? {
-                  before: {
-                    contractDetails: sectionComparison.beforeApp.contract?.contract_details,
-                    customerDetails: sectionComparison.beforeApp.contract?.customer_details,
-                    offerDetails: (sectionComparison.beforeApp.contract as { offer_details?: unknown } | null)
-                      ?.offer_details,
-                  },
-                  after: {
-                    contractDetails: sectionComparison.afterApp.contract?.contract_details,
-                    customerDetails: sectionComparison.afterApp.contract?.customer_details,
-                    offerDetails: (sectionComparison.afterApp.contract as { offer_details?: unknown } | null)
-                      ?.offer_details,
-                  },
-                  isPathChanged: sectionComparison.isPathChanged,
-                }
-              : undefined
-          }
           hideSectionComments={hideSectionComments}
         />
       );
@@ -703,24 +672,23 @@ export function SectionContent({
             app.issuer_organization?.marcAssessment?.creditGrade ?? null
           }
           offerIdentityBlockReason={offerIdentityBlockReason}
-          sectionComparison={
-            sectionComparison
-              ? (() => {
-                  const bApp = sectionComparison.beforeApp;
-                  const aApp = sectionComparison.afterApp;
-                  return {
-                    beforeInvoices: bApp.invoices ?? [],
-                    afterInvoices: aApp.invoices ?? [],
-                    isPathChanged: sectionComparison.isPathChanged,
-                  };
-                })()
-              : undefined
-          }
           hideSectionComments={hideSectionComments}
         />
       );
     }
     case "offer_acceptance":
+      if (sectionComparison) {
+        return (
+          <OfferAcceptanceComparison
+            descriptor={descriptor}
+            beforeApp={sectionComparison.beforeApp}
+            afterApp={sectionComparison.afterApp}
+            onViewDocument={onViewDocument}
+            onDownloadDocument={onDownloadDocument}
+            viewDocumentPending={viewDocumentPending}
+          />
+        );
+      }
       return (
         <OfferAcceptanceSection
           descriptor={descriptor}

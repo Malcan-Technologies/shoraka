@@ -18,7 +18,17 @@ test.describe("Resubmit comparison modal", () => {
     await expect(openBtn).toBeVisible({ timeout: 60_000 });
     await openBtn.click();
 
-    await expect(page.getByRole("dialog")).toBeVisible();
-    await expect(page.getByText("What changed in this application")).toBeVisible();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText("What changed in this application")).toBeVisible();
+
+    // Same tab list as the live review page: Facility / Customer / Invoice / Acceptance are
+    // merged into one Offer & acceptance tab.
+    const tabs = dialog.getByRole("tab");
+    await expect(tabs.first()).toBeVisible();
+    await expect(dialog.getByRole("tab", { name: /Offer & acceptance/ })).toHaveCount(1);
+    for (const retired of ["Facility", "Customer", "Invoice", "Acceptance"]) {
+      await expect(dialog.getByRole("tab", { name: new RegExp(`^${retired}\\b`) })).toHaveCount(0);
+    }
   });
 });

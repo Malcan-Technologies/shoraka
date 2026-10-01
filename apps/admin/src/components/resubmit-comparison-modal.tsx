@@ -2,8 +2,9 @@
 
 /**
  * SECTION: Full-screen admin modal comparing two application revision snapshots
- * WHY: Mirrors review tabs read-only with before/after columns per plan.
- * INPUT: applicationId, productKey, reviewCycle, fieldChanges for highlights
+ * WHY: Mirrors the live review tabs (Offer & acceptance merged) read-only with before/after columns.
+ *      A tab shows Diff only when a row it renders visibly differs (same projection as the rows).
+ * INPUT: applicationId, productKey, reviewCycle, review tab statuses / visible sections
  * OUTPUT: Dialog with optional Before/After banner + sticky tab strip + SectionContent comparison mode
  * WHERE USED: Admin activity timeline (resubmit events)
  */
@@ -26,20 +27,30 @@ import {
 } from "@/components/application-review-tabs";
 import { SectionContent } from "@/components/application-review/section-content";
 import { type ReviewSectionId } from "@/components/application-review/review-registry";
-import { getEffectiveReviewTabDescriptors } from "@/lib/effective-review-tab-descriptors";
 import { revisionSnapshotToReviewApp } from "@/lib/revision-snapshot-to-review-app";
 import { ResubmitTabAmendmentNotesBar } from "@/components/resubmit-tab-amendment-notes";
 import { getSupportingDocumentsStepConfig } from "@/components/application-review/supporting-documents-admin-meta";
 import {
-  buildResubmitChangedPathSet,
-  resubmitPathIsChanged,
-} from "@/lib/resubmit-comparison-paths";
-import { reviewSectionHasResubmitChanges } from "@/lib/review-section-has-resubmit-changes";
-import type { ResubmitFieldChangeItem } from "@/components/application-revision-diff-panel";
-import { diffIssuerFinancialRevisionSnapshots, formatApplicationReference } from "@cashsouk/types";
+  buildResubmitTabStripSections,
+  getResubmitComparisonTabDescriptors,
+  resolveResubmitComparisonWorkflow,
+  resubmitTabDescriptorHasChanges,
+  resubmitTabSections,
+} from "@/lib/resubmit-comparison/modal-tabs";
+import { companyComparisonHasChanges } from "@/lib/resubmit-comparison/company-projection";
+import { businessComparisonHasChanges } from "@/lib/resubmit-comparison/business-projection";
+import {
+  documentsComparisonHasChanges,
+  unmatchedDocumentAmendmentRemarks,
+} from "@/lib/resubmit-comparison/documents-projection";
+import { offerAcceptanceComparisonHasChanges } from "@/lib/resubmit-comparison/offer-acceptance-projection";
+import {
+  compareIssuerFinancialRevisionSnapshots,
+  formatApplicationReference,
+  issuerFinancialComparisonHasChanges,
+} from "@cashsouk/types";
 import {
   USE_MOCK_GUARANTOR_COMPARISON,
-  getMockGuarantorFieldChanges,
   applyMockGuarantorComparisonApps,
 } from "@/lib/mock-guarantor-comparison";
 import { CheckIcon, XMarkIcon } from "@heroicons/react/24/outline";
@@ -53,7 +64,6 @@ export interface ResubmitComparisonModalProps {
   applicationDisplayReference?: string | null;
   productKey: string | null;
   reviewCycle: number | null;
-  fieldChanges?: ResubmitFieldChangeItem[];
   /** From application detail — aligns tab status dots with main review page (e.g. green when approved). */
   reviewTabSections?: { section: string; status: string }[];
   /** Same as application detail `visible_review_sections` — when set, tab list matches main page API filter. */
@@ -67,7 +77,6 @@ export function ResubmitComparisonModal({
   applicationDisplayReference,
   productKey,
   reviewCycle,
-  fieldChanges,
   reviewTabSections,
   visibleReviewSections: visibleReviewSectionsFromParent,
 }: ResubmitComparisonModalProps) {
@@ -81,38 +90,21 @@ export function ResubmitComparisonModal({
   const { viewDocumentPending, handleViewDocument, handleDownloadDocument } =
     useAdminS3DocumentViewDownload();
 
+  /** Frozen product version from the after snapshot; live catalog only when the snapshot has none. */
+  const comparisonWorkflow = React.useMemo(
+    () => resolveResubmitComparisonWorkflow(data?.next_snapshot, product?.workflow),
+    [data?.next_snapshot, product?.workflow]
+  );
+
   const supportingDocumentsStepConfig = React.useMemo(() => {
-    return getSupportingDocumentsStepConfig(product?.workflow as unknown[] | undefined);
-  }, [product?.workflow]);
+    return getSupportingDocumentsStepConfig(comparisonWorkflow);
+  }, [comparisonWorkflow]);
 
-  const effectiveFieldChanges = React.useMemo(() => {
-    if (!USE_MOCK_GUARANTOR_COMPARISON) return fieldChanges;
-    const mockFc = getMockGuarantorFieldChanges();
-    return [...(fieldChanges ?? []), ...mockFc];
-  }, [fieldChanges]);
-
-  const changedPaths = React.useMemo(
-    () => buildResubmitChangedPathSet(effectiveFieldChanges),
-    [effectiveFieldChanges]
-  );
-  const isPathChanged = React.useCallback(
-    (path: string) => resubmitPathIsChanged(path, changedPaths),
-    [changedPaths]
-  );
-
-  /** Issuer User Input diff from the two consecutive ApplicationRevision snapshots (raw values only). */
-  const financialDiff = React.useMemo(
+  /** Every issuer User Input FY across the two consecutive ApplicationRevision snapshots (raw values only). */
+  const financialYears = React.useMemo(
     () =>
-      data ? diffIssuerFinancialRevisionSnapshots(data.previous_snapshot, data.next_snapshot) : [],
+      data ? compareIssuerFinancialRevisionSnapshots(data.previous_snapshot, data.next_snapshot) : [],
     [data]
-  );
-
-  const resubmitTabHasChanges = React.useCallback(
-    (section: ReviewSectionId) =>
-      section === "financial"
-        ? financialDiff.length > 0
-        : reviewSectionHasResubmitChanges(section, effectiveFieldChanges),
-    [effectiveFieldChanges, financialDiff]
   );
 
   const beforeApp = React.useMemo(() => {
@@ -145,26 +137,64 @@ export function ResubmitComparisonModal({
           invoices: comparisonAfterApp.invoices,
         }
       : null;
-    return getEffectiveReviewTabDescriptors(
-      product?.workflow as unknown[] | undefined,
-      appShape
-    );
-  }, [product?.workflow, comparisonAfterApp, visibleReviewSectionsFromParent]);
+    return getResubmitComparisonTabDescriptors(comparisonWorkflow, appShape);
+  }, [comparisonWorkflow, comparisonAfterApp, visibleReviewSectionsFromParent]);
 
-  const tabStripSections = React.useMemo(() => {
-    const statusBySection = new Map(
-      (reviewTabSections ?? []).map((s) => [s.section, s.status])
-    );
-    return effectiveTabDescriptors.map((t) => ({
-      section: t.reviewSection,
-      status: statusBySection.get(t.reviewSection) ?? "PENDING",
-    }));
-  }, [reviewTabSections, effectiveTabDescriptors]);
+  /**
+   * Diff = a rendered row differs. Financial keeps the issuer User Input diff; the other tabs use
+   * the projection their comparison renders. acceptance_documents has no comparison data.
+   * Computed once per backend section behind the visible tabs.
+   */
+  const sectionHasChanges = React.useMemo(() => {
+    const result = new Map<ReviewSectionId, boolean>();
+    const compute = (section: ReviewSectionId): boolean => {
+      if (section === "financial") return issuerFinancialComparisonHasChanges(financialYears);
+      if (!comparisonBeforeApp || !comparisonAfterApp) return false;
+      switch (section) {
+        case "company_details":
+          return companyComparisonHasChanges(comparisonBeforeApp, comparisonAfterApp);
+        case "business_details":
+          return businessComparisonHasChanges(comparisonBeforeApp, comparisonAfterApp);
+        case "supporting_documents":
+          return documentsComparisonHasChanges(comparisonBeforeApp, comparisonAfterApp);
+        case "contract_details":
+        case "invoice_details":
+          return offerAcceptanceComparisonHasChanges(section, comparisonBeforeApp, comparisonAfterApp);
+        default:
+          return false;
+      }
+    };
+    for (const descriptor of effectiveTabDescriptors) {
+      for (const section of resubmitTabSections(descriptor)) {
+        if (!result.has(section)) result.set(section, compute(section));
+      }
+    }
+    return result;
+  }, [effectiveTabDescriptors, financialYears, comparisonBeforeApp, comparisonAfterApp]);
+
+  const resubmitTabHasChanges = React.useCallback(
+    (section: ReviewSectionId) => sectionHasChanges.get(section) ?? false,
+    [sectionHasChanges]
+  );
+
+  const tabStripSections = React.useMemo(
+    () => buildResubmitTabStripSections(effectiveTabDescriptors, reviewTabSections),
+    [reviewTabSections, effectiveTabDescriptors]
+  );
 
   const noopAsync = React.useCallback(async () => {}, []);
   const noop = React.useCallback(() => {}, []);
 
   const amendmentRemarks = data?.amendment_remarks;
+
+  /** Document item remarks no comparison row shows (slot/category gone) — surfaced in the Documents tab bar. */
+  const unmatchedDocumentRemarks = React.useMemo(
+    () =>
+      comparisonBeforeApp && comparisonAfterApp
+        ? unmatchedDocumentAmendmentRemarks(amendmentRemarks, comparisonBeforeApp, comparisonAfterApp)
+        : [],
+    [amendmentRemarks, comparisonBeforeApp, comparisonAfterApp]
+  );
 
   const [resubmitTabId, setResubmitTabId] = React.useState(RESUBMIT_FINANCIAL_TAB_ID);
   React.useEffect(() => {
@@ -179,7 +209,7 @@ export function ResubmitComparisonModal({
 
   const showResubmitBeforeAfterBanner =
     activeTabDescriptor != null &&
-    resubmitTabHasChanges(activeTabDescriptor.reviewSection);
+    resubmitTabDescriptorHasChanges(activeTabDescriptor, resubmitTabHasChanges);
 
   const resubmitBeforeAfterBanner = showResubmitBeforeAfterBanner ? (
     <div
@@ -228,7 +258,7 @@ export function ResubmitComparisonModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[95vw] w-full max-h-[90vh] flex flex-col overflow-hidden rounded-2xl p-0 gap-0 border border-border bg-background shadow-lg">
-        <DialogHeader className="space-y-1 shrink-0 border-b border-border/80 px-6 pb-1.5 pt-6">
+        <DialogHeader className="space-y-1 shrink-0 px-6 pb-4 pt-6">
           <DialogTitle className="text-dialog-title">What changed in this application</DialogTitle>
           <DialogDescription className="text-sm">
             {applicationId
@@ -276,7 +306,13 @@ export function ResubmitComparisonModal({
                     <ApplicationReviewTabContent key={descriptor.id} value={descriptor.id}>
                       <ResubmitTabAmendmentNotesBar
                         reviewSection={descriptor.reviewSection}
+                        reviewSections={resubmitTabSections(descriptor)}
                         remarks={amendmentRemarks}
+                        additionalRemarks={
+                          descriptor.reviewSection === "supporting_documents"
+                            ? unmatchedDocumentRemarks
+                            : undefined
+                        }
                       />
                       <SectionContent
                         descriptor={descriptor}
@@ -284,8 +320,7 @@ export function ResubmitComparisonModal({
                         sectionComparison={{
                           beforeApp: comparisonBeforeApp,
                           afterApp: comparisonAfterApp,
-                          isPathChanged,
-                          financialDiff,
+                          financialYears,
                         }}
                         resubmitAmendmentRemarks={amendmentRemarks}
                         hideSectionComments

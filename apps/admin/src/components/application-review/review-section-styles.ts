@@ -1,12 +1,17 @@
 import { formatCurrency } from "@cashsouk/config";
-import { format } from "date-fns";
+import { REVIEW_EMPTY_LABEL } from "@/lib/resubmit-comparison/shared-format";
 
 /**
  * Shared typography and layout tokens for admin application review sections.
  * Aligned with BRANDING.md and used by Business, Facility, Company tabs.
  */
 
-export const REVIEW_EMPTY_LABEL = "Not provided";
+/** Pure implementations live in shared-format (jest-safe); re-exported here for UI callers. */
+export {
+  REVIEW_EMPTY_LABEL,
+  formatFileSize,
+  formatReviewDate,
+} from "@/lib/resubmit-comparison/shared-format";
 
 /**
  * Section/subsection title: text-base font-semibold per BRANDING.
@@ -69,6 +74,27 @@ const ROW_GRID_BASE =
 /** Indented row grid for content under section headers. */
 export const reviewRowGridClass = `pl-3 ${ROW_GRID_BASE}`;
 
+/**
+ * Resubmit comparison rows in the live review grid language: 220px label column (as reviewRowGridClass),
+ * then Before | After. Stacks on small screens (label, Before, After) with side captions.
+ */
+const COMPARISON_ROW_COLUMNS = "md:grid-cols-[220px_minmax(0,1fr)_minmax(0,1fr)]";
+
+/** Wrapper for a list of comparison rows under a block header (live: mt-4 + gap-y-4). */
+export const comparisonRowListClass = "mt-4 space-y-4";
+
+/** One comparison row: label | Before | After. */
+export const comparisonRowGridClass = `pl-3 grid min-w-0 w-full grid-cols-1 ${COMPARISON_ROW_COLUMNS} gap-x-6 gap-y-2 items-start [&>*]:min-w-0`;
+
+/** Label cell: live label typography, nudged to sit on the first line of a 36px value cell. */
+export const comparisonLabelColClass = `${reviewLabelClass} md:pt-1.5`;
+
+/** Before/After caption: visible when the row stacks; screen-reader only on md+ (columns carry it visually). */
+export const comparisonSideCaptionClass = "mb-1 block text-meta text-muted-foreground md:sr-only";
+
+/** Helper text under a value cell (live: under the value). */
+export const comparisonValueHintClass = "mt-1 text-xs text-muted-foreground";
+
 export interface FormatReviewValueOptions {
   emptyLabel?: string;
   formatCurrency?: boolean;
@@ -89,27 +115,4 @@ export function formatReviewValue(
   }
   if (typeof v === "string") return v.trim() || emptyLabel;
   return String(v);
-}
-
-/**
- * Formats file size for display: B, KB, or MB depending on magnitude.
- */
-export function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-}
-
-/**
- * Formats a date string for review display (dd MMM yyyy).
- */
-export function formatReviewDate(
-  dateStr: string | null | undefined,
-  options: { emptyLabel?: string } = {}
-): string {
-  const { emptyLabel = REVIEW_EMPTY_LABEL } = options;
-  if (!dateStr) return emptyLabel;
-  const date = new Date(dateStr);
-  if (Number.isNaN(date.getTime())) return dateStr;
-  return format(date, "dd MMM yyyy");
 }

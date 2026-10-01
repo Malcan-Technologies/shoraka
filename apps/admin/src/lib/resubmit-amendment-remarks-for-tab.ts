@@ -1,7 +1,7 @@
 /**
  * SECTION: Map stored amendment remarks to a review tab
  * WHY: Resubmit comparison shows notes per tab (chat popover), not one global list.
- * INPUT: tab review section + amendment_remarks from API
+ * INPUT: tab review section (or every section a merged tab stands for) + amendment_remarks from API
  * OUTPUT: Filtered remarks for that tab only
  * WHERE USED: ResubmitComparisonModal → ApplicationReviewTabs
  */
@@ -32,9 +32,14 @@ function reviewSectionForRemark(r: ResubmitAmendmentRemarkRow): ReviewSection {
   return getSectionForPendingAmendment(r.scope, r.scope_key);
 }
 
+/**
+ * Remarks for one tab. Pass an array for a merged tab (Offer & acceptance); each remark maps to a
+ * single section, so the union keeps API order and never repeats a remark.
+ */
 export function amendmentRemarksForReviewTab(
-  tab: ReviewSection,
+  tab: ReviewSection | readonly ReviewSection[],
   remarks: ResubmitAmendmentRemarkRow[]
 ): ResubmitAmendmentRemarkRow[] {
-  return remarks.filter((r) => reviewSectionForRemark(r) === tab);
+  const sections = new Set<ReviewSection>(typeof tab === "string" ? [tab] : tab);
+  return remarks.filter((r) => sections.has(reviewSectionForRemark(r)));
 }

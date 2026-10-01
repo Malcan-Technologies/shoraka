@@ -399,12 +399,12 @@ describe("Admin Financial Summary table UI", () => {
     const full = readFileSync(comparisonPath, "utf8");
     // Skip the file header comment, which documents what is excluded.
     const comparisonSource = full.slice(full.indexOf("import * as React"));
-    // Years, values and highlighting come from diffIssuerFinancialRevisionSnapshots output.
-    expect(comparisonSource).toContain("financialDiff.map((d) => d.year)");
+    // Years, values and highlighting come from compareIssuerFinancialRevisionSnapshots output (every issuer FY).
+    expect(comparisonSource).toContain("financialYears.map((d) => d.year)");
     expect(comparisonSource).toContain("field?.issuerBefore");
     expect(comparisonSource).toContain("field?.issuerAfter");
     expect(comparisonSource).toContain("field?.changed === true");
-    expect(comparisonSource).toContain("No issuer financial changes in this resubmission.");
+    expect(comparisonSource).toContain("No issuer financial statements in these revisions.");
     // Never reads Admin Input, Admin overrides, CTOS or the old 3-year union.
     for (const forbidden of [
       "admin_input_by_year",
