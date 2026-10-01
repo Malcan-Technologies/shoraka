@@ -41,3 +41,4 @@ export {
   resolveOfferAcceptanceCommentSection,
 } from "./merge-offer-acceptance-comments";
 export { OfferAcceptanceSection } from "./offer-acceptance-section";
+export { OfferAcceptanceComparison } from "./offer-acceptance-comparison";

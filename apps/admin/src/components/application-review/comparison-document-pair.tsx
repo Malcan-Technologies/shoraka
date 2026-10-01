@@ -3,9 +3,12 @@
 /**
  * SECTION: Before/after file comparison UI
  * WHY: One pattern for supporting docs, consent PDFs, contract uploads, invoice docs, business attachments.
- * INPUT: title, chip lists (s3Key + label), optional path highlight from field_changes
+ * INPUT: title, chip lists (s3Key + label) or projected ComparisonRow
  * OUTPUT: Same chip + two-column layout everywhere; changed rows use comparisonSurfaceChanged* like ComparisonFieldRow.
- * WHERE USED: SupportingDocumentsComparisonLayout; Invoice "Document"; Business supporting docs; Contract / Customer evidence.
+ *         File lists differ by s3 key + name only (order and size ignored); an After file that reuses a
+ *         Before file name under a new s3 key is badged "Replaced".
+ * WHERE USED: SupportingDocumentsComparisonLayout; Invoice "Document"; Business supporting docs; Contract / Customer evidence;
+ *             ComparisonProjectedRow (projection-driven Company / Business / Documents comparison rows).
  */
 
 import * as React from "react";
@@ -20,16 +23,17 @@ import {
   ChevronDownIcon,
   DocumentArrowDownIcon,
   DocumentTextIcon,
+  LockClosedIcon,
 } from "@heroicons/react/24/outline";
+import { StatusBadge } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AmendmentRemarkReadbackPanel } from "@/components/amendment-remark-readback";
-import { SUPPORTING_DOC_CATEGORY_KEYS } from "@/app/settings/products/workflow-builder/product-form-helpers";
 import { cn } from "@/lib/utils";
 import {
+  REVIEW_EMPTY_LABEL,
   reviewEmptyStateClass,
   reviewLabelClass,
-  formatFileSize,
   comparisonCellSurfaceShellClass,
   comparisonFileChipRowShellClass,
   comparisonSurfaceChangedAfterClass,
@@ -38,10 +42,24 @@ import {
   comparisonSplitBeforeColClass,
   comparisonSplitRowGridClass,
 } from "./review-section-styles";
-import { buildCategoryGroups, type DocFile, SUPPORTING_DOC_ACTION_BTN_BASE_CLASS } from "./document-list";
+import { SUPPORTING_DOC_ACTION_BTN_BASE_CLASS } from "./document-list";
 import { SupportingDocRequirementBadges } from "./supporting-doc-requirement-badges";
-import type { SupportingDocRowRequirementMeta } from "./supporting-documents-admin-meta";
-import { documentAmendmentScopeMatchesRow } from "@/lib/document-amendment-scope-match";
+import {
+  supportingDocRowRequirementMeta,
+  type SupportingDocRowRequirementMeta,
+} from "./supporting-documents-admin-meta";
+import { ComparisonFieldRow, ComparisonYesNoRadioRow } from "./comparison-field-row";
+import {
+  comparisonFilesDiffer,
+  comparisonRowDiffers,
+  replacedComparisonFiles,
+  type ComparisonFileRef,
+  type ComparisonRow,
+} from "@/lib/resubmit-comparison/projection-types";
+import {
+  amendmentRemarksForDocumentRow,
+  projectDocumentsComparisonWithSlots,
+} from "@/lib/resubmit-comparison/documents-projection";
 
 export type ComparisonFileChip = {
   s3Key: string;
@@ -49,11 +67,29 @@ export type ComparisonFileChip = {
   secondary?: string;
 };
 
-export function comparisonFileChipsSignature(files: ComparisonFileChip[]): string {
-  return [...files]
-    .map((f) => `${f.s3Key}\t${f.label}\t${f.secondary ?? ""}`)
-    .sort()
-    .join("\n");
+function chipsToFileRefs(files: readonly ComparisonFileChip[]): ComparisonFileRef[] {
+  return files.map((f) => ({ s3Key: f.s3Key, fileName: f.label, secondary: f.secondary }));
+}
+
+function fileRefsToChips(files: readonly ComparisonFileRef[]): ComparisonFileChip[] {
+  return files.map((f) => ({ s3Key: f.s3Key, label: f.fileName, secondary: f.secondary }));
+}
+
+/** Same rule as the Diff badge: s3 key + name only; order and size never count. */
+export function comparisonFileChipsDiffer(
+  beforeFiles: readonly ComparisonFileChip[],
+  afterFiles: readonly ComparisonFileChip[]
+): boolean {
+  return comparisonFilesDiffer(chipsToFileRefs(beforeFiles), chipsToFileRefs(afterFiles));
+}
+
+function ReplacedFileBadge() {
+  return (
+    <>
+      <StatusBadge label="Replaced" status="neutral" showDot={false} size="sm" aria-hidden />
+      <span className="sr-only">File replaced</span>
+    </>
+  );
 }
 
 export function ComparisonFileChipList({
@@ -62,6 +98,7 @@ export function ComparisonFileChipList({
   strikeLabels,
   column = "before",
   accentChanged = false,
+  replacedAgainst,
   onViewDocument,
   onDownloadDocument,
   viewDocumentPending,
@@ -74,10 +111,22 @@ export function ComparisonFileChipList({
   column?: "before" | "after";
   /** When lists differ: same ring + tint as comparison fields (before/after surface tokens). */
   accentChanged?: boolean;
+  /**
+   * After column only: the Before list. Chips that reuse a Before file name under a new s3 key
+   * get a "Replaced" badge (same-name re-upload is a real change).
+   */
+  replacedAgainst?: ComparisonFileChip[];
   onViewDocument?: (s3Key: string) => void;
   onDownloadDocument?: (s3Key: string, fileName?: string) => void;
   viewDocumentPending?: boolean;
 }) {
+  const replacedKeys = new Set(
+    column === "after" && replacedAgainst
+      ? replacedComparisonFiles(chipsToFileRefs(replacedAgainst), chipsToFileRefs(files)).map((f) =>
+          f.s3Key.trim()
+        )
+      : []
+  );
   const tone = column === "before" ? "text-muted-foreground" : "text-foreground";
   const changedHighlight =
     accentChanged &&
@@ -116,6 +165,11 @@ export function ComparisonFileChipList({
                 >
                   {f.label || f.s3Key}
                 </span>
+                {replacedKeys.has(f.s3Key.trim()) ? (
+                  <span className="mt-1 block">
+                    <ReplacedFileBadge />
+                  </span>
+                ) : null}
                 {f.secondary ? (
                   <span
                     className={cn(
@@ -190,8 +244,7 @@ export function ComparisonDocumentTitleRow({
   onDownloadDocument?: (s3Key: string, fileName?: string) => void;
   viewDocumentPending?: boolean;
 }) {
-  const filesDiffer =
-    comparisonFileChipsSignature(beforeFiles) !== comparisonFileChipsSignature(afterFiles);
+  const filesDiffer = comparisonFileChipsDiffer(beforeFiles, afterFiles);
   const noisy = filesDiffer || !!markChanged;
   /** Only content diff avoids marking every row when a parent path is flagged. */
   const colHighlight = filesDiffer;
@@ -260,6 +313,7 @@ export function ComparisonDocumentTitleRow({
             emptyLabel="—"
             column="after"
             accentChanged={colHighlight}
+            replacedAgainst={beforeFiles}
             onViewDocument={onViewDocument}
             onDownloadDocument={onDownloadDocument}
             viewDocumentPending={viewDocumentPending}
@@ -270,40 +324,72 @@ export function ComparisonDocumentTitleRow({
   );
 }
 
-export function fileDocToComparisonChips(doc: {
-  s3_key?: string;
-  file_name?: string;
-  file_size?: number;
-} | undefined): ComparisonFileChip[] {
-  if (!doc?.s3_key || String(doc.s3_key).trim() === "") return [];
-  const label =
-    typeof doc.file_name === "string" && doc.file_name.trim() !== ""
-      ? doc.file_name
-      : "Attached file";
-  const secondary =
-    typeof doc.file_size === "number" && doc.file_size > 0
-      ? formatFileSize(doc.file_size)
-      : undefined;
-  return [{ s3Key: String(doc.s3_key), label, secondary }];
-}
-
-export function businessSupportingDocsToChips(
-  docs: Array<{ s3Key: string; fileName: string; fileSize?: number }>
-): ComparisonFileChip[] {
-  return docs.map((d) => ({
-    s3Key: d.s3Key,
-    label: d.fileName,
-    secondary:
-      typeof d.fileSize === "number" && d.fileSize > 0 ? formatFileSize(d.fileSize) : undefined,
-  }));
-}
-
-function docFilesToChips(files: DocFile[]): ComparisonFileChip[] {
-  return files.map((f) => ({
-    s3Key: f.s3Key,
-    label: f.label,
-    secondary: f.secondary,
-  }));
+/**
+ * SECTION: One projected comparison row
+ * WHY: Projection-driven sections render rows straight from ComparisonRow so the Diff badge and
+ *      the visible highlight come from the same data.
+ * INPUT: ComparisonRow (+ file actions, optional requirement badges / amendment remarks for files)
+ * OUTPUT: ComparisonFieldRow (+ hint), ComparisonYesNoRadioRow, or ComparisonDocumentTitleRow
+ * WHERE USED: Company / Business comparison branches, SupportingDocumentsComparisonLayout
+ */
+export function ComparisonProjectedRow({
+  row,
+  requirementMeta,
+  amendmentNotes,
+  onViewDocument,
+  onDownloadDocument,
+  viewDocumentPending,
+}: {
+  row: ComparisonRow;
+  requirementMeta?: SupportingDocRowRequirementMeta;
+  amendmentNotes?: Array<{ remark: string }>;
+  onViewDocument?: (s3Key: string) => void;
+  onDownloadDocument?: (s3Key: string, fileName?: string) => void;
+  viewDocumentPending?: boolean;
+}) {
+  const differs = comparisonRowDiffers(row);
+  switch (row.kind) {
+    case "text": {
+      const field = (
+        <ComparisonFieldRow
+          label={row.label}
+          before={row.before ?? REVIEW_EMPTY_LABEL}
+          after={row.after ?? REVIEW_EMPTY_LABEL}
+          changed={differs}
+          multiline={row.multiline}
+        />
+      );
+      if (!row.hint) return field;
+      return (
+        <div>
+          {field}
+          <p className="text-xs text-muted-foreground">{row.hint}</p>
+        </div>
+      );
+    }
+    case "yesno":
+      return (
+        <ComparisonYesNoRadioRow
+          label={row.label}
+          beforeValue={row.before}
+          afterValue={row.after}
+          changed={differs}
+        />
+      );
+    case "files":
+      return (
+        <ComparisonDocumentTitleRow
+          title={row.label}
+          requirementMeta={requirementMeta}
+          beforeFiles={fileRefsToChips(row.before)}
+          afterFiles={fileRefsToChips(row.after)}
+          amendmentNotes={amendmentNotes}
+          onViewDocument={onViewDocument}
+          onDownloadDocument={onDownloadDocument}
+          viewDocumentPending={viewDocumentPending}
+        />
+      );
+  }
 }
 
 export function SupportingDocumentsComparisonLayout({
@@ -311,96 +397,81 @@ export function SupportingDocumentsComparisonLayout({
   afterDocs,
   supportingDocumentsStepConfig,
   amendmentRemarks,
+  facilityLockedCategoryKeys = [],
   onViewDocument,
   onDownloadDocument,
   viewDocumentPending,
 }: {
   beforeDocs: unknown;
   afterDocs: unknown;
+  /** Requirement badges only; never changes which rows render or whether they differ. */
   supportingDocumentsStepConfig?: Record<string, unknown> | null;
-  /** Item-level supporting_documents amendment text, matched to each row by scope_key. */
+  /** Item-level supporting_documents amendment text, matched to each row's before slot by scope_key. */
   amendmentRemarks?: Array<{ scope: string; scope_key: string; remark: string }>;
+  /** Drawdown apps: categories inherited from the facility (same badge as live DocumentList). */
+  facilityLockedCategoryKeys?: string[];
   onViewDocument?: (s3Key: string) => void;
   onDownloadDocument?: (s3Key: string, fileName?: string) => void;
   viewDocumentPending?: boolean;
 }) {
-  const beforeGroups = React.useMemo(
-    () => buildCategoryGroups(beforeDocs, supportingDocumentsStepConfig),
-    [beforeDocs, supportingDocumentsStepConfig]
+  const blocks = React.useMemo(
+    () =>
+      projectDocumentsComparisonWithSlots(
+        { supporting_documents: beforeDocs },
+        { supporting_documents: afterDocs }
+      ),
+    [beforeDocs, afterDocs]
   );
-  const afterGroups = React.useMemo(
-    () => buildCategoryGroups(afterDocs, supportingDocumentsStepConfig),
-    [afterDocs, supportingDocumentsStepConfig]
-  );
-  const beforeByKey = React.useMemo(
-    () => new Map(beforeGroups.map((g) => [g.categoryKey, g])),
-    [beforeGroups]
-  );
-  const afterByKey = React.useMemo(
-    () => new Map(afterGroups.map((g) => [g.categoryKey, g])),
-    [afterGroups]
-  );
-  const categoryKeys = Array.from(new Set([...beforeByKey.keys(), ...afterByKey.keys()]));
-  const order = SUPPORTING_DOC_CATEGORY_KEYS;
-  categoryKeys.sort((a, b) => {
-    const ia = order.indexOf(a as (typeof order)[number]);
-    const ib = order.indexOf(b as (typeof order)[number]);
-    if (ia === -1 && ib === -1) return String(a).localeCompare(String(b));
-    if (ia === -1) return 1;
-    if (ib === -1) return -1;
-    return ia - ib;
-  });
 
-  if (categoryKeys.length === 0) {
+  if (blocks.length === 0) {
     return <p className={reviewEmptyStateClass}>No supporting documents in these snapshots.</p>;
   }
 
   return (
     <div className="space-y-2">
-      {categoryKeys.map((categoryKey) => {
-        const bG = beforeByKey.get(categoryKey);
-        const aG = afterByKey.get(categoryKey);
-        const categoryLabel = bG?.categoryLabel ?? aG?.categoryLabel ?? String(categoryKey);
-        const bItems = bG?.items ?? [];
-        const aItems = aG?.items ?? [];
-        const maxLen = Math.max(bItems.length, aItems.length);
+      {blocks.map((block) => {
+        const categoryKey = block.id;
         return (
-          <Collapsible key={String(categoryKey)} defaultOpen>
-            <div className="rounded-xl border border-border">
+          <Collapsible key={categoryKey} defaultOpen>
+            <div className="rounded-xl border">
               <CollapsibleTrigger asChild>
                 <button
                   type="button"
-                  className="group flex w-full items-center gap-2 px-4 py-3 text-left text-base font-semibold hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-0 focus-visible:bg-muted/50 transition-colors rounded-t-xl [&[data-state=open]]:rounded-b-none"
+                  className="group flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-semibold text-foreground hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-0 focus-visible:bg-muted/50 transition-colors rounded-t-xl [&[data-state=open]]:rounded-b-none"
                 >
                   <ChevronDownIcon className="h-4 w-4 shrink-0 transition-transform group-data-[state=closed]:rotate-[-90deg]" />
                   <DocumentArrowDownIcon className="h-4 w-4 text-muted-foreground shrink-0" />
-                  {categoryLabel}
+                  {block.title}
+                  {facilityLockedCategoryKeys.includes(categoryKey) ? (
+                    <span className="ml-auto inline-flex items-center gap-1 text-xs font-normal text-muted-foreground">
+                      <LockClosedIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                      Locked at facility
+                    </span>
+                  ) : null}
                 </button>
               </CollapsibleTrigger>
               <CollapsibleContent>
-                <div className="border-t border-border pl-4 sm:pl-12 pr-4 py-4 space-y-6">
-                  {Array.from({ length: maxLen }, (_, i) => {
-                    const bi = bItems[i];
-                    const ai = aItems[i];
-                    const title = bi?.label ?? ai?.label ?? `Document ${i + 1}`;
-                    const requirementMeta = bi?.requirementMeta ?? ai?.requirementMeta;
-                    const beforeChips = docFilesToChips(bi?.files ?? []);
-                    const afterChips = docFilesToChips(ai?.files ?? []);
-                    const docKey = bi?.key ?? ai?.key ?? "";
-                    const rowAmendmentNotes =
-                      amendmentRemarks?.filter(
-                        (r) =>
-                          r.scope === "item" &&
-                          r.scope_key.startsWith("supporting_documents:") &&
-                          documentAmendmentScopeMatchesRow(r.scope_key, docKey)
-                      ).map((r) => ({ remark: r.remark })) ?? [];
+                <div className="border-t pl-8 pr-4 py-3 space-y-3 sm:pl-10">
+                  {block.rows.map((row, rowIndex) => {
+                    const slot = block.rowSlots[rowIndex];
+                    const rowAmendmentNotes = amendmentRemarksForDocumentRow(
+                      amendmentRemarks,
+                      slot?.remarkScopeKey ?? null
+                    );
+                    const requirementSlotIndex = slot?.requirementSlotIndex ?? null;
                     return (
-                      <ComparisonDocumentTitleRow
-                        key={`${String(categoryKey)}-${i}-${bi?.key ?? ""}-${ai?.key ?? ""}`}
-                        title={title}
-                        requirementMeta={requirementMeta}
-                        beforeFiles={beforeChips}
-                        afterFiles={afterChips}
+                      <ComparisonProjectedRow
+                        key={row.key}
+                        row={row}
+                        requirementMeta={
+                          requirementSlotIndex == null
+                            ? undefined
+                            : supportingDocRowRequirementMeta(
+                                supportingDocumentsStepConfig,
+                                categoryKey,
+                                requirementSlotIndex
+                              )
+                        }
                         amendmentNotes={rowAmendmentNotes.length > 0 ? rowAmendmentNotes : undefined}
                         onViewDocument={onViewDocument}
                         onDownloadDocument={onDownloadDocument}

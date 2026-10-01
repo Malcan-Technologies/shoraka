@@ -54,10 +54,7 @@ import {
   comparisonSplitBeforeColClass,
   comparisonSplitRowGridClass,
 } from "../review-section-styles";
-import {
-  ComparisonDocumentTitleRow,
-  businessSupportingDocsToChips,
-} from "../comparison-document-pair";
+import { ComparisonProjectedRow } from "../comparison-document-pair";
 import type { ReviewSectionId } from "../section-types";
 import {
   kycAmlScreeningRiskToken,
@@ -68,26 +65,35 @@ import { CTOS_ACTION_BUTTON_COMPACT_CLASSNAME, CTOS_CONFIRM, CTOS_UI } from "@/l
 import { usePermissions } from "@/hooks/use-permissions";
 import { regtankNationalityDisplayLabel } from "@cashsouk/types";
 import {
-  GUARANTOR_COMPANY_RELATIONSHIP_LABELS,
-  GUARANTOR_INDIVIDUAL_RELATIONSHIP_LABELS,
   INHERITED_FACILITY_GUARANTORS_ADMIN_COPY,
-  isScFundRaisingPurpose,
-  SC_FUND_RAISING_PURPOSE_LABELS,
   SC_MONTHLY_CAMPAIGN,
-  type GuarantorCompanyRelationship,
-  type GuarantorIndividualRelationship,
 } from "@cashsouk/types";
 import {
-  ComparisonFieldRow,
-  ComparisonYesNoRadioRow,
-} from "../comparison-field-row";
+  buildGuarantorAmlKey,
+  guarantorKindLabel,
+  guarantorNationalityCodeFromRelational,
+  guarantorRelationshipDisplay,
+  guarantorReviewSubtitle,
+  normalizeEmail,
+  parseBusinessDetails,
+  parseRelationalGuarantors,
+  type GuarantorReviewRow,
+  type RelationalGuarantorEntry,
+} from "@/lib/resubmit-comparison/business-details-parse";
+import {
+  BUSINESS_DECLARATIONS_BLOCK_ID,
+  businessGuarantorBlockSubtitle,
+  isBusinessGuarantorBlock,
+  projectBusinessComparison,
+} from "@/lib/resubmit-comparison/business-projection";
+import type { ComparisonBlock } from "@/lib/resubmit-comparison/projection-types";
+import { isPlainObjectRecord, reviewStr } from "@/lib/resubmit-comparison/shared-format";
 
 export type BusinessSectionComparisonProps = {
   beforeDetails: unknown;
   afterDetails: unknown;
   beforeGuarantors?: unknown;
   afterGuarantors?: unknown;
-  isPathChanged: (path: string) => boolean;
 };
 
 export interface BusinessSectionProps {
@@ -186,6 +192,9 @@ function ComparisonDeclarationCell({
             {DECLARATION_TEXT}
           </span>
         </div>
+        <p className="mt-1.5 text-xs text-muted-foreground">
+          {confirmed ? "Confirmed" : "Not confirmed"}
+        </p>
       </div>
     </div>
   );
@@ -350,29 +359,6 @@ function RegTankGuarantorControlRow({
   );
 }
 
-type GuarantorAgreementFile = { s3Key: string; fileName: string; fileSize?: number };
-
-type GuarantorReviewRow =
-  | ({
-      kind: "individual";
-      referenceId: string;
-      name: string;
-      icNumber: string;
-      /** RegTank ISO 3166 alpha-2; empty if legacy row. */
-      nationalityCode: string;
-      email: string;
-      relationship?: string;
-      relationshipOther?: string;
-    } & { guarantorAgreements: GuarantorAgreementFile[] })
-  | ({
-      kind: "company";
-      referenceId: string;
-      businessName: string;
-      ssmNumber: string;
-      email: string;
-      relationship?: string;
-    } & { guarantorAgreements: GuarantorAgreementFile[] });
-
 /**
  * SECTION: CTOS subject key + lookup for guarantors
  * WHY: Same normalization as director/shareholder CTOS list (`subject_ref` keys in API).
@@ -450,218 +436,6 @@ interface GuarantorAmlEntry {
   amlStatus: GuarantorAmlStatus;
   amlMessageStatus: GuarantorAmlMessageStatus;
   amlScreening?: GuarantorAmlScreeningSnapshot;
-}
-
-interface RelationalGuarantorEntry {
-  id?: string;
-  position?: number;
-  client_guarantor_id?: string;
-  guarantor_type?: string;
-  email?: string;
-  name?: string | null;
-  ic_number?: string | null;
-  business_name?: string | null;
-  ssm_number?: string | null;
-  guarantor?: Record<string, unknown> | null;
-  aml_screening?: unknown;
-  source_data?: unknown;
-}
-
-/** Normalized view model for Business Details review. Supports snake_case and camelCase from API/DB. */
-interface BusinessDetailsView {
-  whyRaisingFunds: {
-    purposeOfFundRaising: string;
-    purposeOther: string | null;
-    howFundsUsed: string;
-    businessPlan: string;
-    risksDelayRepayment: string;
-    backupPlan: string;
-    raisingOnOtherP2P: boolean | null;
-    platformName: string;
-    amountRaised: number | null;
-    sameInvoiceUsed: boolean | null;
-    supportingDocuments: Array<{ s3Key: string; fileName: string; fileSize?: number }>;
-  };
-  declarationConfirmed: boolean;
-  guarantors: GuarantorReviewRow[];
-}
-
-function reviewStr(v: unknown): string {
-  return typeof v === "string" ? v.trim() : "";
-}
-
-function parsePurposeOfFundRaising(w: Record<string, unknown> | undefined): {
-  purposeOfFundRaising: string;
-  purposeOther: string | null;
-} {
-  const scRaw = w?.sc_purpose_of_fund_raising ?? w?.scPurposeOfFundRaising;
-  const scOther = reviewStr(w?.sc_purpose_other ?? w?.scPurposeOther);
-  if (isScFundRaisingPurpose(scRaw)) {
-    return {
-      purposeOfFundRaising: SC_FUND_RAISING_PURPOSE_LABELS[scRaw],
-      purposeOther: scRaw === "OTHERS" ? scOther || REVIEW_EMPTY_LABEL : null,
-    };
-  }
-  const legacy = reviewStr(w?.financing_for ?? w?.financingFor);
-  return {
-    purposeOfFundRaising: legacy || REVIEW_EMPTY_LABEL,
-    purposeOther: null,
-  };
-}
-
-function isPlainObjectRecord(v: unknown): v is Record<string, unknown> {
-  return Boolean(v) && typeof v === "object" && !Array.isArray(v);
-}
-
-function normalizeIdentifier(v: unknown): string {
-  return reviewStr(v).replace(/[^A-Za-z0-9]+/g, "").toUpperCase();
-}
-
-function normalizeEmail(v: unknown): string {
-  return reviewStr(v).toLowerCase();
-}
-
-function safeToken(v: string): string {
-  const token = v.replace(/[^A-Za-z0-9]+/g, "").toLowerCase();
-  return token.length > 0 ? token : "unknown";
-}
-
-function deterministicGuarantorId(
-  index: number,
-  kind: "individual" | "company",
-  icOrSsm: string
-): string {
-  return `g-${kind}-${safeToken(icOrSsm || `idx${index + 1}`)}`;
-}
-
-function parseGuarantorAgreementsField(raw: unknown): GuarantorAgreementFile[] {
-  if (!raw) return [];
-  const items = Array.isArray(raw) ? raw : [raw];
-  const out: GuarantorAgreementFile[] = [];
-  for (const item of items) {
-    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
-    const o = item as Record<string, unknown>;
-    const s3Key = reviewStr(o.s3_key ?? o.s3Key);
-    if (!s3Key) continue;
-    const fileName =
-      reviewStr(o.file_name ?? o.fileName) || "Guarantor agreement.pdf";
-    const sz = o.file_size ?? o.fileSize;
-    const fileSize =
-      typeof sz === "number" && Number.isFinite(sz) && sz > 0 ? sz : undefined;
-    out.push({ s3Key, fileName, ...(fileSize != null ? { fileSize } : {}) });
-  }
-  return out;
-}
-
-function guarantorNationalityCodeFromRelational(
-  entry: RelationalGuarantorEntry,
-  g: Record<string, unknown>
-): string {
-  const two = (v: unknown) => {
-    const s = reviewStr(v).toUpperCase();
-    return s.length === 2 ? s : "";
-  };
-  const fromG = two(g.nationality ?? g.nationality_code);
-  if (fromG) return fromG;
-  const entryRec = entry as Record<string, unknown>;
-  const src = entryRec.source_data ?? entryRec.sourceData;
-  if (isPlainObjectRecord(src)) {
-    const fromSrc = two(src.nationality ?? src.nationality_code);
-    if (fromSrc) return fromSrc;
-  }
-  return "";
-}
-
-function guarantorAgreementFromRelationalEntry(
-  entry: RelationalGuarantorEntry,
-  g: Record<string, unknown>
-): GuarantorAgreementFile[] {
-  const direct = parseGuarantorAgreementsField(
-    g.guarantor_agreement ?? g.guarantorAgreement
-  );
-  if (direct.length > 0) return direct;
-  const entryRec = entry as Record<string, unknown>;
-  const src = entryRec.source_data ?? entryRec.sourceData;
-  if (!isPlainObjectRecord(src)) return [];
-  return parseGuarantorAgreementsField(
-    src.guarantor_agreement ?? src.guarantorAgreement
-  );
-}
-
-function parseGuarantors(raw: unknown): GuarantorReviewRow[] {
-  if (!raw || !Array.isArray(raw)) return [];
-  const rows: GuarantorReviewRow[] = [];
-  for (let index = 0; index < raw.length; index += 1) {
-    const item = raw[index];
-    if (!item || typeof item !== "object") continue;
-    const o = item as Record<string, unknown>;
-    const gt = o.guarantor_type ?? o.guarantorType;
-    const agreement = parseGuarantorAgreementsField(
-      o.guarantor_agreement ?? o.guarantorAgreement
-    );
-    const ref =
-      reviewStr(o.reference_id ?? o.referenceId ?? o.guarantor_id ?? o.guarantorId) ||
-      deterministicGuarantorId(
-        index,
-        gt === "company" ? "company" : "individual",
-        normalizeIdentifier(
-          o.ic_number ?? o.icNumber ?? o.government_id_number ?? o.ssm_number ?? o.ssmNumber
-        )
-      );
-    if (gt === "individual") {
-      const legacyFirst = reviewStr(o.first_name ?? o.firstName);
-      const legacyLast = reviewStr(o.last_name ?? o.lastName);
-      const nameFromLegacy = [legacyFirst, legacyLast].filter(Boolean).join(" ").trim();
-      const name = reviewStr(o.name) || nameFromLegacy;
-      const gov = reviewStr(o.ic_number ?? o.icNumber ?? o.government_id_number);
-      const nationalityRaw = reviewStr(o.nationality ?? o.nationality_code).toUpperCase();
-      const nationalityCode = nationalityRaw.length === 2 ? nationalityRaw : "";
-      const src = (o.source_data ?? o.sourceData) as Record<string, unknown> | null | undefined;
-      const srcRel = reviewStr(src?.relationship);
-      const srcRelOther = reviewStr(src?.relationship_other ?? src?.relationshipOther);
-      const relationship = srcRel || reviewStr(o.relationship);
-      const relationshipOther =
-        relationship === "others"
-          ? srcRelOther || reviewStr(o.relationship_other ?? o.relationshipOther)
-          : undefined;
-      rows.push({
-        kind: "individual",
-        referenceId: ref,
-        name,
-        icNumber: gov,
-        nationalityCode,
-        email: normalizeEmail(o.email),
-        relationship: relationship || undefined,
-        relationshipOther: relationshipOther || undefined,
-        guarantorAgreements: agreement,
-      });
-    } else if (gt === "company") {
-      const src = (o.source_data ?? o.sourceData) as Record<string, unknown> | null | undefined;
-      const srcRel = reviewStr(src?.relationship);
-      const relationship = srcRel || reviewStr(o.relationship);
-      rows.push({
-        kind: "company",
-        referenceId: ref,
-        businessName: reviewStr(o.business_name ?? o.businessName ?? o.company_name ?? o.companyName),
-        ssmNumber: reviewStr(o.ssm_number ?? o.ssmNumber ?? o.business_id_number),
-        email: normalizeEmail(o.email),
-        relationship: relationship || undefined,
-        guarantorAgreements: agreement,
-      });
-    }
-  }
-  return rows;
-}
-
-function buildGuarantorAmlKey(row: GuarantorReviewRow): string {
-  if (row.kind === "individual") {
-    const gid = normalizeIdentifier(row.icNumber);
-    if (gid) return `individual:${gid}`;
-    return `individual:email:${normalizeEmail(row.email)}`;
-  }
-  const bid = normalizeIdentifier(row.ssmNumber);
-  if (bid) return `company:${bid}`;
-  return `company:email:${normalizeEmail(row.email)}`;
 }
 
 function parseAmlScreening(raw: unknown): GuarantorAmlScreeningSnapshot | undefined {
@@ -800,85 +574,6 @@ function parseGuarantorAmlEntries(raw: unknown): GuarantorAmlEntry[] {
   return entries;
 }
 
-function parseRelationalGuarantors(raw: unknown): GuarantorReviewRow[] {
-  if (!Array.isArray(raw)) return [];
-  const rows: GuarantorReviewRow[] = [];
-  const sorted = [...raw]
-    .map((item) => (item && typeof item === "object" ? (item as RelationalGuarantorEntry) : null))
-    .filter((item): item is RelationalGuarantorEntry => Boolean(item))
-    .sort((a, b) => (typeof a.position === "number" ? a.position : 0) - (typeof b.position === "number" ? b.position : 0));
-
-  for (const entry of sorted) {
-    const nested =
-      entry.guarantor && typeof entry.guarantor === "object" && !Array.isArray(entry.guarantor)
-        ? entry.guarantor
-        : null;
-    const g = (nested ?? entry) as Record<string, unknown>;
-    const linkId = reviewStr(entry.id) || reviewStr(g.id);
-    if (!linkId) continue;
-    const ref = reviewStr(entry.client_guarantor_id) || linkId;
-    const guarantorType = g.guarantor_type === "company" ? "company" : "individual";
-    const agreement = guarantorAgreementFromRelationalEntry(entry, g);
-    const src =
-      entry.source_data && isPlainObjectRecord(entry.source_data)
-        ? (entry.source_data as Record<string, unknown>)
-        : {};
-    const relValue = src.relationship;
-    const relOtherValue = src.relationship_other;
-    const relationship =
-      typeof relValue === "string" ? relValue : undefined;
-    const relationshipOther =
-      typeof relOtherValue === "string" ? relOtherValue : undefined;
-    if (guarantorType === "individual") {
-      const legacyFirst = reviewStr(g.first_name);
-      const legacyLast = reviewStr(g.last_name);
-      const name =
-        reviewStr(g.name) || [legacyFirst, legacyLast].filter(Boolean).join(" ").trim();
-      const nationalityCode = guarantorNationalityCodeFromRelational(entry, g);
-      rows.push({
-        kind: "individual",
-        referenceId: ref,
-        name,
-        icNumber: reviewStr(g.ic_number ?? g.government_id_number),
-        nationalityCode,
-        email: normalizeEmail(g.email),
-        relationship: relationship || undefined,
-        relationshipOther: relationship === "others" ? relationshipOther : undefined,
-        guarantorAgreements: agreement,
-      });
-      continue;
-    }
-    rows.push({
-      kind: "company",
-      referenceId: ref,
-      businessName: reviewStr(g.business_name ?? g.company_name),
-      ssmNumber: reviewStr(g.ssm_number ?? g.business_id_number),
-      email: normalizeEmail(g.email),
-      relationship: relationship || undefined,
-      guarantorAgreements: agreement,
-    });
-  }
-  return rows;
-}
-
-function guarantorRelationshipDisplay(g: GuarantorReviewRow): string {
-  if (g.kind === "individual") {
-    if (!g.relationship) return REVIEW_EMPTY_LABEL;
-    const rel = g.relationship as GuarantorIndividualRelationship;
-    const base = GUARANTOR_INDIVIDUAL_RELATIONSHIP_LABELS[rel];
-    if (g.relationship === "others") {
-      const other = (g.relationshipOther ?? "").trim();
-      if (other) return `${base}: ${other}`;
-      return base;
-    }
-    return base || REVIEW_EMPTY_LABEL;
-  }
-
-  if (!g.relationship) return REVIEW_EMPTY_LABEL;
-  const rel = g.relationship as GuarantorCompanyRelationship;
-  return GUARANTOR_COMPANY_RELATIONSHIP_LABELS[rel] || REVIEW_EMPTY_LABEL;
-}
-
 function GuarantorAmlScreeningCard({ screening }: { screening: GuarantorAmlScreeningSnapshot }) {
   const hasCounts =
     screening.possibleMatchCount !== undefined || screening.blacklistedMatchCount !== undefined;
@@ -1000,82 +695,6 @@ function GuarantorAmlScreeningCard({ screening }: { screening: GuarantorAmlScree
       </CardContent>
     </Card>
   );
-}
-
-export function parseBusinessDetails(raw: unknown, relationalGuarantors?: GuarantorReviewRow[]): BusinessDetailsView | null {
-  if (!raw || typeof raw !== "object") return null;
-  const r = raw as Record<string, unknown>;
-  const w = (r.why_raising_funds ?? r.whyRaisingFunds) as Record<string, unknown> | undefined;
-
-  const bool = (v: unknown): boolean | null => {
-    if (v === true || v === "yes") return true;
-    if (v === false || v === "no") return false;
-    return null;
-  };
-
-  const str = reviewStr;
-  const supportDocsRaw = w?.supporting_documents ?? w?.supportingDocuments;
-  const supportingDocuments = Array.isArray(supportDocsRaw)
-    ? supportDocsRaw
-        .map((doc, index) => {
-          if (!doc || typeof doc !== "object") return null;
-          const row = doc as Record<string, unknown>;
-          const s3Key = reviewStr(row.s3_key ?? row.s3Key);
-          if (!s3Key) return null;
-          const fileName =
-            reviewStr(row.file_name ?? row.fileName) || `Supporting Document ${index + 1}.pdf`;
-          const sz = row.file_size ?? row.fileSize;
-          const fileSize =
-            typeof sz === "number" && Number.isFinite(sz) && sz > 0 ? sz : undefined;
-          return { s3Key, fileName, ...(fileSize != null ? { fileSize } : {}) };
-        })
-        .filter((d): d is { s3Key: string; fileName: string; fileSize?: number } => Boolean(d))
-    : [];
-
-  const num = (v: unknown): number | null => {
-    if (typeof v === "number" && !Number.isNaN(v)) return v;
-    if (typeof v === "string") {
-      const parsed = parseFloat(v.replace(/[^0-9.-]/g, ""));
-      return Number.isNaN(parsed) ? null : parsed;
-    }
-    return null;
-  };
-
-  return {
-    whyRaisingFunds: {
-      ...parsePurposeOfFundRaising(w),
-      howFundsUsed: str(w?.how_funds_used ?? w?.howFundsUsed) || REVIEW_EMPTY_LABEL,
-      businessPlan: str(w?.business_plan ?? w?.businessPlan) || REVIEW_EMPTY_LABEL,
-      risksDelayRepayment: str(w?.risks_delay_repayment ?? w?.risksDelayRepayment) || REVIEW_EMPTY_LABEL,
-      backupPlan: str(w?.backup_plan ?? w?.backupPlan) || REVIEW_EMPTY_LABEL,
-      raisingOnOtherP2P: bool(w?.raising_on_other_p2p ?? w?.raisingOnOtherP2P),
-      platformName: str(w?.platform_name ?? w?.platformName) || REVIEW_EMPTY_LABEL,
-      amountRaised: num(w?.amount_raised ?? w?.amountRaised),
-      sameInvoiceUsed: bool(w?.same_invoice_used ?? w?.sameInvoiceUsed),
-      supportingDocuments,
-    },
-    declarationConfirmed: Boolean(r.declaration_confirmed ?? r.declarationConfirmed),
-    guarantors:
-      relationalGuarantors && relationalGuarantors.length > 0
-        ? relationalGuarantors
-        : parseGuarantors(r.guarantors),
-  };
-}
-
-function guarantorKindLabel(kind: "individual" | "company"): string {
-  return kind === "individual" ? "Individual" : "Company";
-}
-
-/** Collapsed-card subtitle (individual name or company name). */
-function guarantorReviewSubtitle(g: GuarantorReviewRow): string {
-  if (g.kind === "individual") {
-    return g.name.trim();
-  }
-  return g.businessName.trim();
-}
-
-function sideGuarantorTypeLabel(g: GuarantorReviewRow | undefined): string {
-  return g ? guarantorKindLabel(g.kind) : "—";
 }
 
 /**
@@ -1443,38 +1062,26 @@ function AdminGuarantorSingleList({
   );
 }
 
+/**
+ * SECTION: Guarantor cards in resubmit comparison
+ * WHY: Rows come from the Business projection so card highlights match the tab Diff badge.
+ *      Read-only: no RegTank / CTOS actions on historical revisions.
+ * INPUT: Projected guarantor blocks (one per guarantor index)
+ * OUTPUT: Same collapsible card shell as the live list, Before/After rows inside
+ * WHERE USED: BusinessSection comparison branch
+ */
 function AdminGuarantorComparisonList({
-  b,
-  a,
-  amlByKey,
-  isPathChanged,
-  applicationId,
-  subjectReportByRef,
-  ctosSubjectLoading,
-  createSubjectPending,
-  onOpenSubjectHtml,
-  onRequestGuarantorCtos,
+  blocks,
   onViewDocument,
   onDownloadDocument,
   viewDocumentPending = false,
-  canManageGuarantorCtos = true,
 }: {
-  b: BusinessDetailsView;
-  a: BusinessDetailsView;
-  amlByKey: Map<string, GuarantorAmlEntry>;
-  isPathChanged: (path: string) => boolean;
-  applicationId?: string;
-  subjectReportByRef: Map<string, { id: string; has_report_html: boolean; fetched_at: string }>;
-  ctosSubjectLoading: boolean;
-  createSubjectPending: boolean;
-  onOpenSubjectHtml: (reportId: string) => void | Promise<void>;
-  onRequestGuarantorCtos: (g: GuarantorReviewRow) => void;
+  blocks: ComparisonBlock[];
   onViewDocument: (s3Key: string) => void;
   onDownloadDocument: (s3Key: string, fileName?: string) => void;
   viewDocumentPending?: boolean;
-  canManageGuarantorCtos?: boolean;
 }) {
-  const count = Math.max(b.guarantors.length, a.guarantors.length);
+  const count = blocks.length;
   const [panelOpen, setPanelOpen] = React.useState<Record<number, boolean>>({});
 
   React.useEffect(() => {
@@ -1493,22 +1100,13 @@ function AdminGuarantorComparisonList({
 
   return (
     <div className="flex min-w-0 flex-col gap-6 px-1 sm:gap-8 sm:px-2">
-      {Array.from({ length: count }).map((_, idx) => {
-        const gB = b.guarantors[idx];
-        const gA = a.guarantors[idx];
-        const hasBeforeGuarantor = gB != null;
-        const hasAfterGuarantor = gA != null;
-        const changed =
-          isPathChanged("business_details") || isPathChanged(`business_details.guarantors[${idx}]`);
+      {blocks.map((block, idx) => {
         const open = panelOpen[idx] !== undefined ? panelOpen[idx]! : true;
-        const subtitleSource = gA ?? gB;
-        const subtitle = subtitleSource ? guarantorReviewSubtitle(subtitleSource) : "";
-        const showIndividual = gB?.kind === "individual" || gA?.kind === "individual";
-        const showCompany = gB?.kind === "company" || gA?.kind === "company";
+        const subtitle = businessGuarantorBlockSubtitle(block);
 
         return (
           <details
-            key={idx}
+            key={block.id}
             className={guarantorCardClass}
             open={open}
             onToggle={(e) => {
@@ -1521,7 +1119,7 @@ function AdminGuarantorComparisonList({
                 <div className={guarantorHeaderRowClass}>
                   <div className={guarantorHeaderTitleClass}>
                     <span className="shrink-0 text-sm font-semibold text-foreground leading-6">
-                      Guarantor {idx + 1}
+                      {block.title}
                     </span>
                     <ChevronRightIcon
                       className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-90"
@@ -1533,147 +1131,19 @@ function AdminGuarantorComparisonList({
                       </span>
                     ) : null}
                   </div>
-                  <div
-                    className={guarantorHeaderActionsClass}
-                    onClick={(e) => e.stopPropagation()}
-                    onPointerDown={(e) => e.stopPropagation()}
-                  >
-                    <RegTankGuarantorControlRow
-                      mode="comparison"
-                      amlByKey={amlByKey}
-                      comparisonSides={{
-                        beforeAvailable: hasBeforeGuarantor,
-                        afterAvailable: hasAfterGuarantor,
-                      }}
-                    />
-                    <span className="hidden h-4 w-px shrink-0 bg-border sm:block" aria-hidden />
-                    <span className="shrink-0 text-xs text-muted-foreground">Before</span>
-                    <GuarantorCtosToolbar
-                      applicationId={applicationId}
-                      guarantor={gB}
-                      subjectReportByRef={subjectReportByRef}
-                      ctosSubjectLoading={ctosSubjectLoading}
-                      createSubjectPending={createSubjectPending}
-                      onOpenSubjectHtml={onOpenSubjectHtml}
-                      onRequestGetReport={onRequestGuarantorCtos}
-                      comparisonSide="before"
-                      missingGuarantorReason="No guarantor in the earlier revision for this row."
-                      align="start"
-                      showLastFetch={false}
-                      compactLabels
-                      canManageGuarantorCtos={canManageGuarantorCtos}
-                    />
-                    <span className="hidden h-4 w-px shrink-0 bg-border sm:block" aria-hidden />
-                    <span className="shrink-0 text-xs text-muted-foreground">After</span>
-                    <GuarantorCtosToolbar
-                      applicationId={applicationId}
-                      guarantor={gA}
-                      subjectReportByRef={subjectReportByRef}
-                      ctosSubjectLoading={ctosSubjectLoading}
-                      createSubjectPending={createSubjectPending}
-                      onOpenSubjectHtml={onOpenSubjectHtml}
-                      onRequestGetReport={onRequestGuarantorCtos}
-                      comparisonSide="after"
-                      missingGuarantorReason="No guarantor in the later revision for this row."
-                      align="start"
-                      showLastFetch={false}
-                      compactLabels
-                      canManageGuarantorCtos={canManageGuarantorCtos}
-                    />
-                  </div>
                 </div>
               </div>
             </summary>
             <div className="min-w-0 space-y-2 px-4 pb-4 pt-3">
-              <ComparisonFieldRow
-                label="Guarantor type"
-                before={sideGuarantorTypeLabel(gB)}
-                after={sideGuarantorTypeLabel(gA)}
-                changed={changed}
-              />
-              {showIndividual ? (
-                <div className="space-y-2">
-                  <ComparisonFieldRow
-                    label="Name"
-                    before={gB?.kind === "individual" ? gB.name : "—"}
-                    after={gA?.kind === "individual" ? gA.name : "—"}
-                    changed={changed}
-                  />
-                  <ComparisonFieldRow
-                    label="IC number"
-                    before={gB?.kind === "individual" ? gB.icNumber : "—"}
-                    after={gA?.kind === "individual" ? gA.icNumber : "—"}
-                    changed={changed}
-                  />
-                  <ComparisonFieldRow
-                    label="Nationality"
-                    before={
-                      gB?.kind === "individual" && gB.nationalityCode
-                        ? regtankNationalityDisplayLabel(gB.nationalityCode)
-                        : "—"
-                    }
-                    after={
-                      gA?.kind === "individual" && gA.nationalityCode
-                        ? regtankNationalityDisplayLabel(gA.nationalityCode)
-                        : "—"
-                    }
-                    changed={changed}
-                  />
-                  <ComparisonFieldRow
-                    label="Email"
-                    before={
-                      gB?.kind === "individual"
-                        ? gB.email || REVIEW_EMPTY_LABEL
-                        : "—"
-                    }
-                    after={
-                      gA?.kind === "individual"
-                        ? gA.email || REVIEW_EMPTY_LABEL
-                        : "—"
-                    }
-                    changed={changed}
-                  />
-                </div>
-              ) : null}
-              {showCompany ? (
-                <div className="space-y-2">
-                  <ComparisonFieldRow
-                    label="Business name"
-                    before={gB?.kind === "company" ? gB.businessName : "—"}
-                    after={gA?.kind === "company" ? gA.businessName : "—"}
-                    changed={changed}
-                  />
-                  <ComparisonFieldRow
-                    label="SSM number"
-                    before={gB?.kind === "company" ? gB.ssmNumber : "—"}
-                    after={gA?.kind === "company" ? gA.ssmNumber : "—"}
-                    changed={changed}
-                  />
-                  <ComparisonFieldRow
-                    label="Email"
-                    before={
-                      gB?.kind === "company" ? gB.email || REVIEW_EMPTY_LABEL : "—"
-                    }
-                    after={
-                      gA?.kind === "company" ? gA.email || REVIEW_EMPTY_LABEL : "—"
-                    }
-                    changed={changed}
-                  />
-                </div>
-              ) : null}
-              <ComparisonDocumentTitleRow
-                title="Guarantor agreement"
-                beforeFiles={businessSupportingDocsToChips(gB?.guarantorAgreements ?? [])}
-                afterFiles={businessSupportingDocsToChips(gA?.guarantorAgreements ?? [])}
-                markChanged={
-                  changed ||
-                  JSON.stringify((gB?.guarantorAgreements ?? []).map((f) => f.s3Key)) !==
-                    JSON.stringify((gA?.guarantorAgreements ?? []).map((f) => f.s3Key))
-                }
-                onViewDocument={onViewDocument}
-                onDownloadDocument={onDownloadDocument}
-                viewDocumentPending={viewDocumentPending}
-              />
+              {block.rows.map((row) => (
+                <ComparisonProjectedRow
+                  key={row.key}
+                  row={row}
+                  onViewDocument={onViewDocument}
+                  onDownloadDocument={onDownloadDocument}
+                  viewDocumentPending={viewDocumentPending}
+                />
+              ))}
             </div>
           </details>
         );
@@ -1684,16 +1154,15 @@ function AdminGuarantorComparisonList({
 
 /**
  * SECTION: Declaration side-by-side in resubmit comparison
- * WHY: Same checkbox + statement as live review, not "Confirmed" text.
+ * WHY: Same checkbox + statement + Confirmed caption as live review, not "Confirmed" text alone.
+ * INPUT: business_details.declaration_confirmed per side (projection row)
  */
 function ComparisonDeclarationRow({
   beforeConfirmed,
   afterConfirmed,
-  changed,
 }: {
   beforeConfirmed: boolean;
   afterConfirmed: boolean;
-  changed: boolean;
 }) {
   const valuesDiffer = beforeConfirmed !== afterConfirmed;
   return (
@@ -1701,9 +1170,7 @@ function ComparisonDeclarationRow({
       className="py-2 space-y-3"
       role="group"
       aria-label={
-        valuesDiffer || changed
-          ? "Declarations, confirmation differs between revisions"
-          : "Declarations"
+        valuesDiffer ? "Declarations, confirmation differs between revisions" : "Declarations"
       }
     >
       <div className={comparisonSplitRowGridClass}>
@@ -1722,6 +1189,34 @@ function ComparisonDeclarationRow({
           />
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Same copy and link as the live Business tab for existing-contract drawdowns. */
+function InheritedGuarantorsBanner({
+  inheritedSourceApplication,
+}: {
+  inheritedSourceApplication?: { id: string; productId: string | null };
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+      {INHERITED_FACILITY_GUARANTORS_ADMIN_COPY}
+      {inheritedSourceApplication?.productId && inheritedSourceApplication.id ? (
+        <>
+          {" "}
+          in{" "}
+          <Link
+            href={`/applications/${encodeURIComponent(inheritedSourceApplication.productId)}/${encodeURIComponent(inheritedSourceApplication.id)}`}
+            className="font-medium text-primary underline-offset-4 hover:underline"
+          >
+            the originating application
+          </Link>
+        </>
+      ) : (
+        " in the originating application"
+      )}
+      .
     </div>
   );
 }
@@ -1906,18 +1401,37 @@ export function BusinessSection({
     return m;
   }, [guarantorAmlEntries]);
 
-  if (sectionComparison) {
-    const vb = parseBusinessDetails(
-      sectionComparison.beforeDetails,
-      parseRelationalGuarantors(sectionComparison.beforeGuarantors)
-    );
-    const va = parseBusinessDetails(
-      sectionComparison.afterDetails,
-      parseRelationalGuarantors(sectionComparison.afterGuarantors)
-    );
-    const { isPathChanged } = sectionComparison;
-    const money = (n: number | null) => (n != null ? formatCurrency(n) : REVIEW_EMPTY_LABEL);
-    if (!vb && !va) {
+  const comparisonBeforeDetails = sectionComparison?.beforeDetails;
+  const comparisonAfterDetails = sectionComparison?.afterDetails;
+  const comparisonBeforeGuarantors = sectionComparison?.beforeGuarantors;
+  const comparisonAfterGuarantors = sectionComparison?.afterGuarantors;
+  const hasSectionComparison = sectionComparison != null;
+  const comparisonBlocks = React.useMemo(
+    () =>
+      hasSectionComparison
+        ? projectBusinessComparison(
+            {
+              business_details: comparisonBeforeDetails,
+              application_guarantors: comparisonBeforeGuarantors,
+            },
+            {
+              business_details: comparisonAfterDetails,
+              application_guarantors: comparisonAfterGuarantors,
+            }
+          )
+        : null,
+    [
+      hasSectionComparison,
+      comparisonBeforeDetails,
+      comparisonAfterDetails,
+      comparisonBeforeGuarantors,
+      comparisonAfterGuarantors,
+    ]
+  );
+
+  if (comparisonBlocks) {
+    const blocks = comparisonBlocks;
+    if (blocks.length === 0) {
       return (
         <ReviewSectionCard
           title="Business & Guarantor Details"
@@ -1930,140 +1444,64 @@ export function BusinessSection({
       );
     }
 
-    const b = vb ?? va!;
-    const a = va ?? vb!;
-    const showP2PBefore = b.whyRaisingFunds.raisingOnOtherP2P === true;
-    const showP2PAfter = a.whyRaisingFunds.raisingOnOtherP2P === true;
+    const guarantorBlocks = blocks.filter(isBusinessGuarantorBlock);
+    const declarationRow = blocks
+      .find((block) => block.id === BUSINESS_DECLARATIONS_BLOCK_ID)
+      ?.rows.find((row) => row.kind === "yesno");
+    const otherBlocks = blocks.filter(
+      (block) => !isBusinessGuarantorBlock(block) && block.id !== BUSINESS_DECLARATIONS_BLOCK_ID
+    );
 
     return (
-      <>
-        <ReviewSectionCard
-          title="Business & Guarantor Details"
-          icon={DocumentTextIcon}
-          section={section}
-          isReviewable={false}
-        >
-          <ReviewFieldBlock title="Why Are You Raising Funds?">
-          <div className="space-y-2">
-            <ComparisonFieldRow
-              label="Purpose of Fund Raising"
-              before={b.whyRaisingFunds.purposeOfFundRaising}
-              after={a.whyRaisingFunds.purposeOfFundRaising}
-              changed={isPathChanged("business_details")}
-              multiline
-            />
-            {b.whyRaisingFunds.purposeOther != null || a.whyRaisingFunds.purposeOther != null ? (
-              <ComparisonFieldRow
-                label={SC_MONTHLY_CAMPAIGN.purposeOfFundRaisingOthers.label}
-                before={b.whyRaisingFunds.purposeOther ?? REVIEW_EMPTY_LABEL}
-                after={a.whyRaisingFunds.purposeOther ?? REVIEW_EMPTY_LABEL}
-                changed={isPathChanged("business_details")}
-                multiline
-              />
-            ) : null}
-            <ComparisonFieldRow
-              label="How Will the Funds Be Used?"
-              before={b.whyRaisingFunds.howFundsUsed}
-              after={a.whyRaisingFunds.howFundsUsed}
-              changed={isPathChanged("business_details")}
-              multiline
-            />
-            <ComparisonFieldRow
-              label="Tell Us About Your Business Plan"
-              before={b.whyRaisingFunds.businessPlan}
-              after={a.whyRaisingFunds.businessPlan}
-              changed={isPathChanged("business_details")}
-              multiline
-            />
-            <ComparisonFieldRow
-              label="Are There Any Risks That May Delay Repayment of Your Invoices?"
-              before={b.whyRaisingFunds.risksDelayRepayment}
-              after={a.whyRaisingFunds.risksDelayRepayment}
-              changed={isPathChanged("business_details")}
-              multiline
-            />
-            <ComparisonFieldRow
-              label="If Payment Is Delayed, What Is Your Backup Plan?"
-              before={b.whyRaisingFunds.backupPlan}
-              after={a.whyRaisingFunds.backupPlan}
-              changed={isPathChanged("business_details")}
-              multiline
-            />
-            <ComparisonDocumentTitleRow
-              title="Relevant Supporting Documents for This Section"
-              beforeFiles={businessSupportingDocsToChips(vb?.whyRaisingFunds?.supportingDocuments ?? [])}
-              afterFiles={businessSupportingDocsToChips(va?.whyRaisingFunds?.supportingDocuments ?? [])}
-              markChanged={isPathChanged("business_details")}
-              onViewDocument={onViewDocument}
-              onDownloadDocument={onDownloadDocument}
-              viewDocumentPending={viewDocumentPending}
-            />
-            <ComparisonYesNoRadioRow
-              label="Are You Currently Raising/Applying Funds on Any Other P2P Platforms?"
-              beforeValue={vb?.whyRaisingFunds.raisingOnOtherP2P ?? null}
-              afterValue={va?.whyRaisingFunds.raisingOnOtherP2P ?? null}
-              changed={isPathChanged("business_details")}
-            />
-            {showP2PBefore || showP2PAfter ? (
-              <>
-                <ComparisonFieldRow
-                  label="Name of Platform"
-                  before={b.whyRaisingFunds.platformName}
-                  after={a.whyRaisingFunds.platformName}
-                  changed={isPathChanged("business_details")}
+      <ReviewSectionCard
+        title="Business & Guarantor Details"
+        icon={DocumentTextIcon}
+        section={section}
+        isReviewable={false}
+      >
+        {isInheritedGuarantors ? (
+          <InheritedGuarantorsBanner inheritedSourceApplication={inheritedSourceApplication} />
+        ) : null}
+        {otherBlocks.map((block) => (
+          <ReviewFieldBlock key={block.id} title={block.title}>
+            <div className="space-y-2">
+              {block.rows.map((row) => (
+                <ComparisonProjectedRow
+                  key={row.key}
+                  row={row}
+                  onViewDocument={onViewDocument}
+                  onDownloadDocument={onDownloadDocument}
+                  viewDocumentPending={viewDocumentPending}
                 />
-                <ComparisonFieldRow
-                  label="Amount Raised"
-                  before={money(vb?.whyRaisingFunds.amountRaised ?? null)}
-                  after={money(va?.whyRaisingFunds.amountRaised ?? null)}
-                  changed={isPathChanged("business_details")}
-                />
-                <ComparisonYesNoRadioRow
-                  label="Have the same invoices been used to apply for funding in the aforementioned platform?"
-                  beforeValue={vb?.whyRaisingFunds.sameInvoiceUsed ?? null}
-                  afterValue={va?.whyRaisingFunds.sameInvoiceUsed ?? null}
-                  changed={isPathChanged("business_details")}
-                />
-              </>
-            ) : null}
-          </div>
-        </ReviewFieldBlock>
+              ))}
+            </div>
+          </ReviewFieldBlock>
+        ))}
 
-        {(b.guarantors.length > 0 || a.guarantors.length > 0) && (
+        {guarantorBlocks.length > 0 ? (
           <ReviewFieldBlock title="Guarantor details">
             <AdminGuarantorComparisonList
-              b={b}
-              a={a}
-              amlByKey={guarantorAmlByKey}
-              isPathChanged={isPathChanged}
-              applicationId={ctosAppId ?? ""}
-              subjectReportByRef={subjectReportByRef}
-              ctosSubjectLoading={ctosSubjectLoading}
-              createSubjectPending={createSubjectCtos.isPending}
-              onOpenSubjectHtml={openSubjectHtmlReport}
-              onRequestGuarantorCtos={setPendingGuarantorCtos}
+              blocks={guarantorBlocks}
               onViewDocument={onViewDocument}
               onDownloadDocument={onDownloadDocument}
               viewDocumentPending={viewDocumentPending}
-              canManageGuarantorCtos={canManageGuarantorCtos}
             />
           </ReviewFieldBlock>
-        )}
+        ) : null}
 
-        <ReviewFieldBlock title="Declarations">
-          <ComparisonDeclarationRow
-            beforeConfirmed={vb?.declarationConfirmed ?? false}
-            afterConfirmed={va?.declarationConfirmed ?? false}
-            changed={isPathChanged("declarations")}
-          />
-        </ReviewFieldBlock>
+        {declarationRow?.kind === "yesno" ? (
+          <ReviewFieldBlock title="Declarations">
+            <ComparisonDeclarationRow
+              beforeConfirmed={declarationRow.before === true}
+              afterConfirmed={declarationRow.after === true}
+            />
+          </ReviewFieldBlock>
+        ) : null}
 
         {!hideSectionComments ? (
           <SectionComments comments={comments} onSubmitComment={onAddComment} />
         ) : null}
-        </ReviewSectionCard>
-        {guarantorCtosConfirmDialog}
-      </>
+      </ReviewSectionCard>
     );
   }
 
@@ -2092,24 +1530,7 @@ export function BusinessSection({
       {view ? (
         <>
           {isInheritedGuarantors ? (
-            <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
-              {INHERITED_FACILITY_GUARANTORS_ADMIN_COPY}
-              {inheritedSourceApplication?.productId && inheritedSourceApplication.id ? (
-                <>
-                  {" "}
-                  in{" "}
-                  <Link
-                    href={`/applications/${encodeURIComponent(inheritedSourceApplication.productId)}/${encodeURIComponent(inheritedSourceApplication.id)}`}
-                    className="font-medium text-primary underline-offset-4 hover:underline"
-                  >
-                    the originating application
-                  </Link>
-                </>
-              ) : (
-                " in the originating application"
-              )}
-              .
-            </div>
+            <InheritedGuarantorsBanner inheritedSourceApplication={inheritedSourceApplication} />
           ) : null}
           <ReviewFieldBlock title="Why Are You Raising Funds?">
             <div className={reviewRowGridClass}>

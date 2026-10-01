@@ -1,6 +1,6 @@
 /**
  * Collapse Facility / Invoice / Acceptance review tabs into one live descriptor.
- * Comparison modal keeps getEffectiveReviewTabDescriptors uncollapsed.
+ * Used by the live review page and the resubmit comparison modal (same tab list).
  */
 
 import type { ReviewSectionId, ReviewTabDescriptor } from "../review-registry";

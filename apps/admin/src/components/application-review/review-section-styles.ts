@@ -1,12 +1,17 @@
 import { formatCurrency } from "@cashsouk/config";
-import { format } from "date-fns";
+import { REVIEW_EMPTY_LABEL } from "@/lib/resubmit-comparison/shared-format";
 
 /**
  * Shared typography and layout tokens for admin application review sections.
  * Aligned with BRANDING.md and used by Business, Facility, Company tabs.
  */
 
-export const REVIEW_EMPTY_LABEL = "Not provided";
+/** Pure implementations live in shared-format (jest-safe); re-exported here for UI callers. */
+export {
+  REVIEW_EMPTY_LABEL,
+  formatFileSize,
+  formatReviewDate,
+} from "@/lib/resubmit-comparison/shared-format";
 
 /**
  * Section/subsection title: text-base font-semibold per BRANDING.
@@ -89,27 +94,4 @@ export function formatReviewValue(
   }
   if (typeof v === "string") return v.trim() || emptyLabel;
   return String(v);
-}
-
-/**
- * Formats file size for display: B, KB, or MB depending on magnitude.
- */
-export function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-}
-
-/**
- * Formats a date string for review display (dd MMM yyyy).
- */
-export function formatReviewDate(
-  dateStr: string | null | undefined,
-  options: { emptyLabel?: string } = {}
-): string {
-  const { emptyLabel = REVIEW_EMPTY_LABEL } = options;
-  if (!dateStr) return emptyLabel;
-  const date = new Date(dateStr);
-  if (Number.isNaN(date.getTime())) return dateStr;
-  return format(date, "dd MMM yyyy");
 }

@@ -58,22 +58,13 @@ import {
   reviewRowGridClass,
   reviewEmptyStateClass,
   REVIEW_EMPTY_LABEL,
-  formatReviewValue,
-  formatReviewDate,
 } from "../review-section-styles";
 import { parseFacilityAmount } from "@/contracts/utils/contract-facility-metrics";
 import type { ReviewSectionId } from "../section-types";
-import { ComparisonFieldRow, ComparisonYesNoRadioRow, unknownToTriBool } from "../comparison-field-row";
+import { unknownToTriBool } from "../comparison-field-row";
 import type { ApplicationReviewPaymaster } from "@/paymasters/components/paymaster-verification-panel";
-import { ComparisonDocumentTitleRow, fileDocToComparisonChips } from "../comparison-document-pair";
 import { ContractReviewFields } from "./contract-review-fields";
 import { ContractOfferConfirmDialog } from "./contract-offer-confirm-dialog";
-
-interface FileDoc {
-  s3_key?: string;
-  file_name?: string;
-  file_size?: number;
-}
 
 /** Same width for Offered Facility (money) and large-private select in Contract review. */
 const contractReviewControlWidthClass = "w-full min-w-0 max-w-[280px]";
@@ -87,7 +78,7 @@ function parseContractReviewDate(value: unknown): Date | null {
 }
 
 export interface ContractSectionProps {
-  /** Used to PATCH `customer_details.is_large_private_company` (empty when comparison-only UI). */
+  /** Used to PATCH `customer_details.is_large_private_company`. */
   applicationId?: string;
   contractDetails: unknown;
   offerDetails?: unknown;
@@ -126,19 +117,6 @@ export interface ContractSectionProps {
   onViewSignedContractOffer?: () => void | Promise<void>;
   signedContractOfferLetterAvailable?: boolean;
   viewSignedOfferLetterPending?: boolean;
-  sectionComparison?: {
-    before: {
-      contractDetails: unknown;
-      customerDetails: unknown;
-      offerDetails: unknown;
-    };
-    after: {
-      contractDetails: unknown;
-      customerDetails: unknown;
-      offerDetails: unknown;
-    };
-    isPathChanged: (path: string) => boolean;
-  };
   hideSectionComments?: boolean;
   /**
    * Unified Offer & acceptance stages:
@@ -188,7 +166,6 @@ export function ContractSection({
   onAddComment,
   onViewSignedContractOffer,
   signedContractOfferLetterAvailable,
-  sectionComparison,
   hideSectionComments = false,
   contentMode = "full",
   embedded = false,
@@ -510,192 +487,6 @@ export function ContractSection({
       </div>
     </>
   );
-
-  if (sectionComparison) {
-    const { before, after, isPathChanged } = sectionComparison;
-    const bCd = before.contractDetails as Record<string, unknown> | null | undefined;
-    const aCd = after.contractDetails as Record<string, unknown> | null | undefined;
-    const bCust = before.customerDetails as Record<string, unknown> | null | undefined;
-    const aCust = after.customerDetails as Record<string, unknown> | null | undefined;
-    const bOffer = before.offerDetails as Record<string, unknown> | null | undefined;
-    const aOffer = after.offerDetails as Record<string, unknown> | null | undefined;
-    const rf = (cd: typeof bCd) => (cd ? resolveRequestedFacility(cd) : 0);
-    const of = (o: typeof bOffer) => resolveOfferedFacility(o);
-    return (
-      <ReviewSectionCard title="Facility" icon={DocumentTextIcon} section={section} isReviewable={false}>
-        <ReviewFieldBlock title="Offer to Issuer">
-          <div className="space-y-2">
-            <ComparisonFieldRow
-              label="Requested Facility"
-              before={rf(bCd) > 0 ? formatCurrency(rf(bCd)) : REVIEW_EMPTY_LABEL}
-              after={rf(aCd) > 0 ? formatCurrency(rf(aCd)) : REVIEW_EMPTY_LABEL}
-              changed={isPathChanged("contract")}
-            />
-            <ComparisonFieldRow
-              label="Offered Facility"
-              before={of(bOffer) > 0 ? formatCurrency(of(bOffer)) : REVIEW_EMPTY_LABEL}
-              after={of(aOffer) > 0 ? formatCurrency(of(aOffer)) : REVIEW_EMPTY_LABEL}
-              changed={isPathChanged("contract")}
-            />
-            <ComparisonFieldRow
-              label="Facility fee rate"
-              before={
-                typeof bOffer?.facility_fee_rate_percent === "number"
-                  ? `${bOffer.facility_fee_rate_percent}%`
-                  : REVIEW_EMPTY_LABEL
-              }
-              after={
-                typeof aOffer?.facility_fee_rate_percent === "number"
-                  ? `${aOffer.facility_fee_rate_percent}%`
-                  : REVIEW_EMPTY_LABEL
-              }
-              changed={isPathChanged("contract")}
-            />
-            <ComparisonFieldRow
-              label="Collect upfront via payment gateway"
-              before={
-                typeof bOffer?.facility_fee_upfront_collect_amount === "number"
-                  ? formatCurrency(bOffer.facility_fee_upfront_collect_amount)
-                  : REVIEW_EMPTY_LABEL
-              }
-              after={
-                typeof aOffer?.facility_fee_upfront_collect_amount === "number"
-                  ? formatCurrency(aOffer.facility_fee_upfront_collect_amount)
-                  : REVIEW_EMPTY_LABEL
-              }
-              changed={isPathChanged("contract")}
-            />
-          </div>
-        </ReviewFieldBlock>
-        {(bCd || aCd) && (
-          <ReviewFieldBlock title="Contract Details">
-            <div className="space-y-2">
-              <ComparisonFieldRow
-                label="Contract Title"
-                before={formatReviewValue(bCd?.title)}
-                after={formatReviewValue(aCd?.title)}
-                changed={isPathChanged("contract")}
-              />
-              <ComparisonFieldRow
-                label="Contract Description"
-                before={formatReviewValue(bCd?.description)}
-                after={formatReviewValue(aCd?.description)}
-                changed={isPathChanged("contract")}
-                multiline
-              />
-              <ComparisonFieldRow
-                label="Contract Number"
-                before={formatReviewValue(bCd?.number)}
-                after={formatReviewValue(aCd?.number)}
-                changed={isPathChanged("contract")}
-              />
-              <ComparisonFieldRow
-                label="Contract Value"
-                before={
-                  typeof bCd?.value === "number" ? formatCurrency(bCd.value) : formatReviewValue(bCd?.value)
-                }
-                after={
-                  typeof aCd?.value === "number" ? formatCurrency(aCd.value) : formatReviewValue(aCd?.value)
-                }
-                changed={isPathChanged("contract")}
-              />
-              <ComparisonFieldRow
-                label="Requested Financing Amount"
-                before={
-                  typeof bCd?.financing === "number"
-                    ? formatCurrency(bCd.financing)
-                    : formatReviewValue(bCd?.financing)
-                }
-                after={
-                  typeof aCd?.financing === "number"
-                    ? formatCurrency(aCd.financing)
-                    : formatReviewValue(aCd?.financing)
-                }
-                changed={isPathChanged("contract")}
-              />
-              <ComparisonFieldRow
-                label="Contract Start Date"
-                before={formatReviewDate(bCd?.start_date as string)}
-                after={formatReviewDate(aCd?.start_date as string)}
-                changed={isPathChanged("contract")}
-              />
-              <ComparisonFieldRow
-                label="Contract End Date"
-                before={formatReviewDate(bCd?.end_date as string)}
-                after={formatReviewDate(aCd?.end_date as string)}
-                changed={isPathChanged("contract")}
-              />
-            </div>
-          </ReviewFieldBlock>
-        )}
-        {(bCust || aCust) && (
-          <ReviewFieldBlock title="Customer Details">
-            <div className="space-y-2">
-              <ComparisonFieldRow
-                label="Customer Name"
-                before={formatReviewValue(bCust?.name)}
-                after={formatReviewValue(aCust?.name)}
-                changed={isPathChanged("contract")}
-              />
-              <ComparisonFieldRow
-                label="Customer Entity Type"
-                before={formatReviewValue(bCust?.entity_type)}
-                after={formatReviewValue(aCust?.entity_type)}
-                changed={isPathChanged("contract")}
-              />
-              <ComparisonYesNoRadioRow
-                label={
-                  <>
-                    Is Customer a Large Private Company?{" "}
-                    <span className="text-destructive" aria-hidden="true">
-                      *
-                    </span>
-                  </>
-                }
-                beforeValue={unknownToTriBool(bCust?.is_large_private_company)}
-                afterValue={unknownToTriBool(aCust?.is_large_private_company)}
-                changed={isPathChanged("contract")}
-              />
-              <ComparisonFieldRow
-                label="Customer SSM Number"
-                before={formatReviewValue(bCust?.ssm_number)}
-                after={formatReviewValue(aCust?.ssm_number)}
-                changed={isPathChanged("contract")}
-              />
-              <ComparisonFieldRow
-                label="Customer Country"
-                before={formatReviewValue(bCust?.country)}
-                after={formatReviewValue(aCust?.country)}
-                changed={isPathChanged("contract")}
-              />
-              <ComparisonYesNoRadioRow
-                label="Is Customer Related to Issuer?"
-                beforeValue={unknownToTriBool(bCust?.is_related_party)}
-                afterValue={unknownToTriBool(aCust?.is_related_party)}
-                changed={isPathChanged("contract")}
-              />
-            </div>
-          </ReviewFieldBlock>
-        )}
-        <ReviewFieldBlock title="Evidence">
-          <div className="space-y-6">
-            <ComparisonDocumentTitleRow
-              title="Contract Document"
-              beforeFiles={fileDocToComparisonChips(bCd?.document as FileDoc | undefined)}
-              afterFiles={fileDocToComparisonChips(aCd?.document as FileDoc | undefined)}
-              markChanged={isPathChanged("contract")}
-              onViewDocument={onViewDocument}
-              onDownloadDocument={onDownloadDocument}
-              viewDocumentPending={viewDocumentPending}
-            />
-          </div>
-        </ReviewFieldBlock>
-        {!hideSectionComments ? (
-          <SectionComments comments={comments} onSubmitComment={onAddComment} />
-        ) : null}
-      </ReviewSectionCard>
-    );
-  }
 
   return (
     <ReviewSectionCard

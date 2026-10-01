@@ -36,6 +36,7 @@ export function OfferAcceptanceStageCard({
   open,
   onOpenChange,
   children,
+  readOnly = false,
 }: {
   stage: OfferAcceptanceStage;
   /** 1-based rail number; omitted for reference cards. */
@@ -45,6 +46,11 @@ export function OfferAcceptanceStageCard({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   children: React.ReactNode;
+  /**
+   * Resubmit comparison: same card and rail, but no status tag, summary, lock copy, or DOM
+   * anchor (the live tab may be mounted underneath with the same stage ids).
+   */
+  readOnly?: boolean;
 }) {
   const isReference = isReferenceOfferAcceptanceStage(stage);
   const marker = markerState(stage.tone, isCurrent);
@@ -60,8 +66,8 @@ export function OfferAcceptanceStageCard({
         <CollapsibleTrigger asChild>
           <button
             type="button"
-            id={stageDomId}
-            tabIndex={-1}
+            id={readOnly ? undefined : stageDomId}
+            tabIndex={readOnly ? undefined : -1}
             className="flex w-full flex-wrap items-center gap-3 px-4 py-4 text-left hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-[1.125rem]"
             aria-expanded={open}
             aria-current={isCurrent ? "step" : undefined}
@@ -69,9 +75,13 @@ export function OfferAcceptanceStageCard({
             <span className="min-w-0 flex-1">
               <span className="flex flex-wrap items-center gap-2">
                 <span className="text-base font-semibold text-foreground">{stage.title}</span>
-                <StatusBadge label={stage.tag} status={toneToStatus(stage.tone)} />
+                {readOnly ? null : (
+                  <StatusBadge label={stage.tag} status={toneToStatus(stage.tone)} />
+                )}
               </span>
-              <span className="mt-1 block text-ui text-muted-foreground">{stage.summary}</span>
+              {readOnly ? null : (
+                <span className="mt-1 block text-ui text-muted-foreground">{stage.summary}</span>
+              )}
             </span>
             <span className="text-ui font-semibold text-primary">
               {open ? "Collapse" : "Expand"}
@@ -80,7 +90,7 @@ export function OfferAcceptanceStageCard({
         </CollapsibleTrigger>
         <CollapsibleContent>
           <div className="border-t border-border px-4 py-4 sm:px-[1.125rem]">
-            {stage.tone === "locked" && stage.lockTooltip ? (
+            {!readOnly && stage.tone === "locked" && stage.lockTooltip ? (
               <p className="mb-4 text-ui text-muted-foreground">{stage.lockTooltip}</p>
             ) : null}
             {children}

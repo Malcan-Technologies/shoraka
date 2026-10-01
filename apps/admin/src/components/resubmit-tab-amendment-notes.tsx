@@ -3,7 +3,7 @@
 /**
  * SECTION: Tab-level amendment remarks in resubmit comparison
  * WHY: Single "Remark" control; body matches issuer bullet format (no extra admin copy).
- * INPUT: review section, full amendment_remarks from API
+ * INPUT: review section (plus merged sections for Offer & acceptance), full amendment_remarks from API
  * OUTPUT: Optional Remark button + popover or null
  * WHERE USED: ResubmitComparisonModal inside each ApplicationReviewTabContent
  */
@@ -17,14 +17,17 @@ import { AmendmentRemarkReadbackPanel } from "@/components/amendment-remark-read
 
 export function ResubmitTabAmendmentNotesBar({
   reviewSection,
+  reviewSections,
   remarks,
 }: {
   reviewSection: ReviewSectionId;
+  /** Every section behind the tab (resubmitTabSections(descriptor)). When omitted, reviewSection alone. */
+  reviewSections?: readonly ReviewSectionId[];
   remarks: Array<{ scope: string; scope_key: string; remark: string }> | undefined;
 }) {
   const notes = React.useMemo(() => {
     if (!remarks?.length) return [];
-    const forTab = amendmentRemarksForReviewTab(reviewSection, remarks);
+    const forTab = amendmentRemarksForReviewTab(reviewSections ?? reviewSection, remarks);
     const withoutPerDocSlots = forTab.filter(
       (r) => !(r.scope === "item" && r.scope_key.startsWith("supporting_documents:"))
     );
@@ -34,7 +37,7 @@ export function ResubmitTabAmendmentNotesBar({
       );
     }
     return withoutPerDocSlots;
-  }, [remarks, reviewSection]);
+  }, [remarks, reviewSection, reviewSections]);
 
   const remarkTexts = React.useMemo(() => notes.map((n) => n.remark), [notes]);
 

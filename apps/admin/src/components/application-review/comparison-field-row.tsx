@@ -12,6 +12,7 @@ import type { ReactNode } from "react";
 
 import { YesNoRadioDisplay } from "@cashsouk/ui";
 import { cn } from "@/lib/utils";
+import { comparisonTextValuesDiffer } from "@/lib/resubmit-comparison/projection-types";
 import {
   REVIEW_EMPTY_LABEL,
   comparisonCellSurfaceMultilineShellClass,
@@ -26,11 +27,6 @@ import {
 
 function valueLooksEmpty(value: string): boolean {
   return value === REVIEW_EMPTY_LABEL || value === "—" || value.trim() === "";
-}
-
-function normalizedForCompare(value: string): string {
-  if (valueLooksEmpty(value)) return "";
-  return value.trim();
 }
 
 const yesNoRadioScaleClass = "inline-block scale-[0.88] origin-left";
@@ -95,18 +91,15 @@ function ComparisonTextCell({
   );
 }
 
+export { unknownToTriBool } from "@/lib/resubmit-comparison/shared-format";
+
 /**
  * SECTION: Yes/No comparison row
  * WHY: Matches issuer/admin Yes–No radios instead of plain "Yes"/"No" text.
- * INPUT: label, before/after tri-bool, changed flag from field_changes
+ * INPUT: label, before/after tri-bool, changed flag (aria only; highlight is value-based)
  * OUTPUT: Same grid as ComparisonFieldRow with YesNoRadioDisplay per column
  * WHERE USED: Business, contract, customer comparison when a field is yes/no
  */
-export function unknownToTriBool(v: unknown): boolean | null {
-  if (v === true || v === "yes") return true;
-  if (v === false || v === "no") return false;
-  return null;
-}
 
 export function ComparisonYesNoRadioRow({
   label,
@@ -158,7 +151,7 @@ export function ComparisonFieldRow({
   changed: boolean;
   multiline?: boolean;
 }) {
-  const valuesDiffer = normalizedForCompare(before) !== normalizedForCompare(after);
+  const valuesDiffer = comparisonTextValuesDiffer(before, after);
 
   return (
     <div

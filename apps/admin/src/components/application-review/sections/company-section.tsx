@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { Label } from "@/components/ui/label";
 import { Skeleton, YesNoRadioDisplay } from "@cashsouk/ui";
 import { parseAboutYourBusiness } from "@cashsouk/types";
@@ -18,28 +19,13 @@ import {
   formatReviewValue,
 } from "../review-section-styles";
 import type { ReviewSectionId } from "../section-types";
-import { ComparisonFieldRow, ComparisonYesNoRadioRow } from "../comparison-field-row";
-
-function formatAddress(addr: Record<string, unknown> | null | undefined): string {
-  if (!addr || typeof addr !== "object") return REVIEW_EMPTY_LABEL;
-  const parts = [
-    addr.line1,
-    addr.line2,
-    addr.city,
-    addr.postalCode,
-    addr.state,
-    addr.country,
-  ].filter((p) => p != null && String(p).trim() !== "");
-  return parts.length > 0 ? parts.join(", ") : REVIEW_EMPTY_LABEL;
-}
-
-/** Same pattern as issuer company-details-step: extract bank fields from content array */
-function getBankField(bankDetails: Record<string, unknown> | null | undefined, fieldName: string): string {
-  if (!bankDetails?.content) return "";
-  const content = bankDetails.content as Array<{ fieldName?: string; fieldValue?: string }>;
-  const field = content?.find((f) => f.fieldName === fieldName);
-  return field?.fieldValue?.trim() ?? "";
-}
+import { ComparisonProjectedRow } from "../comparison-document-pair";
+import {
+  COMPANY_BANK_ACCOUNT_NUMBER_HINT,
+  formatCompanyAddress as formatAddress,
+  getCompanyBankField as getBankField,
+  projectCompanyComparison,
+} from "@/lib/resubmit-comparison/company-projection";
 
 export interface CompanySectionProps {
   app: {
@@ -66,77 +52,8 @@ export interface CompanySectionProps {
   sectionComparison?: {
     beforeApp: CompanySectionProps["app"];
     afterApp: CompanySectionProps["app"];
-    isPathChanged: (path: string) => boolean;
   };
   hideSectionComments?: boolean;
-}
-
-function companyDisplayFromSnapshot(app: CompanySectionProps["app"]) {
-  const rawOrg = app.issuer_organization as Record<string, unknown> | null | undefined;
-  const cod = (rawOrg?.corporateOnboardingData ??
-    rawOrg?.corporate_onboarding_data) as Record<string, unknown> | undefined;
-  const basicInfo = (cod?.basicInfo ?? cod?.basic_info) as Record<string, unknown> | undefined;
-  const addresses = (cod?.addresses ?? cod?.Addresses) as Record<string, unknown> | undefined;
-  const businessAddress = addresses?.business as Record<string, unknown> | undefined;
-  const registeredAddress = addresses?.registered as Record<string, unknown> | undefined;
-  const bankDetails = (rawOrg?.bankAccountDetails ??
-    rawOrg?.bank_account_details) as Record<string, unknown> | null | undefined;
-  const bankName = getBankField(bankDetails, "Bank") || getBankField(bankDetails, "Bank name");
-  const bankAccountNumber =
-    getBankField(bankDetails, "Bank account number") || getBankField(bankDetails, "Bank account");
-  const contactPerson = (app.company_details as Record<string, unknown> | undefined)?.contact_person as
-    | Record<string, unknown>
-    | undefined;
-  const cpName = contactPerson?.name != null ? String(contactPerson.name).trim() : "";
-  const cpEmail = contactPerson?.email != null ? String(contactPerson.email).trim() : "";
-  const cpPosition = contactPerson?.position != null ? String(contactPerson.position).trim() : "";
-  const cpContact = contactPerson?.contact != null ? String(contactPerson.contact).trim() : "";
-  const emptyDash = "—";
-  const companyName =
-    (basicInfo?.businessName ?? basicInfo?.business_name ?? rawOrg?.name) != null
-      ? formatReviewValue(basicInfo?.businessName ?? basicInfo?.business_name ?? rawOrg?.name, {
-          emptyLabel: emptyDash,
-        })
-      : REVIEW_EMPTY_LABEL;
-  const entityType =
-    formatReviewValue(basicInfo?.entityType ?? basicInfo?.entity_type, { emptyLabel: emptyDash }) ||
-    REVIEW_EMPTY_LABEL;
-  const ssmNo =
-    formatReviewValue(basicInfo?.ssmRegisterNumber ?? basicInfo?.ssm_register_number, {
-      emptyLabel: emptyDash,
-    }) || REVIEW_EMPTY_LABEL;
-  const industry =
-    formatReviewValue(basicInfo?.industry, { emptyLabel: emptyDash }) || REVIEW_EMPTY_LABEL;
-  const numberOfEmployees =
-    formatReviewValue(basicInfo?.numberOfEmployees ?? basicInfo?.number_of_employees, {
-      emptyLabel: emptyDash,
-    }) || REVIEW_EMPTY_LABEL;
-  const about = parseAboutYourBusiness(cod?.aboutYourBusiness ?? cod?.about_your_business);
-  const whatDoesCompanyDo =
-    formatReviewValue(about.whatDoesCompanyDo, { emptyLabel: emptyDash }) || REVIEW_EMPTY_LABEL;
-  const mainCustomers =
-    formatReviewValue(about.mainCustomers, { emptyLabel: emptyDash }) || REVIEW_EMPTY_LABEL;
-  const accountingSoftware =
-    formatReviewValue(about.accountingSoftware, { emptyLabel: emptyDash }) || REVIEW_EMPTY_LABEL;
-  return {
-    companyName,
-    entityType,
-    ssmNo,
-    industry,
-    numberOfEmployees,
-    whatDoesCompanyDo,
-    mainCustomers,
-    singleCustomerOver50Revenue: about.singleCustomerOver50Revenue,
-    accountingSoftware,
-    businessAddress: formatAddress(businessAddress),
-    registeredAddress: formatAddress(registeredAddress),
-    bankName: bankName || REVIEW_EMPTY_LABEL,
-    bankAccountNumber: bankAccountNumber || REVIEW_EMPTY_LABEL,
-    cpName: cpName || REVIEW_EMPTY_LABEL,
-    cpEmail: cpEmail || REVIEW_EMPTY_LABEL,
-    cpPosition: cpPosition || REVIEW_EMPTY_LABEL,
-    cpContact: cpContact || REVIEW_EMPTY_LABEL,
-  };
 }
 
 export function CompanySection({
@@ -164,10 +81,17 @@ export function CompanySection({
     organizationId
   );
 
-  if (sectionComparison) {
-    const { beforeApp, afterApp, isPathChanged } = sectionComparison;
-    const b = companyDisplayFromSnapshot(beforeApp);
-    const a = companyDisplayFromSnapshot(afterApp);
+  const comparisonBeforeApp = sectionComparison?.beforeApp;
+  const comparisonAfterApp = sectionComparison?.afterApp;
+  const comparisonBlocks = React.useMemo(
+    () =>
+      comparisonBeforeApp && comparisonAfterApp
+        ? projectCompanyComparison(comparisonBeforeApp, comparisonAfterApp)
+        : null,
+    [comparisonBeforeApp, comparisonAfterApp]
+  );
+
+  if (comparisonBlocks) {
     return (
       <ReviewSectionCard
         title="Company Details"
@@ -175,132 +99,15 @@ export function CompanySection({
         section={section}
         isReviewable={false}
       >
-        <ReviewFieldBlock title="Company Info">
-          <div className="space-y-2">
-            <ComparisonFieldRow
-              label="Company Name"
-              before={b.companyName}
-              after={a.companyName}
-              changed={isPathChanged("company_details") || isPathChanged("issuer_organization")}
-            />
-            <ComparisonFieldRow
-              label="Type of Entity"
-              before={b.entityType}
-              after={a.entityType}
-              changed={isPathChanged("company_details") || isPathChanged("issuer_organization")}
-            />
-            <ComparisonFieldRow
-              label="SSM No"
-              before={b.ssmNo}
-              after={a.ssmNo}
-              changed={isPathChanged("company_details") || isPathChanged("issuer_organization")}
-            />
-            <ComparisonFieldRow
-              label="Industry"
-              before={b.industry}
-              after={a.industry}
-              changed={isPathChanged("company_details") || isPathChanged("issuer_organization")}
-            />
-            <ComparisonFieldRow
-              label="Number of Employees"
-              before={b.numberOfEmployees}
-              after={a.numberOfEmployees}
-              changed={isPathChanged("company_details") || isPathChanged("issuer_organization")}
-            />
-          </div>
-        </ReviewFieldBlock>
-        <ReviewFieldBlock title="About Your Business">
-          <div className="space-y-2">
-            <ComparisonFieldRow
-              label="Company Activities"
-              before={b.whatDoesCompanyDo}
-              after={a.whatDoesCompanyDo}
-              changed={isPathChanged("company_details") || isPathChanged("issuer_organization")}
-              multiline
-            />
-            <ComparisonFieldRow
-              label="Who Are Your Main Customers?"
-              before={b.mainCustomers}
-              after={a.mainCustomers}
-              changed={isPathChanged("company_details") || isPathChanged("issuer_organization")}
-              multiline
-            />
-            <ComparisonYesNoRadioRow
-              label="Does Any Single Customer Make Up More Than 50% of Your Revenue?"
-              beforeValue={b.singleCustomerOver50Revenue}
-              afterValue={a.singleCustomerOver50Revenue}
-              changed={isPathChanged("company_details") || isPathChanged("issuer_organization")}
-            />
-            <ComparisonFieldRow
-              label="Which Accounting Software Does the Issuer Use?"
-              before={b.accountingSoftware}
-              after={a.accountingSoftware}
-              changed={isPathChanged("company_details") || isPathChanged("issuer_organization")}
-            />
-          </div>
-        </ReviewFieldBlock>
-        <ReviewFieldBlock title="Address">
-          <div className="space-y-2">
-            <ComparisonFieldRow
-              label="Business Address"
-              before={b.businessAddress}
-              after={a.businessAddress}
-              changed={isPathChanged("issuer_organization")}
-              multiline
-            />
-            <ComparisonFieldRow
-              label="Registered Address"
-              before={b.registeredAddress}
-              after={a.registeredAddress}
-              changed={isPathChanged("issuer_organization")}
-              multiline
-            />
-          </div>
-        </ReviewFieldBlock>
-        <ReviewFieldBlock title="Banking Details">
-          <div className="space-y-2">
-            <ComparisonFieldRow
-              label="Bank Name"
-              before={b.bankName}
-              after={a.bankName}
-              changed={isPathChanged("issuer_organization")}
-            />
-            <ComparisonFieldRow
-              label="Bank Account Number"
-              before={b.bankAccountNumber}
-              after={a.bankAccountNumber}
-              changed={isPathChanged("issuer_organization")}
-            />
-          </div>
-        </ReviewFieldBlock>
-        <ReviewFieldBlock title="Contact Person">
-          <div className="space-y-2">
-            <ComparisonFieldRow
-              label="Applicant Name"
-              before={b.cpName}
-              after={a.cpName}
-              changed={isPathChanged("company_details")}
-            />
-            <ComparisonFieldRow
-              label="Applicant Email"
-              before={b.cpEmail}
-              after={a.cpEmail}
-              changed={isPathChanged("company_details")}
-            />
-            <ComparisonFieldRow
-              label="Applicant Position"
-              before={b.cpPosition}
-              after={a.cpPosition}
-              changed={isPathChanged("company_details")}
-            />
-            <ComparisonFieldRow
-              label="Applicant Contact"
-              before={b.cpContact}
-              after={a.cpContact}
-              changed={isPathChanged("company_details")}
-            />
-          </div>
-        </ReviewFieldBlock>
+        {comparisonBlocks.map((block) => (
+          <ReviewFieldBlock key={block.id} title={block.title}>
+            <div className="space-y-2">
+              {block.rows.map((row) => (
+                <ComparisonProjectedRow key={row.key} row={row} />
+              ))}
+            </div>
+          </ReviewFieldBlock>
+        ))}
         {!hideSectionComments ? (
           <SectionComments comments={comments} onSubmitComment={onAddComment} />
         ) : null}
@@ -428,7 +235,7 @@ export function CompanySection({
             <Label className={reviewLabelClass}>Bank Account Number</Label>
             <div>
               <div className={reviewValueClass}>{bankAccountNumber || REVIEW_EMPTY_LABEL}</div>
-              <p className="mt-1 text-xs text-muted-foreground">10–18 digits</p>
+              <p className="mt-1 text-xs text-muted-foreground">{COMPANY_BANK_ACCOUNT_NUMBER_HINT}</p>
             </div>
           </div>
         </div>
