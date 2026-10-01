@@ -49,6 +49,8 @@ After CTOS has been pulled, if CTOS does not return a historical year, use **Add
 
 Example: CTOS was pulled, but FY2025 was not returned. You may add FY2025. The source becomes **Admin Input**.
 
+If the issuer submitted User Input for that historical year and CTOS does not have it, **Add statement** is not offered. The User Input column covers that year. An Admin Input statement stored earlier for that year stays in history, but it is not shown and is not used in calculations.
+
 ## When CTOS later supplies a year
 
 CTOS takes priority over an Admin Input statement for the same historical year.
@@ -129,29 +131,29 @@ An amendment on another section does not unlock Financial while the Financial se
 
 ## Issuer Profile
 
-The issuer profile shows the effective reviewed financial history. For a previous financial year, the profile uses one source, in this order:
+The issuer profile shows, for each financial year, the latest figures the issuer actually submitted or resubmitted.
 
-1. CTOS, plus any Admin CTOS gap-fills for fields CTOS left blank
-2. Otherwise, Admin Input
-3. Otherwise, User Input, including your edits to those issuer figures
-4. Otherwise, blank
-
-A blank field stays blank. The profile does not fill it from an older or unrelated year.
+- A year becomes newer only when the issuer changes that year's figures and submits or resubmits. Resubmitting for another section, such as Documents, does not make unchanged financial years newer.
+- Saving a draft does not change the profile. Submitting does.
+- Your edits to User Input, Admin Input, CTOS, and CTOS gap-fills do not change the profile.
 
 ## New application starting values
 
-When an issuer starts a new application, completed years are copied once.
+When an issuer starts a new application, only the eligible previous financial year can be filled in.
 
 The current financial year always starts blank.
 
-Each previous year uses:
+The previous financial year uses:
 
-1. CTOS, plus Admin CTOS gap-fills
-2. Otherwise, Admin Input
-3. Otherwise, the reviewed previous User Input
-4. Otherwise, blank
+1. CTOS for that year, if the latest CTOS report has it
+2. Otherwise, the latest figures the issuer submitted for that year
+3. Otherwise, blank
 
-That copy happens once, when the new application is prepared. Later changes to CTOS, Admin Input, or the issuer profile do not silently rewrite an application that already exists.
+When CTOS has the year, CTOS is used for the whole year. A field CTOS left blank stays blank. It is not filled from User Input or from your CTOS gap-fills.
+
+Your CTOS gap-fills, Admin Input, and edits to User Input are never copied into the issuer's new application.
+
+The issuer can change every starting value. Once the application is saved, it keeps its own figures. Later changes to CTOS, Admin Input, or the issuer profile do not rewrite an application that already exists.
 
 ## Reviewed figures for the Note and Prospectus
 
@@ -204,7 +206,7 @@ Only an active Admin Input statement is used. A superseded Admin Input statement
 
 **Why the issuer profile looks different**
 
-The issuer profile and a new application’s historical prefill prefer CTOS plus CTOS gap-fills, then Admin Input, then reviewed User Input. They keep the historical-source order.
+The issuer profile shows only the issuer's own submitted figures. A new application's previous year uses CTOS for that year, otherwise the issuer's submitted figures. Neither uses your edits, Admin Input, or CTOS gap-fills.
 
 The reviewed figures for the Note and Prospectus put reviewed User Input first, so they reflect the reviewed application figures.
 
@@ -220,9 +222,11 @@ The reviewed figures for the Note and Prospectus put reviewed User Input first, 
 If the issuer submitted Trade Receivables as RM10, and you change it to RM12:
 
 - The Admin Financial Summary uses RM12 as the reviewed value.
-- The issuer profile shows RM12.
+- The issuer profile still shows RM10, because RM10 is what the issuer submitted.
 - A Note created after Financial is approved uses RM12 for that year.
-- A later application uses RM12 for that year when User Input is the selected source.
+- A later application does not start from RM12. It starts from CTOS for that year, otherwise from the issuer's submitted RM10.
+
+If the issuer later changes the figure during a Financial amendment and resubmits, the new figure replaces your edit for that field, and the issuer profile shows the new figure.
 
 The original RM10 stays in the application, revision, and audit history.
 

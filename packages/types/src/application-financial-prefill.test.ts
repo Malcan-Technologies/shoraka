@@ -1,17 +1,12 @@
 import {
-  effectiveFinancialHistoryEntries,
-  indexResolvedApplicationFinancials,
   APPLICATION_FINANCIAL_PREFILL_KEYS,
   applicationComrepFieldError,
   buildApplicationFinancialPrefillByYear,
   buildStoredApplicationFinancialYearBlock,
   financialStatementsFromRevisionSnapshot,
-  indexLatestSubmittedFinancialsByYear,
   pickApplicationFinancialPrefillFields,
   pickSubmittedApplicationFinancialYearFields,
-  resolveApplicationFinancialYearPrefill,
-  resolveHistoricalFinancialYearFields,
-  resolveLatestSubmittedFinancialsForYear,
+  resolveNewApplicationHistoricalPrefill,
 } from "./application-financial-prefill";
 import { ADMIN_EDITABLE_RAW_FINANCIAL_KEYS } from "./financial-field-resolution";
 import {
@@ -19,13 +14,10 @@ import {
   APPLICATION_CORE_MONEY_KEYS,
 } from "./financial-field-labels";
 import { getIssuerFinancialTabYears } from "./financial-unaudited-ctos-validation";
-
-function orgStatements(byYear: Record<string, Record<string, unknown>>, fye: string) {
-  return {
-    questionnaire: { financial_year_end: fye },
-    unaudited_by_year: byYear,
-  };
-}
+import {
+  indexIssuerSubmittedFinancialYears,
+  issuerSubmittedBlocksByYear,
+} from "./issuer-submitted-financials";
 
 function ctosRow(year: number, account: Record<string, number>) {
   return {
@@ -35,15 +27,8 @@ function ctosRow(year: number, account: Record<string, number>) {
   };
 }
 
-function revisionSnapshot(byYear: Record<string, Record<string, unknown>>) {
-  return {
-    application: {
-      financial_statements: {
-        questionnaire: { financial_year_end: "2027-12-31" },
-        unaudited_by_year: byYear,
-      },
-    },
-  };
+function revisionSnapshot(financialStatements: Record<string, unknown>) {
+  return { application: { financial_statements: financialStatements } };
 }
 
 const twoTabRef = new Date("2026-03-01T00:00:00");
@@ -52,6 +37,10 @@ const fye2026 = "2026-12-31";
 const fye2027 = "2027-12-31";
 const twoTabRefFy2027 = new Date("2027-01-15T00:00:00");
 const oneTabRefFy2027 = new Date("2027-09-08T00:00:00");
+/** FYE 30 Jun 2027: before 31 Dec 2026 → tabs [2026, 2027]; after → [2027]. */
+const fyeJun2027 = "2027-06-30";
+const twoTabRefJun2027 = new Date("2026-10-01T00:00:00");
+const oneTabRefJun2027 = new Date("2027-02-01T00:00:00");
 
 const SUBMITTED_ADDITIONAL_DETAILS: Record<string, number> = {
   curlib_borrowing: 11,
@@ -69,6 +58,13 @@ const SUBMITTED_ADDITIONAL_DETAILS: Record<string, number> = {
   pl_minority: 23,
 };
 
+const CTOS_PRESERVED_COMREP = [
+  "equity_share_premium",
+  "equity_accumulated_profit",
+  "equity_minority",
+  "pl_minority",
+];
+
 function expectAdditionalDetailsBlank(
   fields: Record<string, unknown> | null | undefined,
   exceptions: string[] = []
@@ -79,11 +75,7 @@ function expectAdditionalDetailsBlank(
   }
 }
 
-function expectAdditionalDetailsPrefill(fields: Record<string, unknown> | null | undefined) {
-  expect(fields).toEqual(expect.objectContaining(SUBMITTED_ADDITIONAL_DETAILS));
-}
-
-describe("application financial prefill", () => {
+describe("application financial prefill helpers", () => {
   it("keeps the existing application money keys", () => {
     expect([...APPLICATION_FINANCIAL_PREFILL_KEYS]).toEqual([...APPLICATION_CORE_MONEY_KEYS]);
     expect(APPLICATION_CORE_MONEY_KEYS).toEqual([
@@ -126,431 +118,30 @@ describe("application financial prefill", () => {
     expect(getIssuerFinancialTabYears({ financial_year_end: fye2027 }, oneTabRefFy2027)).toEqual([
       2027,
     ]);
-  });
-
-  it("previous FY + CTOS exists → core from CTOS, Additional Financial Details blank, history not merged", () => {
-    const result = buildApplicationFinancialPrefillByYear({
-      questionnaire: { financial_year_end: fye2027 },
-      orgFinancialStatements: orgStatements(
-        { "2026": { turnover: 900, bsfatot: 50, ...SUBMITTED_ADDITIONAL_DETAILS } },
-        fye2027
-      ),
-      submittedByYear: {
-        "2026": {
-          turnover: 700,
-          bsfatot: 99,
-          curlib: 80,
-          ...SUBMITTED_ADDITIONAL_DETAILS,
-        },
-      },
-      ctosFinancials: [
-        ctosRow(2026, {
-          turnover: 850,
-          curlib: 70,
-          bsqres: 111_000,
-          bsqupro: 222_000,
-          bsqmint: 333_000,
-          plminin: 444_000,
-        }),
-      ],
-      ref: twoTabRefFy2027,
-    });
-    expect(result.tabYears).toEqual([2026, 2027]);
-    expect(result.inProgressYear).toBe(2027);
-    expect(result.years["2026"]?.source).toBe("ctos");
-    expect(result.years["2026"]?.fields).toEqual(
-      expect.objectContaining({ turnover: 850, curlib: 70 })
-    );
-    expect(result.years["2026"]?.fields?.bsfatot).toBeUndefined();
-    expect(result.years["2026"]?.fields?.equity_share_premium).toBe(111_000);
-    expect(result.years["2026"]?.fields?.equity_accumulated_profit).toBe(222_000);
-    expect(result.years["2026"]?.fields?.equity_minority).toBe(333_000);
-    expect(result.years["2026"]?.fields?.pl_minority).toBe(444_000);
-    expectAdditionalDetailsBlank(result.years["2026"]?.fields, [
-      "equity_share_premium",
-      "equity_accumulated_profit",
-      "equity_minority",
-      "pl_minority",
+    expect(getIssuerFinancialTabYears({ financial_year_end: fyeJun2027 }, twoTabRefJun2027)).toEqual([
+      2026, 2027,
     ]);
-    expect(result.years["2027"]).toEqual({ year: 2027, source: "blank", fields: null });
-  });
-
-  it("previous FY + CTOS exists → preserves zero and negative ComRep extras", () => {
-    const result = buildApplicationFinancialPrefillByYear({
-      questionnaire: { financial_year_end: fye2027 },
-      orgFinancialStatements: orgStatements(
-        { "2026": { turnover: 900, bsfatot: 50, ...SUBMITTED_ADDITIONAL_DETAILS } },
-        fye2027
-      ),
-      submittedByYear: {
-        "2026": {
-          turnover: 700,
-          bsfatot: 99,
-          curlib: 80,
-          ...SUBMITTED_ADDITIONAL_DETAILS,
-        },
-      },
-      ctosFinancials: [
-        ctosRow(2026, {
-          turnover: 850,
-          curlib: 70,
-          // 0 is a real CTOS value and must not be treated as missing.
-          bsqres: 0,
-          bsqupro: 0,
-          bsqmint: 0,
-          // Negative CTOS P&L minority interest must survive prefill.
-          plminin: -8975580,
-        }),
-      ],
-      ref: twoTabRefFy2027,
-    });
-
-    expect(result.tabYears).toEqual([2026, 2027]);
-    expect(result.inProgressYear).toBe(2027);
-    expect(result.years["2026"]?.source).toBe("ctos");
-
-    const fields = result.years["2026"]?.fields;
-    expect(fields?.equity_share_premium).toBe(0);
-    expect(fields?.equity_accumulated_profit).toBe(0);
-    expect(fields?.equity_minority).toBe(0);
-    expect(fields?.pl_minority).toBe(-8975580);
-
-    expectAdditionalDetailsBlank(fields, [
-      "equity_share_premium",
-      "equity_accumulated_profit",
-      "equity_minority",
-      "pl_minority",
+    expect(getIssuerFinancialTabYears({ financial_year_end: fyeJun2027 }, oneTabRefJun2027)).toEqual([
+      2027,
     ]);
   });
 
-  it("previous FY + no CTOS + same-FY submitted revision → core and Additional Financial Details prefill", () => {
-    const result = buildApplicationFinancialPrefillByYear({
-      questionnaire: { financial_year_end: fye2027 },
-      submittedByYear: {
-        "2026": {
-          turnover: 260,
-          bsfatot: 40,
-          ...SUBMITTED_ADDITIONAL_DETAILS,
-        },
-      },
-      ctosFinancials: [ctosRow(2025, { turnover: 100 })],
-      ref: twoTabRefFy2027,
+  it("pickSubmittedApplicationFinancialYearFields keeps every present canonical raw key, including 0", () => {
+    const block: Record<string, number> = {};
+    ADMIN_EDITABLE_RAW_FINANCIAL_KEYS.forEach((key, index) => {
+      block[key] = 1000 + index;
     });
-    expect(result.tabYears).toEqual([2026, 2027]);
-    expect(result.years["2026"]).toEqual({
-      year: 2026,
-      source: "submitted",
-      fields: expect.objectContaining({
-        turnover: 260,
-        bsfatot: 40,
-        ...SUBMITTED_ADDITIONAL_DETAILS,
-      }),
+    block.bsfatot = 0;
+    block.equity_accumulated_profit = -250;
+    const picked = pickSubmittedApplicationFinancialYearFields({
+      ...block,
+      pldd: "2026-12-31",
+      statementType: "AUDITED",
+      turnover_growth: 5,
     });
-    expectAdditionalDetailsPrefill(result.years["2026"]?.fields);
-    expect(result.years["2027"]).toEqual({ year: 2027, source: "blank", fields: null });
-  });
-
-  it("previous FY + neither CTOS nor same-FY submitted history stays blank", () => {
-    const result = buildApplicationFinancialPrefillByYear({
-      questionnaire: { financial_year_end: fye2027 },
-      submittedByYear: { "2025": { turnover: 100, ...SUBMITTED_ADDITIONAL_DETAILS } },
-      ctosFinancials: [ctosRow(2024, { turnover: 50 })],
-      ref: twoTabRefFy2027,
-    });
-    expect(result.tabYears).toEqual([2026, 2027]);
-    expect(result.years["2026"]).toEqual({ year: 2026, source: "blank", fields: null });
-    expect(result.years["2027"]).toEqual({ year: 2027, source: "blank", fields: null });
-  });
-
-  it("CASE A — two tabs, CTOS exists for historical year", () => {
-    const result = buildApplicationFinancialPrefillByYear({
-      questionnaire: { financial_year_end: fye2026 },
-      orgFinancialStatements: orgStatements(
-        { "2025": { turnover: 900 }, "2026": { turnover: 920 } },
-        fye2026
-      ),
-      submittedByYear: { "2025": { turnover: 700, curlib_borrowing: 11 } },
-      ctosFinancials: [ctosRow(2025, { turnover: 850 })],
-      ref: twoTabRef,
-    });
-    expect(result.tabYears).toEqual([2025, 2026]);
-    expect(result.inProgressYear).toBe(2026);
-    expect(result.years["2025"]).toEqual({
-      year: 2025,
-      source: "ctos",
-      fields: expect.objectContaining({ turnover: 850 }),
-    });
-    expect(result.years["2025"]?.fields?.curlib_borrowing).toBeUndefined();
-    expect(result.years["2026"]).toEqual({ year: 2026, source: "blank", fields: null });
-  });
-
-  it("CASE B — two tabs, no CTOS and no submitted same-year stays blank", () => {
-    const result = buildApplicationFinancialPrefillByYear({
-      questionnaire: { financial_year_end: fye2026 },
-      orgFinancialStatements: orgStatements({ "2025": { turnover: 900 } }, fye2026),
-      ctosFinancials: [],
-      ref: twoTabRef,
-    });
-    expect(result.tabYears).toEqual([2025, 2026]);
-    expect(result.years["2025"]).toEqual({ year: 2025, source: "blank", fields: null });
-    expect(result.years["2026"]).toEqual({ year: 2026, source: "blank", fields: null });
-  });
-
-  it("CASE C — one tab current year stays blank despite org, CTOS, and submitted history", () => {
-    const result = buildApplicationFinancialPrefillByYear({
-      questionnaire: { financial_year_end: fye2026 },
-      orgFinancialStatements: orgStatements({ "2026": { turnover: 920 } }, fye2026),
-      submittedByYear: { "2026": { turnover: 910, curlib_borrowing: 4 } },
-      ctosFinancials: [ctosRow(2026, { turnover: 880 })],
-      ref: oneTabRef,
-    });
-    expect(result.tabYears).toEqual([2026]);
-    expect(result.inProgressYear).toBe(2026);
-    expect(result.years["2026"]).toEqual({ year: 2026, source: "blank", fields: null });
-  });
-
-  it("current/in-progress FY stays fully blank even when CTOS and submitted history contain that year", () => {
-    const result = buildApplicationFinancialPrefillByYear({
-      questionnaire: { financial_year_end: fye2027 },
-      submittedByYear: {
-        "2026": { turnover: 260, ...SUBMITTED_ADDITIONAL_DETAILS },
-        "2027": { turnover: 910, ...SUBMITTED_ADDITIONAL_DETAILS },
-      },
-      ctosFinancials: [ctosRow(2026, { turnover: 850 }), ctosRow(2027, { turnover: 880 })],
-      ref: twoTabRefFy2027,
-    });
-    expect(result.tabYears).toEqual([2026, 2027]);
-    expect(result.inProgressYear).toBe(2027);
-    expect(result.years["2026"]?.source).toBe("ctos");
-    expect(result.years["2027"]).toEqual({ year: 2027, source: "blank", fields: null });
-  });
-
-  it("one-tab mode is current/in-progress FY only and has no prefill", () => {
-    const result = buildApplicationFinancialPrefillByYear({
-      questionnaire: { financial_year_end: fye2027 },
-      submittedByYear: {
-        "2026": { turnover: 260, ...SUBMITTED_ADDITIONAL_DETAILS },
-        "2027": { turnover: 910, ...SUBMITTED_ADDITIONAL_DETAILS },
-      },
-      ctosFinancials: [ctosRow(2026, { turnover: 850 }), ctosRow(2027, { turnover: 880 })],
-      ref: oneTabRefFy2027,
-    });
-    expect(result.tabYears).toEqual([2027]);
-    expect(result.inProgressYear).toBe(2027);
-    expect(result.years["2026"]).toBeUndefined();
-    expect(result.years["2027"]).toEqual({ year: 2027, source: "blank", fields: null });
-  });
-
-  it("CASE D — stale org FYE copies nothing until a new FYE is selected", () => {
-    const org = orgStatements(
-      { "2025": { turnover: 900 }, "2026": { turnover: 920 } },
-      "2024-12-31"
-    );
-    const ctos = [ctosRow(2025, { turnover: 850 })];
-    const beforeFye = buildApplicationFinancialPrefillByYear({
-      questionnaire: null,
-      orgFinancialStatements: org,
-      ctosFinancials: ctos,
-      ref: twoTabRef,
-    });
-    expect(beforeFye.tabYears).toEqual([]);
-    expect(beforeFye.years).toEqual({});
-
-    const afterFye = buildApplicationFinancialPrefillByYear({
-      questionnaire: { financial_year_end: fye2026 },
-      orgFinancialStatements: org,
-      ctosFinancials: ctos,
-      ref: twoTabRef,
-    });
-    expect(afterFye.years["2025"]?.fields).toEqual(expect.objectContaining({ turnover: 850 }));
-    expect(afterFye.years["2026"]).toEqual({ year: 2026, source: "blank", fields: null });
-  });
-
-  it("CASE E — CTOS same historical year wins over submitted history", () => {
-    const resolved = resolveApplicationFinancialYearPrefill({
-      year: 2025,
-      inProgressYear: 2026,
-      orgFinancialStatements: orgStatements(
-        { "2024": { turnover: 100 }, "2025": { turnover: 200 } },
-        fye2026
-      ),
-      submittedByYear: { "2025": { turnover: 200, curlib_borrowing: 9 } },
-      ctosFinancials: [ctosRow(2025, { turnover: 180 })],
-    });
-    expect(resolved).toEqual({
-      year: 2025,
-      source: "ctos",
-      fields: expect.objectContaining({ turnover: 180 }),
-    });
-    expect(resolved.fields?.curlib_borrowing).toBeUndefined();
-  });
-
-  it("does not merge submitted core or Additional Financial Details into a CTOS same-FY block", () => {
-    const resolved = resolveApplicationFinancialYearPrefill({
-      year: 2026,
-      inProgressYear: 2027,
-      submittedByYear: {
-        "2026": {
-          turnover: 200,
-          bsfatot: 50,
-          curlib: 99,
-          ...SUBMITTED_ADDITIONAL_DETAILS,
-        },
-      },
-      ctosFinancials: [
-        ctosRow(2026, {
-          turnover: 180,
-          curlib: 70,
-          bsqres: 101_000,
-          bsqupro: 202_000,
-          bsqmint: 303_000,
-          plminin: 404_000,
-        }),
-      ],
-    });
-    expect(resolved.source).toBe("ctos");
-    expect(resolved.fields?.turnover).toBe(180);
-    expect(resolved.fields?.curlib).toBe(70);
-    expect(resolved.fields?.bsfatot).toBeUndefined();
-    expect(resolved.fields?.equity_share_premium).toBe(101_000);
-    expect(resolved.fields?.equity_accumulated_profit).toBe(202_000);
-    expect(resolved.fields?.equity_minority).toBe(303_000);
-    expect(resolved.fields?.pl_minority).toBe(404_000);
-    expectAdditionalDetailsBlank(resolved.fields, [
-      "equity_share_premium",
-      "equity_accumulated_profit",
-      "equity_minority",
-      "pl_minority",
-    ]);
-  });
-
-  it("CASE F — issuer may replace a CTOS-prefilled historical value", () => {
-    const resolved = resolveApplicationFinancialYearPrefill({
-      year: 2025,
-      inProgressYear: 2026,
-      orgFinancialStatements: orgStatements({ "2025": { turnover: 200 } }, fye2026),
-      ctosFinancials: [ctosRow(2025, { turnover: 180 })],
-    });
-    expect(resolved.fields?.turnover).toBe(180);
-    const edited = { ...resolved.fields, turnover: 220 };
-    expect(edited.turnover).toBe(220);
-    expect(resolved.fields?.turnover).toBe(180);
-  });
-
-  it("Jan 2027 two-tab example: FY2026 from submitted history, FY2027 blank", () => {
-    const result = buildApplicationFinancialPrefillByYear({
-      questionnaire: { financial_year_end: "2027-12-31" },
-      ctosFinancials: [],
-      submittedByYear: {
-        "2025": { turnover: 100 },
-        "2026": { turnover: 260 },
-      },
-      ref: new Date("2027-01-15T00:00:00"),
-    });
-    expect(result.tabYears).toEqual([2026, 2027]);
-    expect(result.inProgressYear).toBe(2027);
-    expect(result.years["2026"]).toEqual({
-      year: 2026,
-      source: "submitted",
-      fields: expect.objectContaining({ turnover: 260 }),
-    });
-    expect(result.years["2027"]).toEqual({ year: 2027, source: "blank", fields: null });
-  });
-
-  it("prefills completed FY from the latest submitted application that contains that FY", () => {
-    const resolved = resolveApplicationFinancialYearPrefill({
-      year: 2026,
-      inProgressYear: 2027,
-      ctosFinancials: [],
-      submittedByYear: {
-        "2025": { turnover: 100 },
-        "2026": { turnover: 260, curlib_borrowing: 40 },
-      },
-    });
-    expect(resolved).toEqual({
-      year: 2026,
-      source: "submitted",
-      fields: expect.objectContaining({ turnover: 260, curlib_borrowing: 40 }),
-    });
-  });
-
-  it("prefills every Additional Financial Details key from the same submitted FY block", () => {
-    const resolved = resolveApplicationFinancialYearPrefill({
-      year: 2026,
-      inProgressYear: 2027,
-      ctosFinancials: [],
-      submittedByYear: {
-        "2026": { turnover: 260, ...SUBMITTED_ADDITIONAL_DETAILS },
-      },
-    });
-    expect(resolved.source).toBe("submitted");
-    expect(resolved.fields?.turnover).toBe(260);
-    expectAdditionalDetailsPrefill(resolved.fields);
-    expect(pickSubmittedApplicationFinancialYearFields(resolved.fields)).toEqual(
-      expect.objectContaining(SUBMITTED_ADDITIONAL_DETAILS)
-    );
-    expect(pickApplicationFinancialPrefillFields(resolved.fields)?.curlib_borrowing).toBeUndefined();
-  });
-
-  it("does not reuse a submitted block from a different FY", () => {
-    const resolved = resolveApplicationFinancialYearPrefill({
-      year: 2026,
-      inProgressYear: 2027,
-      ctosFinancials: [],
-      submittedByYear: { "2025": { turnover: 900, bsfatot: 50 } },
-    });
-    expect(resolved).toEqual({ year: 2026, source: "blank", fields: null });
-  });
-
-  it("does not map CTOS totals into ComRep borrowing splits", () => {
-    const resolved = resolveApplicationFinancialYearPrefill({
-      year: 2025,
-      inProgressYear: 2026,
-      orgFinancialStatements: orgStatements(
-        { "2025": { turnover: 200, curlib_borrowing: 40 } },
-        fye2026
-      ),
-      ctosFinancials: [ctosRow(2025, { turnover: 180, curlib: 70 })],
-    });
-    expect(resolved.fields?.curlib).toBe(70);
-    expect(resolved.fields?.curlib_borrowing).toBeUndefined();
-    expect(resolved.fields?.curlib_non_borrowing).toBeUndefined();
-  });
-
-  it("does not fall back to org or submitted history when CTOS has the year but no application line items", () => {
-    const resolved = resolveApplicationFinancialYearPrefill({
-      year: 2026,
-      inProgressYear: 2027,
-      orgFinancialStatements: orgStatements({ "2026": { turnover: 900 } }, fye2027),
-      submittedByYear: {
-        "2026": { turnover: 260, bsfatot: 40, ...SUBMITTED_ADDITIONAL_DETAILS },
-      },
-      ctosFinancials: [ctosRow(2026, { totass: 1_000_000, gear: 1.2 })],
-    });
-    expect(resolved.source).toBe("blank");
-    expect(resolved.fields).toBeNull();
-  });
-
-  it("does not fabricate ComRep-only fields from CTOS or profile", () => {
-    const resolved = resolveApplicationFinancialYearPrefill({
-      year: 2025,
-      inProgressYear: 2026,
-      orgFinancialStatements: orgStatements(
-        {
-          "2025": {
-            turnover: 900,
-            curlib_borrowing: 40,
-            operating_cost: 12,
-          },
-        },
-        fye2026
-      ),
-      ctosFinancials: [ctosRow(2025, { turnover: 180, curlib: 70, totass: 1 })],
-    });
-    expect(resolved.source).toBe("ctos");
-    for (const key of APPLICATION_COMREP_DETAIL_KEYS) {
-      expect(resolved.fields?.[key]).toBeUndefined();
-    }
+    expect(picked).toEqual(block);
+    expect(pickSubmittedApplicationFinancialYearFields({ turnover: "", curlib: null })).toEqual({});
+    expect(pickSubmittedApplicationFinancialYearFields(null)).toEqual({});
   });
 
   it("does not block optional ComRep fields when blank", () => {
@@ -580,625 +171,318 @@ describe("application financial prefill", () => {
     expect(stored.curlib).toBe(0);
   });
 
-  it("does not treat organisation JSON as a completed-year prefill source", () => {
-    const resolved = resolveApplicationFinancialYearPrefill({
-      year: 2025,
-      inProgressYear: 2026,
-      orgFinancialStatements: orgStatements(
-        {
-          "2025": {
-            turnover: 900,
-            bsfatot: 50,
-            curlib: 20,
-            curlib_borrowing: 8,
-          },
-        },
-        fye2026
-      ),
-      ctosFinancials: [],
-    });
-    expect(resolved).toEqual({ year: 2025, source: "blank", fields: null });
-  });
-
-  it("prefills an Admin-supplied CTOS gap without labeling it as CTOS", () => {
-    const indexed = indexResolvedApplicationFinancials([
-      {
-        financialStatements: {
-          unaudited_by_year: { "2026": { turnover: 700, cashAndBank: 1 } },
-          admin_field_overrides: {
-            "2026": {
-              cashAndBank: {
-                value: 500000,
-                baseSource: "ctos",
-                action: "add_missing_ctos_field",
-                updated_by_user_id: "admin",
-                updated_at: "2026-01-01T00:00:00.000Z",
-              },
-            },
-          },
-        },
-      },
-    ]);
-    const resolved = resolveApplicationFinancialYearPrefill({
-      year: 2026,
-      inProgressYear: 2027,
-      ctosFinancials: [ctosRow(2026, { turnover: 850, curlib: 70 })],
-      submittedByYear: indexed.submittedByYear,
-      adminSupplementsByYear: indexed.adminSupplementsByYear,
-    });
-    expect(resolved.fields?.turnover).toBe(850);
-    expect(resolved.fields?.cashAndBank).toBe(500000);
-    expect(resolved.fieldSources?.turnover).toBe("ctos");
-    expect(resolved.fieldSources?.cashAndBank).toBe("previous_admin");
-    expect(resolved.fields?.cashAndBank).not.toBe(1);
-  });
-});
-
-describe("indexLatestSubmittedFinancialsByYear", () => {
-  it("reads financials from ApplicationRevision.snapshot.application.financial_statements", () => {
-    const snapshot = revisionSnapshot({ "2026": { turnover: 260 } });
-    expect(financialStatementsFromRevisionSnapshot(snapshot)).toEqual({
-      questionnaire: { financial_year_end: "2027-12-31" },
+  it("reads financials from ApplicationRevision.snapshot.application.financial_statements only", () => {
+    const fs = {
+      questionnaire: { financial_year_end: fye2027 },
       unaudited_by_year: { "2026": { turnover: 260 } },
-    });
-  });
-
-  it("uses the newest submitted revision that actually contains the required FY", () => {
-    const indexed = indexLatestSubmittedFinancialsByYear([
-      { snapshot: revisionSnapshot({ "2025": { turnover: 100 } }) },
-      { snapshot: revisionSnapshot({ "2026": { turnover: 260, curlib_borrowing: 40 } }) },
-      { snapshot: revisionSnapshot({ "2026": { turnover: 199 } }) },
-    ]);
-    expect(indexed["2025"]?.turnover).toBe(100);
-    expect(indexed["2026"]?.turnover).toBe(260);
-    expect(indexed["2026"]?.curlib_borrowing).toBe(40);
-    expect(resolveLatestSubmittedFinancialsForYear(indexed, 2026)?.turnover).toBe(260);
-    expect(resolveLatestSubmittedFinancialsForYear(indexed, 2024)).toBeNull();
-  });
-
-  it("does not treat a draft-shaped payload without a revision snapshot as submitted truth", () => {
-    expect(
-      indexLatestSubmittedFinancialsByYear([
-        { snapshot: { unaudited_by_year: { "2026": { turnover: 1 } } } },
-      ])
-    ).toEqual({});
-    expect(indexLatestSubmittedFinancialsByYear([])).toEqual({});
-    expect(
-      financialStatementsFromRevisionSnapshot({
-        company_details: { name: "Draft Co" },
-      })
-    ).toBeNull();
-    expect(
-      financialStatementsFromRevisionSnapshot({
-        financial_statements: {
-          unaudited_by_year: { "2026": { turnover: 1, ...SUBMITTED_ADDITIONAL_DETAILS } },
-        },
-      })
-    ).toBeNull();
-  });
-
-  it("does not merge Additional Financial Details from an older same-FY revision", () => {
-    const indexed = indexLatestSubmittedFinancialsByYear([
-      { snapshot: revisionSnapshot({ "2026": { turnover: 260 } }) },
-      {
-        snapshot: revisionSnapshot({
-          "2026": { turnover: 199, ...SUBMITTED_ADDITIONAL_DETAILS },
-        }),
-      },
-    ]);
-    expect(indexed["2026"]?.turnover).toBe(260);
-    expectAdditionalDetailsBlank(indexed["2026"]);
-  });
-});
-
-const OPTIONAL_EQUITY = [
-  "equity_share_application",
-  "equity_share_premium",
-  "equity_minority",
-] as const;
-
-describe("profile effective financial history", () => {
-  it("PROFILE 1 — blank optional FY2026 fields stay blank when older history has 500000", () => {
-    const indexed = indexResolvedApplicationFinancials([
-      {
-        financialStatements: {
-          unaudited_by_year: {
-            "2026": { turnover: 11, tradeReceivables: 2 },
-          },
-        },
-      },
-      {
-        financialStatements: {
-          unaudited_by_year: {
-            "2026": {
-              turnover: 9,
-              equity_share_application: 500000,
-              equity_share_premium: 500000,
-              equity_minority: 500000,
-            },
-          },
-        },
-      },
-    ]);
-    const years = effectiveFinancialHistoryEntries({
-      ctosFinancials: [],
-      userByYear: indexed.submittedByYear,
-      adminInputByYear: indexed.adminInputByYear,
-      ctosGapFillsByYear: indexed.ctosGapFillsByYear,
-      orgFinancialStatements: orgStatements(
-        {
-          "2026": {
-            turnover: 11,
-            equity_share_application: 500000,
-            equity_share_premium: 500000,
-            equity_minority: 500000,
-          },
-        },
-        fye2026
-      ),
-    });
-    const fy2026 = years.find((entry) => entry.year === "2026")?.block;
-    expect(fy2026?.turnover).toBe(11);
-    expect(fy2026?.tradeReceivables).toBe(2);
-    for (const key of OPTIONAL_EQUITY) expect(fy2026?.[key]).toBeUndefined();
-  });
-
-  it("PROFILE 2 — Admin edit of User Input is the profile value and does not rewrite the submission", () => {
-    const submitted = {
-      unaudited_by_year: { "2025": { turnover: 100, tradeReceivables: 10 } },
-      admin_field_overrides: {
-        "2025": {
-          tradeReceivables: {
-            value: 12,
-            baseSource: "user_input",
-            action: "edit_user_input",
-            updated_by_user_id: "admin",
-            updated_at: "2026-02-01T00:00:00.000Z",
-          },
-        },
-      },
     };
-    const indexed = indexResolvedApplicationFinancials([{ financialStatements: submitted }]);
-    const years = effectiveFinancialHistoryEntries({
-      ctosFinancials: [],
-      userByYear: indexed.submittedByYear,
-      userEditedKeysByYear: indexed.userEditedKeysByYear,
-    });
-    expect(years.find((entry) => entry.year === "2025")?.block.tradeReceivables).toBe(12);
-    expect(years.find((entry) => entry.year === "2025")?.block.turnover).toBe(100);
+    expect(financialStatementsFromRevisionSnapshot(revisionSnapshot(fs))).toEqual(fs);
+    expect(financialStatementsFromRevisionSnapshot({ company_details: { name: "Draft Co" } })).toBeNull();
     expect(
-      (submitted.unaudited_by_year["2025"] as { tradeReceivables: number }).tradeReceivables
-    ).toBe(10);
-  });
-
-  it("PROFILE 3 — Admin Input is effective until CTOS owns that FY", () => {
-    const indexed = indexResolvedApplicationFinancials([
-      {
-        financialStatements: {
-          unaudited_by_year: { "2025": { turnover: 10, tradeReceivables: 4 } },
-          admin_input_by_year: { "2025": { turnover: 40, tradeReceivables: 8 } },
-          admin_field_overrides: {
-            "2025": {
-              tradeReceivables: {
-                value: 20,
-                baseSource: "ctos",
-                action: "add_missing_ctos_field",
-                updated_by_user_id: "admin",
-                updated_at: "2026-03-01T00:00:00.000Z",
-              },
-            },
-          },
-        },
-      },
-    ]);
-    const beforeCtos = effectiveFinancialHistoryEntries({
-      ctosFinancials: [],
-      userByYear: indexed.submittedByYear,
-      adminInputByYear: indexed.adminInputByYear,
-      ctosGapFillsByYear: indexed.ctosGapFillsByYear,
-    });
-    expect(beforeCtos.find((entry) => entry.year === "2025")?.block).toEqual(
-      expect.objectContaining({ turnover: 40, tradeReceivables: 8 })
-    );
-
-    const afterCtos = effectiveFinancialHistoryEntries({
-      ctosFinancials: [ctosRow(2025, { turnover: 100 })],
-      userByYear: indexed.submittedByYear,
-      adminInputByYear: indexed.adminInputByYear,
-      ctosGapFillsByYear: indexed.ctosGapFillsByYear,
-    });
-    const fy2025 = afterCtos.find((entry) => entry.year === "2025")?.block;
-    expect(fy2025?.turnover).toBe(100);
-    expect(fy2025?.tradeReceivables).toBe(20);
-    expect(indexed.adminInputByYear["2025"]?.turnover).toBe(40);
+      financialStatementsFromRevisionSnapshot({
+        financial_statements: { unaudited_by_year: { "2026": { turnover: 1 } } },
+      })
+    ).toBeNull();
+    expect(financialStatementsFromRevisionSnapshot(null)).toBeNull();
   });
 });
 
-describe("historical prefill source order", () => {
-  it("PREFILL 1 — CTOS previous FY, current FY blank", () => {
+describe("buildApplicationFinancialPrefillByYear — tab years", () => {
+  const submitted = {
+    "2025": { turnover: 50 },
+    "2026": { turnover: 100 },
+    "2027": { turnover: 200 },
+  };
+
+  it("F: tabs [2026, 2027] with submitted 2026 and 2027 → 2026 prefilled, 2027 blank", () => {
+    const result = buildApplicationFinancialPrefillByYear({
+      questionnaire: { financial_year_end: fyeJun2027 },
+      ctosFinancials: [],
+      issuerSubmittedByYear: submitted,
+      ref: twoTabRefJun2027,
+    });
+    expect(result.tabYears).toEqual([2026, 2027]);
+    expect(result.inProgressYear).toBe(2027);
+    expect(result.years["2026"]).toEqual({ year: 2026, source: "submitted", fields: { turnover: 100 } });
+    expect(result.years["2027"]).toEqual({ year: 2027, source: "blank", fields: null });
+  });
+
+  it("G: only tab [2027] with submitted 2027 → no prefill", () => {
+    const result = buildApplicationFinancialPrefillByYear({
+      questionnaire: { financial_year_end: fyeJun2027 },
+      ctosFinancials: [ctosRow(2027, { turnover: 880 })],
+      issuerSubmittedByYear: submitted,
+      ref: oneTabRefJun2027,
+    });
+    expect(result.tabYears).toEqual([2027]);
+    expect(result.inProgressYear).toBe(2027);
+    expect(result.years).toEqual({ "2027": { year: 2027, source: "blank", fields: null } });
+  });
+
+  it("H: tabs [2025, 2026] with submitted 2025 and 2026 → 2025 prefilled, 2026 blank", () => {
     const result = buildApplicationFinancialPrefillByYear({
       questionnaire: { financial_year_end: fye2026 },
-      ctosFinancials: [ctosRow(2025, { turnover: 100 })],
-      submittedByYear: { "2025": { turnover: 1 }, "2026": { turnover: 2 } },
+      ctosFinancials: [],
+      issuerSubmittedByYear: submitted,
       ref: twoTabRef,
     });
+    expect(result.tabYears).toEqual([2025, 2026]);
     expect(result.inProgressYear).toBe(2026);
-    expect(result.years["2025"]?.source).toBe("ctos");
-    expect(result.years["2025"]?.fields?.turnover).toBe(100);
+    expect(result.years["2025"]).toEqual({ year: 2025, source: "submitted", fields: { turnover: 50 } });
     expect(result.years["2026"]).toEqual({ year: 2026, source: "blank", fields: null });
   });
 
-  it("PREFILL 2 — CTOS plus an explicit gap fill", () => {
-    const indexed = indexResolvedApplicationFinancials([
-      {
-        financialStatements: {
-          admin_field_overrides: {
-            "2025": {
-              tradeReceivables: {
-                value: 20,
-                baseSource: "ctos",
-                action: "add_missing_ctos_field",
-                updated_by_user_id: "admin",
-                updated_at: "2026-01-01T00:00:00.000Z",
-              },
-            },
-          },
-        },
+  it("one-tab mode is the in-progress FY only, blank despite CTOS and submitted history", () => {
+    const result = buildApplicationFinancialPrefillByYear({
+      questionnaire: { financial_year_end: fye2026 },
+      ctosFinancials: [ctosRow(2026, { turnover: 880 })],
+      issuerSubmittedByYear: { "2026": { turnover: 910, curlib_borrowing: 4 } },
+      ref: oneTabRef,
+    });
+    expect(result.tabYears).toEqual([2026]);
+    expect(result.inProgressYear).toBe(2026);
+    expect(result.years).toEqual({ "2026": { year: 2026, source: "blank", fields: null } });
+  });
+
+  it("in-progress FY stays blank in two-tab mode even when CTOS and submitted contain it", () => {
+    const result = buildApplicationFinancialPrefillByYear({
+      questionnaire: { financial_year_end: fye2027 },
+      ctosFinancials: [ctosRow(2026, { turnover: 850 }), ctosRow(2027, { turnover: 880 })],
+      issuerSubmittedByYear: {
+        "2026": { turnover: 260, ...SUBMITTED_ADDITIONAL_DETAILS },
+        "2027": { turnover: 910, ...SUBMITTED_ADDITIONAL_DETAILS },
       },
-    ]);
-    const resolved = resolveApplicationFinancialYearPrefill({
-      year: 2025,
-      inProgressYear: 2026,
-      ctosFinancials: [ctosRow(2025, { turnover: 100 })],
-      ctosGapFillsByYear: indexed.ctosGapFillsByYear,
-      adminInputByYear: { "2025": { turnover: 999, tradeReceivables: 1 } },
-      submittedByYear: { "2025": { turnover: 5, tradeReceivables: 6 } },
+      ref: twoTabRefFy2027,
     });
-    expect(resolved.fields?.turnover).toBe(100);
-    expect(resolved.fields?.tradeReceivables).toBe(20);
-    expect(resolved.fieldSources?.turnover).toBe("ctos");
-    expect(resolved.fieldSources?.tradeReceivables).toBe("previous_admin");
+    expect(result.years["2026"]?.source).toBe("ctos");
+    expect(result.years["2027"]).toEqual({ year: 2027, source: "blank", fields: null });
   });
 
-  it("PREFILL 3 — Admin Input when CTOS has no FY", () => {
-    const resolved = resolveApplicationFinancialYearPrefill({
+  it("stale FYE (no questionnaire) copies nothing until a new FYE is selected", () => {
+    const params = {
+      ctosFinancials: [ctosRow(2025, { turnover: 850 })],
+      issuerSubmittedByYear: { "2025": { turnover: 900 } },
+      ref: twoTabRef,
+    };
+    const beforeFye = buildApplicationFinancialPrefillByYear({ ...params, questionnaire: null });
+    expect(beforeFye).toEqual({ tabYears: [], inProgressYear: null, years: {} });
+
+    const afterFye = buildApplicationFinancialPrefillByYear({
+      ...params,
+      questionnaire: { financial_year_end: fye2026 },
+    });
+    expect(afterFye.years["2025"]).toEqual({
       year: 2025,
-      inProgressYear: 2026,
-      ctosFinancials: [],
-      adminInputByYear: { "2025": { turnover: 40, tradeReceivables: 8 } },
-      submittedByYear: { "2025": { turnover: 10, tradeReceivables: 4 } },
+      source: "ctos",
+      fields: expect.objectContaining({ turnover: 850 }),
     });
-    expect(resolved.source).toBe("submitted");
-    expect(resolved.fields).toEqual(expect.objectContaining({ turnover: 40, tradeReceivables: 8 }));
-    expect(resolved.fieldSources?.turnover).toBe("previous_admin");
-  });
-
-  it("PREFILL 4 — User Input when CTOS and Admin Input are absent", () => {
-    const resolved = resolveApplicationFinancialYearPrefill({
-      year: 2025,
-      inProgressYear: 2026,
-      ctosFinancials: [],
-      submittedByYear: { "2025": { turnover: 100, tradeReceivables: 10 } },
-    });
-    expect(resolved.fields).toEqual(
-      expect.objectContaining({ turnover: 100, tradeReceivables: 10 })
-    );
-    expect(resolved.fieldSources).toBeUndefined();
-  });
-
-  it("PREFILL 5 — reviewed User Input includes Admin edits", () => {
-    const indexed = indexResolvedApplicationFinancials([
-      {
-        financialStatements: {
-          unaudited_by_year: { "2025": { turnover: 100, tradeReceivables: 10 } },
-          admin_field_overrides: {
-            "2025": {
-              tradeReceivables: {
-                value: 12,
-                baseSource: "user_input",
-                action: "edit_user_input",
-                updated_by_user_id: "admin",
-                updated_at: "2026-02-01T00:00:00.000Z",
-              },
-            },
-          },
-        },
-      },
-    ]);
-    const resolved = resolveApplicationFinancialYearPrefill({
-      year: 2025,
-      inProgressYear: 2026,
-      ctosFinancials: [],
-      submittedByYear: indexed.submittedByYear,
-      userEditedKeysByYear: indexed.userEditedKeysByYear,
-    });
-    expect(resolved.fields?.turnover).toBe(100);
-    expect(resolved.fields?.tradeReceivables).toBe(12);
-    expect(resolved.fieldSources?.tradeReceivables).toBe("previous_admin");
-    expect(resolved.fieldSources?.turnover).toBe("submitted");
-  });
-
-  it("PREFILL 6 — later CTOS replaces Admin Input except explicit gap fills", () => {
-    const resolved = resolveApplicationFinancialYearPrefill({
-      year: 2025,
-      inProgressYear: 2026,
-      ctosFinancials: [ctosRow(2025, { turnover: 100 })],
-      adminInputByYear: { "2025": { turnover: 40, tradeReceivables: 8 } },
-      ctosGapFillsByYear: { "2025": { tradeReceivables: 20 } },
-      submittedByYear: { "2025": { turnover: 10 } },
-    });
-    expect(resolved.fields?.turnover).toBe(100);
-    expect(resolved.fields?.tradeReceivables).toBe(20);
-  });
-
-  it("PREFILL 7 — current FY already in history still starts blank", () => {
-    const resolved = resolveApplicationFinancialYearPrefill({
-      year: 2026,
-      inProgressYear: 2026,
-      ctosFinancials: [ctosRow(2026, { turnover: 100 })],
-      adminInputByYear: { "2026": { turnover: 70 } },
-      submittedByYear: { "2026": { turnover: 50 } },
-      orgFinancialStatements: orgStatements({ "2026": { turnover: 900 } }, fye2026),
-    });
-    expect(resolved).toEqual({ year: 2026, source: "blank", fields: null });
-  });
-
-  it("PREFILL 8 — a blank selected-source field is not filled from older 500000 history", () => {
-    const indexed = indexResolvedApplicationFinancials([
-      {
-        financialStatements: {
-          unaudited_by_year: { "2025": { turnover: 100 } },
-        },
-      },
-      {
-        financialStatements: {
-          unaudited_by_year: {
-            "2025": { turnover: 90, equity_share_application: 500000 },
-          },
-        },
-      },
-    ]);
-    const fromUser = resolveApplicationFinancialYearPrefill({
-      year: 2025,
-      inProgressYear: 2026,
-      ctosFinancials: [],
-      submittedByYear: indexed.submittedByYear,
-      adminSupplementsByYear: { "2025": { equity_share_application: 500000 } },
-      orgFinancialStatements: orgStatements(
-        { "2025": { turnover: 100, equity_share_application: 500000 } },
-        fye2026
-      ),
-    });
-    expect(fromUser.fields?.turnover).toBe(100);
-    expect(fromUser.fields?.equity_share_application).toBeUndefined();
-
-    const fromCtos = resolveApplicationFinancialYearPrefill({
-      year: 2025,
-      inProgressYear: 2026,
-      ctosFinancials: [ctosRow(2025, { turnover: 100 })],
-      adminInputByYear: { "2025": { equity_share_application: 500000, turnover: 40 } },
-      submittedByYear: indexed.submittedByYear,
-      orgFinancialStatements: orgStatements(
-        { "2025": { equity_share_application: 500000 } },
-        fye2026
-      ),
-    });
-    expect(fromCtos.fields?.turnover).toBe(100);
-    expect(fromCtos.fields?.equity_share_application).toBeUndefined();
-  });
-
-  it("keeps FY2024 on Admin Input when CTOS later owns only FY2025", () => {
-    const fy2024 = resolveHistoricalYear(2024);
-    const fy2025 = resolveHistoricalYear(2025);
-    expect(fy2024.fields?.turnover).toBe(30);
-    expect(fy2025.fields?.turnover).toBe(100);
-    expect(fy2025.fields?.tradeReceivables).toBeUndefined();
-
-    function resolveHistoricalYear(year: number) {
-      return resolveApplicationFinancialYearPrefill({
-        year,
-        inProgressYear: 2026,
-        ctosFinancials: [ctosRow(2025, { turnover: 100 })],
-        adminInputByYear: {
-          "2024": { turnover: 30 },
-          "2025": { turnover: 40, tradeReceivables: 8 },
-        },
-      });
-    }
+    expect(afterFye.years["2026"]).toEqual({ year: 2026, source: "blank", fields: null });
   });
 });
 
-describe("prefill with both override actions on one FY field", () => {
-  const at = "2026-09-01T00:00:00.000Z";
-  const gapFill = {
-    value: 100,
-    baseSource: "ctos",
-    action: "add_missing_ctos_field",
-    updated_by_user_id: "admin",
-    updated_at: at,
-  };
-  const userEdit = {
-    value: 120,
-    baseSource: "user_input",
-    action: "edit_user_input",
-    updated_by_user_id: "admin",
-    updated_at: at,
-  };
-  const unaudited = { "2026": { turnover: 700, tradeReceivables: 50 } };
-  const newShape = {
-    unaudited_by_year: unaudited,
-    admin_field_overrides: {
-      "2026": { tradeReceivables: { add_missing_ctos_field: gapFill, edit_user_input: userEdit } },
-    },
-  };
-
-  function resolveFor(financialStatements: unknown, ctosFinancials: unknown) {
-    const indexed = indexResolvedApplicationFinancials([{ financialStatements }]);
-    return resolveApplicationFinancialYearPrefill({
-      year: 2026,
-      inProgressYear: 2027,
-      ctosFinancials,
-      submittedByYear: indexed.submittedByYear,
-      adminInputByYear: indexed.adminInputByYear,
-      ctosGapFillsByYear: indexed.ctosGapFillsByYear,
-      userEditedKeysByYear: indexed.userEditedKeysByYear,
+describe("resolveNewApplicationHistoricalPrefill — source order", () => {
+  it("I: CTOS FY2026 turnover 130 beats submitted 90; the in-progress FY2027 stays blank", () => {
+    const result = buildApplicationFinancialPrefillByYear({
+      questionnaire: { financial_year_end: fye2027 },
+      ctosFinancials: [ctosRow(2026, { turnover: 130 })],
+      issuerSubmittedByYear: { "2026": { turnover: 90 }, "2027": { turnover: 95 } },
+      ref: twoTabRefFy2027,
     });
-  }
+    expect(result.years["2026"]).toEqual({ year: 2026, source: "ctos", fields: { turnover: 130 } });
+    expect(result.years["2027"]).toEqual({ year: 2027, source: "blank", fields: null });
+  });
 
-  it("CTOS row for the FY → CTOS source with the gap-fill (100)", () => {
-    const resolved = resolveFor(newShape, [ctosRow(2026, { turnover: 850 })]);
+  it("J: CTOS owns the whole FY — a field CTOS lacks is not filled from submitted", () => {
+    const resolved = resolveNewApplicationHistoricalPrefill({
+      year: 2026,
+      ctosFinancials: [ctosRow(2026, { turnover: 130 })],
+      issuerSubmittedByYear: { "2026": { turnover: 90, tradeReceivables: 40 } },
+    });
     expect(resolved.source).toBe("ctos");
-    expect(resolved.fields?.turnover).toBe(850);
-    expect(resolved.fields?.tradeReceivables).toBe(100);
-    expect(resolved.fieldSources?.tradeReceivables).toBe("previous_admin");
+    expect(resolved.fields?.turnover).toBe(130);
+    expect(resolved.fields?.tradeReceivables).toBeUndefined();
   });
 
-  it("no CTOS row → reviewed User Input (120)", () => {
-    const resolved = resolveFor(newShape, []);
-    expect(resolved.source).toBe("submitted");
-    expect(resolved.fields?.tradeReceivables).toBe(120);
-    expect(resolved.fieldSources?.tradeReceivables).toBe("previous_admin");
-    const indexed = indexResolvedApplicationFinancials([{ financialStatements: newShape }]);
-    expect(indexed.userEditedKeysByYear["2026"]).toEqual(["tradeReceivables"]);
-    expect(indexed.ctosGapFillsByYear["2026"]).toEqual({ tradeReceivables: 100 });
-  });
-
-  it("legacy single entries still work for each lane", () => {
-    const legacyGap = {
-      unaudited_by_year: unaudited,
-      admin_field_overrides: { "2026": { tradeReceivables: gapFill } },
-    };
-    const legacyUser = {
-      unaudited_by_year: unaudited,
-      admin_field_overrides: { "2026": { tradeReceivables: userEdit } },
-    };
-    expect(resolveFor(legacyGap, [ctosRow(2026, { turnover: 850 })]).fields?.tradeReceivables).toBe(100);
-    // A legacy gap-fill is not applied onto User Input.
-    expect(resolveFor(legacyGap, []).fields?.tradeReceivables).toBe(50);
-    expect(resolveFor(legacyUser, []).fields?.tradeReceivables).toBe(120);
-    // A legacy User Input edit is not a CTOS gap-fill.
-    expect(resolveFor(legacyUser, [ctosRow(2026, { turnover: 850 })]).fields?.tradeReceivables).toBeUndefined();
-  });
-});
-
-describe("prefill keeps every canonical raw key (P1)", () => {
-  const EXTRA_KEYS = ["costOfSales", "netOperatingIncome", "annualDebtService"] as const;
-
-  /** Distinct value per key; includes a 0 and a negative on a negative-allowed key. */
-  function fullBlock(): Record<string, number> {
-    const block: Record<string, number> = {};
-    ADMIN_EDITABLE_RAW_FINANCIAL_KEYS.forEach((key, index) => {
-      block[key] = 1000 + index;
-    });
-    block.bsfatot = 0;
-    block.equity_accumulated_profit = -250;
-    return block;
-  }
-
-  function userEdit(value: number) {
-    return {
-      value,
-      baseSource: "user_input",
-      action: "edit_user_input",
-      updated_by_user_id: "admin",
-      updated_at: "2026-09-01T00:00:00.000Z",
-    };
-  }
-
-  function resolveNoCtos(financialStatements: unknown, ctosFinancials: unknown = []) {
-    const indexed = indexResolvedApplicationFinancials([{ financialStatements }]);
-    return resolveHistoricalFinancialYearFields({
+  it("K: the resolver has no CTOS gap-fill input, so a CTOS-missing field stays blank", () => {
+    // Extra keys are not part of the signature; an Admin gap fill has nowhere to enter.
+    const params = {
       year: 2026,
-      ctosFinancials,
-      userByYear: indexed.submittedByYear,
-      adminInputByYear: indexed.adminInputByYear,
-      ctosGapFillsByYear: indexed.ctosGapFillsByYear,
-      userEditedKeysByYear: indexed.userEditedKeysByYear,
-    });
-  }
-
-  it("canonical list is 36 unique keys", () => {
-    expect(ADMIN_EDITABLE_RAW_FINANCIAL_KEYS).toHaveLength(36);
-    expect(new Set(ADMIN_EDITABLE_RAW_FINANCIAL_KEYS).size).toBe(36);
-  });
-
-  it("(a) Admin Input year keeps every canonical key", () => {
-    const block = fullBlock();
-    const resolved = resolveNoCtos({ admin_input_by_year: { "2026": { ...block, statementType: "AUDITED" } } });
-    expect(resolved?.source).toBe("admin_input");
-    for (const key of ADMIN_EDITABLE_RAW_FINANCIAL_KEYS) {
-      expect([key, resolved?.fields[key]]).toEqual([key, block[key]]);
-    }
-    for (const key of EXTRA_KEYS) expect(resolved?.fields[key]).toBe(block[key]);
-  });
-
-  it("(b) User Input year keeps every canonical key", () => {
-    const block = fullBlock();
-    const resolved = resolveNoCtos({ unaudited_by_year: { "2026": { ...block, pldd: "2026-12-31" } } });
-    expect(resolved?.source).toBe("user_input");
-    for (const key of ADMIN_EDITABLE_RAW_FINANCIAL_KEYS) {
-      expect([key, resolved?.fields[key]]).toEqual([key, block[key]]);
-    }
-    for (const key of EXTRA_KEYS) expect(resolved?.fields[key]).toBe(block[key]);
-  });
-
-  it("(c) reviewed values of the three extra keys win on User Input", () => {
-    const block = fullBlock();
-    const reviewed: Record<string, number> = {
-      costOfSales: 7001,
-      netOperatingIncome: 7002,
-      annualDebtService: 0,
+      ctosFinancials: [ctosRow(2026, { turnover: 130 })],
+      issuerSubmittedByYear: null,
+      ctosGapFillsByYear: { "2026": { tradeReceivables: 55 } },
     };
-    const resolved = resolveNoCtos({
-      unaudited_by_year: { "2026": block },
-      admin_field_overrides: {
-        "2026": {
-          costOfSales: { edit_user_input: userEdit(reviewed.costOfSales) },
-          netOperatingIncome: userEdit(reviewed.netOperatingIncome),
-          annualDebtService: { edit_user_input: userEdit(reviewed.annualDebtService) },
-        },
-      },
-    });
-    for (const key of ADMIN_EDITABLE_RAW_FINANCIAL_KEYS) {
-      expect([key, resolved?.fields[key]]).toEqual([key, reviewed[key] ?? block[key]]);
-    }
-    for (const key of EXTRA_KEYS) {
-      expect(resolved?.fields[key]).toBe(reviewed[key]);
-      expect(resolved?.fieldSources[key]).toBe("previous_admin");
-    }
+    const resolved = resolveNewApplicationHistoricalPrefill(params);
+    expect(resolved).toEqual({ year: 2026, source: "ctos", fields: { turnover: 130 } });
+    expect(resolved.fields?.tradeReceivables).toBeUndefined();
   });
 
-  it("CTOS branch is unchanged: only CTOS keys plus explicit gap-fills", () => {
-    const block = fullBlock();
-    const ctos = [ctosRow(2026, { turnover: 850, curlib: 70 })];
-    const resolved = resolveNoCtos(
-      { unaudited_by_year: { "2026": block }, admin_input_by_year: { "2026": block } },
-      ctos
-    );
-    expect(resolved?.source).toBe("ctos");
-    expect(resolved?.fields).toEqual({ turnover: 850, curlib: 70 });
-    for (const key of EXTRA_KEYS) expect(resolved?.fields[key]).toBeUndefined();
+  it("L: no CTOS → latest submitted User Input (Admin Input has no parameter)", () => {
+    const resolved = resolveNewApplicationHistoricalPrefill({
+      year: 2026,
+      ctosFinancials: [ctosRow(2025, { turnover: 70 })],
+      issuerSubmittedByYear: { "2026": { turnover: 100 } },
+    });
+    expect(resolved).toEqual({ year: 2026, source: "submitted", fields: { turnover: 100 } });
+  });
 
-    const withGap = resolveNoCtos(
+  it("L: end to end from revisions — Admin edits and Admin Input in the snapshot are ignored", () => {
+    const index = indexIssuerSubmittedFinancialYears([
       {
-        unaudited_by_year: { "2026": block },
-        admin_field_overrides: {
-          "2026": {
-            costOfSales: {
-              add_missing_ctos_field: {
-                value: 55,
-                baseSource: "ctos",
-                action: "add_missing_ctos_field",
-                updated_by_user_id: "admin",
-                updated_at: "2026-09-01T00:00:00.000Z",
+        revisionId: "rev-1",
+        applicationId: "app-1",
+        reviewCycle: 1,
+        submittedAt: "2027-01-10T00:00:00.000Z",
+        snapshot: revisionSnapshot({
+          unaudited_by_year: { "2026": { turnover: 100, tradeReceivables: 40 } },
+          admin_input_by_year: { "2026": { turnover: 999, tradeReceivables: 1 } },
+          admin_field_overrides: {
+            "2026": {
+              turnover: {
+                edit_user_input: {
+                  value: 120,
+                  baseSource: "user_input",
+                  action: "edit_user_input",
+                  updated_by_user_id: "admin",
+                  updated_at: "2027-01-11T00:00:00.000Z",
+                },
               },
             },
           },
-        },
+        }),
       },
-      ctos
-    );
-    expect(withGap?.fields).toEqual({ turnover: 850, curlib: 70, costOfSales: 55 });
-    expect(withGap?.fieldSources.costOfSales).toBe("previous_admin");
+    ]);
+    const resolved = resolveNewApplicationHistoricalPrefill({
+      year: 2026,
+      ctosFinancials: [],
+      issuerSubmittedByYear: issuerSubmittedBlocksByYear(index),
+    });
+    expect(resolved).toEqual({
+      year: 2026,
+      source: "submitted",
+      fields: { turnover: 100, tradeReceivables: 40 },
+    });
+  });
+
+  it("M: no CTOS and no submitted for that FY → blank (other FYs are not reused)", () => {
+    expect(
+      resolveNewApplicationHistoricalPrefill({
+        year: 2026,
+        ctosFinancials: [ctosRow(2025, { turnover: 70 })],
+        issuerSubmittedByYear: { "2025": { turnover: 900, bsfatot: 50 } },
+      })
+    ).toEqual({ year: 2026, source: "blank", fields: null });
+    expect(
+      resolveNewApplicationHistoricalPrefill({ year: 2026, ctosFinancials: null, issuerSubmittedByYear: null })
+    ).toEqual({ year: 2026, source: "blank", fields: null });
+  });
+
+  it("a submitted block without actual amounts is blank", () => {
+    expect(
+      resolveNewApplicationHistoricalPrefill({
+        year: 2026,
+        ctosFinancials: [],
+        issuerSubmittedByYear: { "2026": { pldd: "2026-12-31" } },
+      })
+    ).toEqual({ year: 2026, source: "blank", fields: null });
+  });
+
+  it("a CTOS row with no actual amounts is blank and does not fall back to submitted", () => {
+    expect(
+      resolveNewApplicationHistoricalPrefill({
+        year: 2026,
+        ctosFinancials: [ctosRow(2026, { totass: 1_000_000, gear: 1.2 })],
+        issuerSubmittedByYear: {
+          "2026": { turnover: 260, bsfatot: 40, ...SUBMITTED_ADDITIONAL_DETAILS },
+        },
+      })
+    ).toEqual({ year: 2026, source: "blank", fields: null });
+  });
+
+  it("submitted FY copies core and every Additional Financial Details key", () => {
+    const resolved = resolveNewApplicationHistoricalPrefill({
+      year: 2026,
+      ctosFinancials: [],
+      issuerSubmittedByYear: { "2026": { turnover: 260, bsfatot: 40, ...SUBMITTED_ADDITIONAL_DETAILS } },
+    });
+    expect(resolved.source).toBe("submitted");
+    expect(resolved.fields).toEqual({ turnover: 260, bsfatot: 40, ...SUBMITTED_ADDITIONAL_DETAILS });
+  });
+
+  it("submitted prefill is a copy; editing it does not change the index", () => {
+    const issuerSubmittedByYear = { "2026": { turnover: 100 } };
+    const resolved = resolveNewApplicationHistoricalPrefill({
+      year: 2026,
+      ctosFinancials: [],
+      issuerSubmittedByYear,
+    });
+    (resolved.fields as Record<string, unknown>).turnover = 220;
+    expect(issuerSubmittedByYear["2026"].turnover).toBe(100);
+  });
+});
+
+describe("resolveNewApplicationHistoricalPrefill — CTOS mapping", () => {
+  it("CTOS core plus the four preserved ComRep extras; no submitted merge", () => {
+    const resolved = resolveNewApplicationHistoricalPrefill({
+      year: 2026,
+      ctosFinancials: [
+        ctosRow(2026, {
+          turnover: 850,
+          curlib: 70,
+          bsqres: 111_000,
+          bsqupro: 222_000,
+          bsqmint: 333_000,
+          plminin: 444_000,
+        }),
+      ],
+      issuerSubmittedByYear: {
+        "2026": { turnover: 700, bsfatot: 99, curlib: 80, ...SUBMITTED_ADDITIONAL_DETAILS },
+      },
+    });
+    expect(resolved.source).toBe("ctos");
+    expect(resolved.fields).toEqual(expect.objectContaining({ turnover: 850, curlib: 70 }));
+    expect(resolved.fields?.bsfatot).toBeUndefined();
+    expect(resolved.fields?.equity_share_premium).toBe(111_000);
+    expect(resolved.fields?.equity_accumulated_profit).toBe(222_000);
+    expect(resolved.fields?.equity_minority).toBe(333_000);
+    expect(resolved.fields?.pl_minority).toBe(444_000);
+    expectAdditionalDetailsBlank(resolved.fields, CTOS_PRESERVED_COMREP);
+  });
+
+  it("preserves zero and negative CTOS ComRep extras", () => {
+    const resolved = resolveNewApplicationHistoricalPrefill({
+      year: 2026,
+      ctosFinancials: [
+        ctosRow(2026, {
+          turnover: 850,
+          curlib: 70,
+          // 0 is a real CTOS value and must not be treated as missing.
+          bsqres: 0,
+          bsqupro: 0,
+          bsqmint: 0,
+          // Negative CTOS P&L minority interest must survive prefill.
+          plminin: -8975580,
+        }),
+      ],
+      issuerSubmittedByYear: null,
+    });
+    expect(resolved.source).toBe("ctos");
+    expect(resolved.fields?.equity_share_premium).toBe(0);
+    expect(resolved.fields?.equity_accumulated_profit).toBe(0);
+    expect(resolved.fields?.equity_minority).toBe(0);
+    expect(resolved.fields?.pl_minority).toBe(-8975580);
+    expectAdditionalDetailsBlank(resolved.fields, CTOS_PRESERVED_COMREP);
+  });
+
+  it("does not map CTOS totals into ComRep borrowing splits or fabricate ComRep-only fields", () => {
+    const resolved = resolveNewApplicationHistoricalPrefill({
+      year: 2025,
+      ctosFinancials: [ctosRow(2025, { turnover: 180, curlib: 70, totass: 1 })],
+      issuerSubmittedByYear: { "2025": { turnover: 200, curlib_borrowing: 40, operating_cost: 12 } },
+    });
+    expect(resolved.source).toBe("ctos");
+    expect(resolved.fields?.curlib).toBe(70);
+    for (const key of APPLICATION_COMREP_DETAIL_KEYS) {
+      expect(resolved.fields?.[key]).toBeUndefined();
+    }
   });
 });

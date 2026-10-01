@@ -442,7 +442,7 @@ function statementTypeOf(raw: Record<string, unknown> | null): FinancialStatemen
 /**
  * Chronological Admin review columns.
  * Historical slots are latest User Input FY − 3/−2/−1. User Input is a separate lane.
- * Each historical FY has one source: CTOS, else active Admin Input, else a gap.
+ * Each historical FY has one source: CTOS, else User Input, else active Admin Input, else a gap.
  */
 export function resolveAdminFinancialReviewColumns(input: {
   financialStatements?: unknown;
@@ -498,13 +498,16 @@ export function resolveAdminFinancialReviewColumns(input: {
   });
 
   // Active Admin Input columns:
-  // - A historical FY with no CTOS row is satisfied by Admin Input (one column, not a gap plus Admin Input).
-  // - User Input for the same FY stays a separate lane.
+  // - A historical FY with neither a CTOS row nor User Input is satisfied by Admin Input
+  //   (one column, not a gap plus Admin Input).
   // - CTOS ownership (financial_year present, even when amounts are null) hides that Admin Input column.
-  //   The stored admin_input_by_year block is kept for audit and is not deleted here.
-  // - Outside the historical window, keep the previous rule that issuer data suppresses a second Admin column.
+  // - User Input for the same FY covers it in the User Input lane, so Admin Input is inactive.
+  //   Inactive admin_input_by_year blocks are kept for audit and are not deleted here.
+  // - Outside the historical window, issuer data suppresses a second Admin column (unchanged).
   const adminYears = adminYearsAny.filter((year) => {
-    if (historicalWindowYears.includes(year)) return !ctosByYear.has(year);
+    if (historicalWindowYears.includes(year)) {
+      return !ctosByYear.has(year) && !issuerYearSet.has(year);
+    }
     return !issuerYearSet.has(year);
   });
 
@@ -573,6 +576,7 @@ export function resolveAdminFinancialReviewColumns(input: {
 
   // Historical 3 slots. Each year resolves on its own:
   // CTOS row (financial_year present) → CTOS
+  // else User Input for that FY → the User Input lane column is the slot (emitted below)
   // else active whole-year Admin Input → that Admin column is the slot (emitted below)
   // else CTOS was pulled → editable Admin placeholder
   // else CTOS was not pulled → read-only gap (not an editable CTOS statement)
@@ -581,6 +585,7 @@ export function resolveAdminFinancialReviewColumns(input: {
       addCtosColumn(year, ctosByYear.get(year) ?? null);
       continue;
     }
+    if (issuerYearSet.has(year)) continue;
     if (adminYearSetAny.has(year)) continue;
     if (ctosFetched) addPlaceholderColumn(year);
     else addReadOnlyMissingCtosColumn(year);

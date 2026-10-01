@@ -142,17 +142,16 @@ describe("adminFinancialSummaryColumns", () => {
   const adminStored = {};
   const eligible: number[] = [];
 
-  it("shows the 3 historical slots behind the latest user year when CTOS is not pulled", () => {
+  it("shows historical gaps behind the latest user year when CTOS is not pulled; User Input covers its own FY", () => {
     expect(adminFinancialSummaryColumns([], stored, adminStored, eligible)).toEqual([
       { kind: "ctos", year: 2024 },
       { kind: "ctos", year: 2025 },
-      { kind: "ctos", year: 2026 },
       { kind: "unaudited", year: 2026 },
       { kind: "unaudited", year: 2027 },
     ]);
   });
 
-  it("keeps User Input when CTOS covers an earlier historical year", () => {
+  it("keeps User Input without an Add statement slot when CTOS covers only earlier historical years", () => {
     expect(
       adminFinancialSummaryColumns(
         [{ financial_year: 2024 }, { financial_year: 2025 }],
@@ -164,7 +163,6 @@ describe("adminFinancialSummaryColumns", () => {
     ).toEqual([
       { kind: "ctos", year: 2024 },
       { kind: "ctos", year: 2025 },
-      { kind: "admin_fallback_placeholder", year: 2026 },
       { kind: "unaudited", year: 2026 },
       { kind: "unaudited", year: 2027 },
     ]);

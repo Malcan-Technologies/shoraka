@@ -427,15 +427,16 @@ function selectDownstreamYears(
     if (!isFinancialYearKey(fyKey)) continue;
     const year = Number(fyKey);
     if (presentYears.has(year) || context.ctosByYear.has(year)) continue;
+    // User Input for the same FY makes Admin Input inactive: it must not add a year.
+    if (blockWithActualData(context.unauditedByYear[fyKey])) continue;
     const adminBlock = blockWithActualData(storedAdmin);
     if (!adminBlock) continue;
-    const userBlock = blockWithActualData(context.unauditedByYear[fyKey]);
-    const rawFinancials = { ...(userBlock ?? adminBlock) };
+    const rawFinancials = { ...adminBlock };
     available.push({
       year,
       financialYearEndIso: financialYearEndIsoFor(year, rawFinancials, context.questionnaire),
-      recordSource: userBlock ? "unaudited_management" : "admin_input",
-      statementType: userBlock ? "MANAGEMENT_ACCOUNTS" : statementTypeOfBlock(adminBlock),
+      recordSource: "admin_input",
+      statementType: statementTypeOfBlock(adminBlock),
       rawFinancials,
     });
     presentYears.add(year);

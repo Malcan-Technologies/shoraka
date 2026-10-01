@@ -9,17 +9,29 @@ const sixMonth = readFileSync(
   "utf8"
 );
 
-describe("loadLatestSubmittedFinancialsByYear", () => {
-  it("reads submitted revisions and live non-draft application financials, newest first", () => {
-    expect(source).toContain("application: { issuer_organization_id: issuerOrganizationId }");
-    expect(source).toContain('orderBy: [{ submitted_at: "desc" }, { created_at: "desc" }]');
-    expect(source).toContain("indexLatestSubmittedFinancialsByYear");
-    expect(source).toContain("indexResolvedApplicationFinancials");
-    expect(source).toContain("prisma.application.findMany");
-    expect(source).toContain('status: { not: "DRAFT" }');
+describe("loadIssuerSubmittedFinancialYears", () => {
+  it("reads org-scoped application revisions only and indexes them per FY", () => {
+    expect(source).toContain("export async function loadIssuerSubmittedFinancialYears");
+    expect(source).toContain("prisma.applicationRevision.findMany");
+    expect(source).toContain(
+      "where: { application: { issuer_organization_id: issuerOrganizationId } }"
+    );
+    expect(source).toContain("indexIssuerSubmittedFinancialYears");
+    for (const column of [
+      "id: true",
+      "application_id: true",
+      "review_cycle: true",
+      "submitted_at: true",
+      "snapshot: true",
+    ]) {
+      expect(source).toContain(column);
+    }
+    expect(source).not.toContain("prisma.application.findMany");
+    expect(source).not.toContain("updated_at:");
+    expect(source).not.toContain("status:");
+    expect(source).not.toContain("financial_statements: true");
     expect(source).not.toContain("issuerOrganizationFinancialStatement");
-    expect(source).toContain("select: { snapshot: true }");
-    expect(source).toContain("financial_statements: true");
+    expect(source).not.toContain("ctosReport");
   });
 
   it("does not change the CTOS parser or 6-month tab helper", () => {

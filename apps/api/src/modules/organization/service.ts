@@ -25,7 +25,7 @@ import {
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
-import { loadLatestSubmittedFinancialsByYear } from "../applications/submitted-financials-by-year";
+import { loadIssuerSubmittedFinancialYears } from "../applications/submitted-financials-by-year";
 import {
   CognitoIdentityProviderClient,
   AdminUpdateUserAttributesCommand,
@@ -78,6 +78,7 @@ import {
   calculateRegTankVerifyLinkExpiresAt,
   resolvePersonRenewedVerifyLink,
   getRegTankVerifyLinkRequestId,
+  type IssuerSubmittedFinancialYear,
 } from "@cashsouk/types";
 import { buildDirectorShareholderPeopleListWithMaster } from "../organization-profile/load-master-parties-for-people";
 import { writeOrganizationPartyEmail } from "../organization-profile/person-email";
@@ -3238,10 +3239,11 @@ export class OrganizationService {
   }
 
   /**
-   * Latest issuer organization financial-statement history (submit/resubmit merge),
-   * plus latest org CTOS `financials_json` (read-only evidence; not written back to master).
-   * Year-amount prefill uses CTOS first, then submitted application revisions for the same FY.
-   * Org JSON is not a year-amount prefill fallback; it may still supply a future FYE date.
+   * Issuer financial-statement seed data.
+   * - `financial_statements`: org master JSON, used only to seed a future FYE date.
+   * - `ctos_financials`: latest org CTOS `financials_json` (read-only evidence).
+   * - `submitted_financial_years`: latest issuer User Input per FY from submitted revisions only.
+   * Never returns Admin Input, CTOS gap fills, or admin supplements.
    *
    * Access is restricted to the organization owner / members.
    */
@@ -3249,16 +3251,9 @@ export class OrganizationService {
     userId: string,
     organizationId: string
   ): Promise<{
-    financial_statements: unknown | null;
+    financial_statements: { questionnaire: unknown } | null;
     ctos_financials: unknown | null;
-    submitted_by_year: Record<string, Record<string, unknown>>;
-    admin_input_by_year: Record<string, Record<string, unknown>>;
-    ctos_gap_fills_by_year: Record<string, Record<string, unknown>>;
-    user_edited_keys_by_year: Record<string, string[]>;
-    admin_supplements_by_year: Record<string, Record<string, unknown>>;
-    source_application_id: string | null;
-    source_application_revision_id: string | null;
-    updated_at: Date | null;
+    submitted_financial_years: Record<string, IssuerSubmittedFinancialYear>;
   }> {
     // Verify access (owner or member).
     const issuerOrg = await prisma.issuerOrganization.findUnique({
@@ -3280,35 +3275,34 @@ export class OrganizationService {
       }
     }
 
-    const [latest, ctos, submittedByYear] = await Promise.all([
+    const [latest, ctos, submittedFinancialYears] = await Promise.all([
       prisma.issuerOrganizationFinancialStatement.findUnique({
         where: { issuer_organization_id: organizationId },
-        select: {
-          financial_statements: true,
-          source_application_id: true,
-          source_application_revision_id: true,
-          updated_at: true,
-        },
+        select: { financial_statements: true },
       }),
       prisma.ctosReport.findFirst({
         where: { issuer_organization_id: organizationId, subject_ref: null },
         orderBy: { fetched_at: "desc" },
         select: { financials_json: true },
       }),
-      loadLatestSubmittedFinancialsByYear(organizationId),
+      loadIssuerSubmittedFinancialYears(organizationId),
     ]);
 
+    // Issuer only needs the FYE seed; org JSON also carries Admin-written keys that must never reach the issuer.
+    const orgJson = latest?.financial_statements;
+    const orgQuestionnaire =
+      orgJson && typeof orgJson === "object" && !Array.isArray(orgJson)
+        ? (orgJson as Record<string, unknown>).questionnaire
+        : undefined;
+    const orgFinancialStatements =
+      orgQuestionnaire && typeof orgQuestionnaire === "object" && !Array.isArray(orgQuestionnaire)
+        ? { questionnaire: orgQuestionnaire as unknown }
+        : null;
+
     return {
-      financial_statements: latest?.financial_statements ?? null,
+      financial_statements: orgFinancialStatements,
       ctos_financials: ctos?.financials_json ?? null,
-      submitted_by_year: submittedByYear.submittedByYear,
-      admin_input_by_year: submittedByYear.adminInputByYear,
-      ctos_gap_fills_by_year: submittedByYear.ctosGapFillsByYear,
-      user_edited_keys_by_year: submittedByYear.userEditedKeysByYear,
-      admin_supplements_by_year: submittedByYear.ctosGapFillsByYear,
-      source_application_id: latest?.source_application_id ?? null,
-      source_application_revision_id: latest?.source_application_revision_id ?? null,
-      updated_at: latest?.updated_at ?? null,
+      submitted_financial_years: submittedFinancialYears,
     };
   }
 

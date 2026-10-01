@@ -1,4 +1,5 @@
 import type {
+  IssuerSubmittedFinancialYear,
   ApiResponse,
   ApiError,
   SupportChatIdentity,
@@ -728,16 +729,10 @@ export class ApiClient {
     organizationId: string
   ): Promise<
     | ApiResponse<{
-        financial_statements: unknown | null;
+        financial_statements: { questionnaire: unknown } | null;
         ctos_financials: unknown | null;
-        submitted_by_year?: Record<string, Record<string, unknown>>;
-        admin_input_by_year?: Record<string, Record<string, unknown>>;
-        ctos_gap_fills_by_year?: Record<string, Record<string, unknown>>;
-        user_edited_keys_by_year?: Record<string, string[]>;
-        admin_supplements_by_year?: Record<string, Record<string, unknown>>;
-        source_application_id: string | null;
-        source_application_revision_id: string | null;
-        updated_at: string | null;
+        /** Latest issuer-submitted User Input per FY, with per-FY source metadata. */
+        submitted_financial_years: Record<string, IssuerSubmittedFinancialYear>;
       }>
     | ApiError
   > {

@@ -31,10 +31,12 @@ describe("Issuer organisation profile copy", () => {
     expect(financials).toContain("ProfileFinancialHistory");
     expect(financials).toContain("Financial history from submitted financing applications.");
     expect(financials).not.toContain("Enter or update figures");
-    expect(financials).toContain("effectiveFinancialHistoryEntries");
-    expect(financials).toContain("ctosFinancials: query.data?.ctos_financials");
-    expect(financials).toContain("userByYear: query.data?.submitted_by_year");
-    expect(financials).toContain("adminInputByYear: query.data?.admin_input_by_year");
+    expect(financials).toContain(
+      "issuerFinancialProfileEntries(query.data?.submitted_financial_years)"
+    );
+    expect(financials).not.toContain("effectiveFinancialHistoryEntries");
+    expect(financials).not.toContain("ctos_financials");
+    expect(financials).not.toContain("admin_input_by_year");
     expect(financials).not.toContain("unauditedYearEntries");
     expect(financials).not.toContain("Complete financials");
     expect(financials).not.toContain("required fields missing");

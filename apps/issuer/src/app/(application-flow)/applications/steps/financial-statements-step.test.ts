@@ -68,9 +68,8 @@ describe("issuer application Financial Statements step", () => {
   it("does not use profile values as a year-amount prefill fallback", () => {
     expect(source).toContain("buildApplicationFinancialPrefillByYear");
     expect(source).toContain("year amounts are not copied from profile");
-    expect(source).toContain("submittedByYear: prefillSubmittedByYear");
-    expect(source).toContain("adminInputByYear: prefillAdminInputByYear");
-    expect(source).toContain("ctosGapFillsByYear: prefillCtosGapFillsByYear");
+    expect(source).toContain("issuerSubmittedByYear: prefillIssuerSubmittedByYear");
+    expect(source).toContain("ctosFinancials: prefillCtos");
     expect(source).toContain(
       "Previous financial year auto-filled from company records or a previous financing"
     );
@@ -119,9 +118,11 @@ describe("issuer application Financial Statements step", () => {
   });
 
   it("seeds new-application org FYE only from the live window, not shape-only history", () => {
-    expect(source).toContain("newApplicationOrgPrefillFinancialYearEnd(orgSaved.questionnaire)");
+    expect(source).toContain("newApplicationOrgPrefillFinancialYearEnd(\n          latest?.financial_statements?.questionnaire\n        )");
     expect(source).toContain("setPrefillCtos(latest?.ctos_financials ?? null)");
-    expect(source).toContain("setPrefillSubmittedByYear(latest?.submitted_by_year ?? {})");
+    expect(source).toContain(
+      "setPrefillIssuerSubmittedByYear(issuerSubmittedBlocksByYear(latest?.submitted_financial_years))"
+    );
     expect(source).toContain("questionnaire: { financial_year_end: prefillFye }");
     const orgPrefillStart = source.indexOf("Org JSON may seed FYE only when it is still inside the live window");
     const orgPrefillEnd = source.indexOf("Financial step initialized (v2 saved / blank / auto-prefill attempted)");
@@ -130,6 +131,32 @@ describe("issuer application Financial Statements step", () => {
     const orgPrefillBlock = source.slice(orgPrefillStart, orgPrefillEnd);
     expect(orgPrefillBlock).not.toContain("parseFinancialStatementsQuestionnaireShape");
     expect(orgPrefillBlock).not.toContain("qNorm?.financial_year_end ?? qShape?.financial_year_end");
+  });
+
+  it("prefills only from raw CTOS or issuer-submitted User Input, never Admin values", () => {
+    expect(source).toContain("issuerSubmittedBlocksByYear");
+    for (const removed of [
+      "admin_input_by_year",
+      "ctos_gap_fills_by_year",
+      "user_edited_keys_by_year",
+      "admin_supplements_by_year",
+      "submitted_by_year",
+      "previous_admin",
+      "fieldSources",
+      "adminInputByYear",
+      "ctosGapFillsByYear",
+      "userEditedKeysByYear",
+      "orgFinancialStatements",
+      "prefillIncludesAdminValues",
+      "previous Admin Input",
+    ]) {
+      expect(source).not.toContain(removed);
+    }
+  });
+
+  it("never reapplies prefill once the application has saved financial statements", () => {
+    expect(source).toContain("const applyPrefill = prefillEnabled && !hasV2FinancialStatements");
+    expect(source).toContain("const built = applyPrefill");
   });
 
   it("reports a general continue hint for the first incomplete required year", () => {
