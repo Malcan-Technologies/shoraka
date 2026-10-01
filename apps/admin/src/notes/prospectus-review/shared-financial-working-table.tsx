@@ -107,6 +107,16 @@ export function ProspectusSharedFinancialWorkingTable({
                             showDot={false}
                           />
                         ) : null}
+                        {header.sourceType === "ADMIN_INPUT" &&
+                        (header.statementType === "AUDITED" ||
+                          header.statementType === "NOT_AUDITED") ? (
+                          <StatusBadge
+                            size="sm"
+                            status="neutral"
+                            label={header.statementType === "AUDITED" ? "Audited" : "Not audited"}
+                            showDot={false}
+                          />
+                        ) : null}
                       </div>
                     ) : null}
                   </div>
