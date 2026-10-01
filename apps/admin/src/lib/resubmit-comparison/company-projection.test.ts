@@ -95,4 +95,47 @@ describe("projectCompanyComparison", () => {
     const after = app({ org: { name: null, corporate_onboarding_data: { basicInfo: {} } } });
     expect(companyComparisonHasChanges(before, after)).toBe(false);
   });
+
+  describe("SSM No source (same fall-through as the admin organization detail API)", () => {
+    function withBasicInfo(basicInfo: Record<string, unknown>): ReviewApplicationView {
+      return app({
+        org: {
+          corporate_onboarding_data: {
+            basicInfo: { businessName: "Acme Sdn Bhd", ...basicInfo },
+          },
+        },
+      });
+    }
+    const ssmRow = (before: ReviewApplicationView, after: ReviewApplicationView) =>
+      projectCompanyComparison(before, after)[0]!.rows.find((r) => r.key === "ssm_no")!;
+
+    it("only ssmRegistrationNumber present shows the value", () => {
+      const a = withBasicInfo({ ssmRegistrationNumber: "202501998877" });
+      expect(ssmRow(a, a)).toMatchObject({ before: "202501998877", after: "202501998877" });
+    });
+
+    it("both keys present: ssmRegisterNumber wins", () => {
+      const a = withBasicInfo({ ssmRegisterNumber: "111", ssmRegistrationNumber: "222" });
+      expect(ssmRow(a, a)).toMatchObject({ after: "111" });
+    });
+
+    it("empty ssmRegisterNumber falls through to ssmRegistrationNumber", () => {
+      const a = withBasicInfo({ ssmRegisterNumber: "", ssmRegistrationNumber: "202501998877" });
+      expect(ssmRow(a, a)).toMatchObject({ after: "202501998877" });
+    });
+
+    it("same SSM stored under different key names Before/After is not a Diff", () => {
+      const before = withBasicInfo({ ssmRegisterNumber: "202501998877" });
+      const after = withBasicInfo({ ssmRegistrationNumber: "202501998877" });
+      expect(comparisonRowDiffers(ssmRow(before, after))).toBe(false);
+      expect(companyComparisonHasChanges(before, after)).toBe(false);
+    });
+
+    it("different SSM values make only the SSM row differ and Company Diff", () => {
+      const before = withBasicInfo({ ssmRegistrationNumber: "202501998877" });
+      const after = withBasicInfo({ ssmRegistrationNumber: "202501990000" });
+      expect(changedRowLabels(before, after)).toEqual(["SSM No"]);
+      expect(companyComparisonHasChanges(before, after)).toBe(true);
+    });
+  });
 });

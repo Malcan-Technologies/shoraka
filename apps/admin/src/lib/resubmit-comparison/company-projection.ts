@@ -69,9 +69,15 @@ export function companyDisplayFromSnapshot(app: CompanySnapshotApp) {
       : REVIEW_EMPTY_LABEL;
   const entityType =
     formatReviewText(basicInfo?.entityType ?? basicInfo?.entity_type, emptyDash) || REVIEW_EMPTY_LABEL;
+  // Same fall-through as the admin organization detail API (admin/service.ts): stored data may use either key.
   const ssmNo =
-    formatReviewText(basicInfo?.ssmRegisterNumber ?? basicInfo?.ssm_register_number, emptyDash) ||
-    REVIEW_EMPTY_LABEL;
+    formatReviewText(
+      basicInfo?.ssmRegisterNumber ||
+        basicInfo?.ssmRegistrationNumber ||
+        basicInfo?.ssm_register_number ||
+        basicInfo?.ssm_registration_number,
+      emptyDash
+    ) || REVIEW_EMPTY_LABEL;
   const industry = formatReviewText(basicInfo?.industry, emptyDash) || REVIEW_EMPTY_LABEL;
   const numberOfEmployees =
     formatReviewText(basicInfo?.numberOfEmployees ?? basicInfo?.number_of_employees, emptyDash) ||
