@@ -5,6 +5,7 @@ import {
   documentsComparisonHasChanges,
   projectDocumentsComparison,
   projectDocumentsComparisonWithSlots,
+  unmatchedDocumentAmendmentRemarks,
 } from "./documents-projection";
 
 type FileJson = { s3_key: string; file_name: string; file_size?: number; uploaded_at?: string };
@@ -247,5 +248,130 @@ describe("amendmentRemarksForDocumentRow", () => {
 
   it("returns nothing without remarks", () => {
     expect(amendmentRemarksForDocumentRow(undefined, "supporting_documents:legal_docs:0:x")).toEqual([]);
+  });
+});
+
+describe("projectDocumentsComparison — category matching", () => {
+  const custom = (name: string, title: string, s3Key: string): CategoryJson => ({
+    name,
+    documents: [{ title, files: [{ s3_key: s3Key, file_name: `${title}.pdf` }] }],
+  });
+  const bank = () => custom("Bank Statements", "Jan", "k/jan");
+  const licences = () => custom("Licences", "Trading", "k/trading");
+  const tax = () => custom("Tax", "Form C", "k/form-c");
+
+  it("inserting a custom category pairs the others by label, not position", () => {
+    const before = app([bank(), licences()]);
+    const after = app([tax(), bank(), licences()]);
+    const blocks = projectDocumentsComparisonWithSlots(before, after);
+    expect(blocks.map((b) => b.title)).toEqual(["Tax", "Bank Statements", "Licences"]);
+    expect(blocks.map((b) => b.id)).toEqual([
+      "custom:tax#0",
+      "custom:bank statements#0",
+      "custom:licences#0",
+    ]);
+    const [taxBlock, bankBlock, licBlock] = blocks;
+    expect(bankBlock!.rows.some(comparisonRowDiffers)).toBe(false);
+    expect(licBlock!.rows.some(comparisonRowDiffers)).toBe(false);
+    expect(taxBlock!.rows).toHaveLength(1);
+    expect(taxBlock!.rows[0]).toMatchObject({ before: [], after: [{ s3Key: "k/form-c" }] });
+    // Lookups use buildCategoryGroups keys: requirement badges after's, remarks before's item key.
+    expect(taxBlock!).toMatchObject({ afterCategoryKey: "cat_0", beforeCategoryKey: null });
+    expect(bankBlock!).toMatchObject({ afterCategoryKey: "cat_1", beforeCategoryKey: "cat_0" });
+    expect(bankBlock!.rowSlots).toEqual([
+      { requirementSlotIndex: 0, remarkScopeKey: "supporting_documents:cat_0:0:Jan" },
+    ]);
+  });
+
+  it("reordered custom categories with identical content have no Diff; order follows after", () => {
+    const before = app([bank(), licences()]);
+    const after = app([licences(), bank()]);
+    expect(projectDocumentsComparison(before, after).map((b) => b.title)).toEqual([
+      "Licences",
+      "Bank Statements",
+    ]);
+    expect(documentsComparisonHasChanges(before, after)).toBe(false);
+  });
+
+  it("custom labels match trimmed and case-insensitively; after label is shown", () => {
+    const before = app([custom(" bank statements ", "Jan", "k/jan")]);
+    const after = app([bank()]);
+    const blocks = projectDocumentsComparison(before, after);
+    expect(blocks.map((b) => b.title)).toEqual(["Bank Statements"]);
+    expect(documentsComparisonHasChanges(before, after)).toBe(false);
+  });
+
+  it("duplicate custom labels pair by occurrence among same-label categories", () => {
+    const before = app([custom("Misc", "A", "k/a"), licences(), custom("Misc", "B", "k/b")]);
+    const after = app([tax(), custom("Misc", "A", "k/a"), custom("Misc", "B", "k/b2")]);
+    const blocks = projectDocumentsComparisonWithSlots(before, after);
+    expect(blocks.map((b) => b.id)).toEqual([
+      "custom:tax#0",
+      "custom:misc#0",
+      "custom:misc#1",
+      "custom:licences#0",
+    ]);
+    const ids = blocks.map((b) => b.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(blocks[1]!.rows.some(comparisonRowDiffers)).toBe(false);
+    expect(blocks[2]!.rows.filter(comparisonRowDiffers).map((r) => r.label)).toEqual(["B"]);
+    expect(blocks[3]!).toMatchObject({ afterCategoryKey: null, beforeCategoryKey: "cat_1" });
+  });
+
+  it("standard categories keep their standard key as block id and pair regardless of position", () => {
+    const before = app([tax(), ...base()]);
+    const after = app([...base()].reverse());
+    const blocks = projectDocumentsComparisonWithSlots(before, after);
+    expect(blocks.map((b) => b.id)).toEqual(["financial_docs", "legal_docs", "custom:tax#0"]);
+    expect(blocks[0]!).toMatchObject({ afterCategoryKey: "financial_docs", beforeCategoryKey: "financial_docs" });
+    expect(blocks.slice(0, 2).some((b) => b.rows.some(comparisonRowDiffers))).toBe(false);
+  });
+});
+
+describe("unmatchedDocumentAmendmentRemarks", () => {
+  const before = app(base());
+  const after = app(base());
+
+  it("a remark matching a before slot is shown on its row, not returned as unmatched", () => {
+    const remarks = [
+      { scope: "item", scope_key: "supporting_documents:legal_docs:0:SSM_Profile", remark: "Re-upload SSM" },
+    ];
+    const legal = projectDocumentsComparisonWithSlots(before, after).find((b) => b.id === "legal_docs")!;
+    expect(amendmentRemarksForDocumentRow(remarks, legal.rowSlots[0]!.remarkScopeKey)).toEqual([
+      { remark: "Re-upload SSM" },
+    ]);
+    expect(unmatchedDocumentAmendmentRemarks(remarks, before, after)).toEqual([]);
+  });
+
+  it("a remark whose slot or category is missing from before is returned (and no row shows it)", () => {
+    const remarks = [
+      { scope: "item", scope_key: "supporting_documents:legal_docs:5:Gone", remark: "Out of range" },
+      { scope: "item", scope_key: "supporting_documents:compliance_docs:0:X", remark: "No category" },
+    ];
+    expect(unmatchedDocumentAmendmentRemarks(remarks, before, after)).toEqual(remarks);
+    const shownOnRows = projectDocumentsComparisonWithSlots(before, after).flatMap((b) =>
+      b.rowSlots.flatMap((slot) => amendmentRemarksForDocumentRow(remarks, slot.remarkScopeKey))
+    );
+    expect(shownOnRows).toEqual([]);
+  });
+
+  it("a remark on a slot only present after (no before slot) is unmatched", () => {
+    const afterWithNew = base();
+    afterWithNew[0]!.documents.push({ title: "Directors IC", files: [{ s3_key: "k/ic", file_name: "ic.pdf" }] });
+    const remarks = [{ scope: "item", scope_key: "supporting_documents:legal_docs:1:Directors_IC", remark: "x" }];
+    expect(unmatchedDocumentAmendmentRemarks(remarks, before, app(afterWithNew))).toEqual(remarks);
+  });
+
+  it("section-level and non-document remarks are not returned", () => {
+    const remarks = [
+      { scope: "section", scope_key: "supporting_documents", remark: "Section remark" },
+      { scope: "item", scope_key: "business_details:why", remark: "Other tab" },
+    ];
+    expect(unmatchedDocumentAmendmentRemarks(remarks, before, after)).toEqual([]);
+  });
+
+  it("no remarks → []", () => {
+    expect(unmatchedDocumentAmendmentRemarks(undefined, before, after)).toEqual([]);
+    expect(unmatchedDocumentAmendmentRemarks([], before, after)).toEqual([]);
   });
 });

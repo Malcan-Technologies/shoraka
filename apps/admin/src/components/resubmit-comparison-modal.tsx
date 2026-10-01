@@ -39,7 +39,10 @@ import {
 } from "@/lib/resubmit-comparison/modal-tabs";
 import { companyComparisonHasChanges } from "@/lib/resubmit-comparison/company-projection";
 import { businessComparisonHasChanges } from "@/lib/resubmit-comparison/business-projection";
-import { documentsComparisonHasChanges } from "@/lib/resubmit-comparison/documents-projection";
+import {
+  documentsComparisonHasChanges,
+  unmatchedDocumentAmendmentRemarks,
+} from "@/lib/resubmit-comparison/documents-projection";
 import { projectOfferAcceptanceComparison } from "@/lib/resubmit-comparison/offer-acceptance-projection";
 import { stagesHaveChanges } from "@/lib/resubmit-comparison/projection-types";
 import { diffIssuerFinancialRevisionSnapshots, formatApplicationReference } from "@cashsouk/types";
@@ -184,6 +187,15 @@ export function ResubmitComparisonModal({
 
   const amendmentRemarks = data?.amendment_remarks;
 
+  /** Document item remarks no comparison row shows (slot/category gone) — surfaced in the Documents tab bar. */
+  const unmatchedDocumentRemarks = React.useMemo(
+    () =>
+      comparisonBeforeApp && comparisonAfterApp
+        ? unmatchedDocumentAmendmentRemarks(amendmentRemarks, comparisonBeforeApp, comparisonAfterApp)
+        : [],
+    [amendmentRemarks, comparisonBeforeApp, comparisonAfterApp]
+  );
+
   const [resubmitTabId, setResubmitTabId] = React.useState(RESUBMIT_FINANCIAL_TAB_ID);
   React.useEffect(() => {
     if (!open || isLoading || effectiveTabDescriptors.length === 0) return;
@@ -296,6 +308,11 @@ export function ResubmitComparisonModal({
                         reviewSection={descriptor.reviewSection}
                         reviewSections={resubmitTabSections(descriptor)}
                         remarks={amendmentRemarks}
+                        additionalRemarks={
+                          descriptor.reviewSection === "supporting_documents"
+                            ? unmatchedDocumentRemarks
+                            : undefined
+                        }
                       />
                       <SectionContent
                         descriptor={descriptor}

@@ -283,7 +283,11 @@ export function isBusinessGuarantorBlock(block: ComparisonBlock): boolean {
   return block.id.startsWith(BUSINESS_GUARANTOR_BLOCK_PREFIX);
 }
 
-/** Card subtitle like live: the later side's name when that guarantor has one, else the earlier side's. */
+/**
+ * Card subtitle: the After guarantor's name when an After guarantor exists in this slot (blank →
+ * "", the card title "Guarantor N" stands alone — never another guarantor's Before name). The
+ * Before name only when the After guarantor is absent (removed card describes the removed record).
+ */
 export function businessGuarantorBlockSubtitle(block: ComparisonBlock): string {
   const typeRow = block.rows.find((r) => r.key === GUARANTOR_ROW_KEYS.type);
   if (typeRow?.kind !== "text") return "";
@@ -301,7 +305,8 @@ export function businessGuarantorBlockSubtitle(block: ComparisonBlock): string {
     const name = value == null || value === REVIEW_EMPTY_LABEL ? "" : value.trim();
     return name === "" ? null : name;
   };
-  return nameFor("after") ?? nameFor("before") ?? "";
+  const afterPresent = typeRow.after != null && typeRow.after !== ABSENT;
+  return (afterPresent ? nameFor("after") : nameFor("before")) ?? "";
 }
 
 export function projectBusinessComparison(

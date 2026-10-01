@@ -2,9 +2,16 @@
  * SECTION: Documents tab resubmit comparison projection
  * WHY: Same rows render the Documents comparison and decide its Diff badge.
  * INPUT: Before / after review apps built from revision snapshots
- * OUTPUT: One block per category (block id = category key, payload order) with one files row
- *         per document slot, plus each row's workflow slot index for requirement badges
- * WHERE USED: SupportingDocumentsComparisonLayout, resubmit comparison modal badge
+ * OUTPUT: One block per category (after payload order, then before-only categories) with one files
+ *         row per document slot, plus each row's workflow slot index for requirement badges
+ * WHERE USED: SupportingDocumentsComparisonLayout, resubmit comparison modal badge + Documents
+ *             tab Remark bar (unmatched item remarks)
+ *
+ * Category matching: standard categories pair by their standard key; custom categories (category
+ * key cat_<payload index>, which shifts on insert/reorder) pair by normalized label (trim,
+ * case-insensitive). Duplicate identities pair by occurrence, never by array position. Block id =
+ * standard key (or "<key>#<n>" for a repeat), or "custom:<label>#<n>"; the before/after group
+ * category keys travel on the block for requirement / facility-lock lookups.
  *
  * Slot matching: before/after slots pair by slot title (workflow document title; duplicates pair
  * by occurrence), never by list position, so a removed or reordered slot cannot shift its
@@ -24,6 +31,7 @@ import {
   type ComparisonFileRef,
   type ComparisonRow,
 } from "./projection-types";
+import { SUPPORTING_DOC_CATEGORY_KEYS } from "@cashsouk/types";
 import { documentAmendmentScopeMatchesRow } from "@/lib/document-amendment-scope-match";
 import {
   buildCategoryGroups,
@@ -40,13 +48,43 @@ function docFilesToRefs(files: readonly DocFile[]): ComparisonFileRef[] {
   }));
 }
 
+const STANDARD_CATEGORY_KEYS = new Set<string>(SUPPORTING_DOC_CATEGORY_KEYS);
+
+/**
+ * Stable identity per category group: standard key, else "custom:<normalized label>"; repeats of
+ * the same identity get "#<occurrence>" (standard first occurrence keeps the bare key).
+ */
+function categoryIdentities(groups: readonly CategoryGroup[]): string[] {
+  const seen = new Map<string, number>();
+  return groups.map((g) => {
+    const isStandard = STANDARD_CATEGORY_KEYS.has(g.categoryKey);
+    const base = isStandard
+      ? g.categoryKey
+      : `custom:${g.categoryLabel.trim().toLowerCase()}`;
+    const occurrence = seen.get(base) ?? 0;
+    seen.set(base, occurrence + 1);
+    if (isStandard) return occurrence === 0 ? base : `${base}#${occurrence}`;
+    return `${base}#${occurrence}`;
+  });
+}
+
+type MatchedCategory = { id: string; before?: CategoryGroup; after?: CategoryGroup };
+
 /** Live DocumentList shows the current (after) payload order; categories only in before follow in their order. */
-function categoryKeysInPayloadOrder(before: CategoryGroup[], after: CategoryGroup[]): string[] {
-  const keys: string[] = [];
-  for (const g of [...after, ...before]) {
-    if (!keys.includes(g.categoryKey)) keys.push(g.categoryKey);
-  }
-  return keys;
+function matchCategories(before: CategoryGroup[], after: CategoryGroup[]): MatchedCategory[] {
+  const beforeIds = categoryIdentities(before);
+  const afterIds = categoryIdentities(after);
+  const beforeById = new Map(beforeIds.map((id, index) => [id, before[index]!]));
+  const afterIdSet = new Set(afterIds);
+  const matched: MatchedCategory[] = after.map((g, index) => ({
+    id: afterIds[index]!,
+    before: beforeById.get(afterIds[index]!),
+    after: g,
+  }));
+  before.forEach((g, index) => {
+    if (!afterIdSet.has(beforeIds[index]!)) matched.push({ id: beforeIds[index]!, before: g });
+  });
+  return matched;
 }
 
 /**
@@ -107,21 +145,34 @@ export type DocumentsComparisonRowSlot = {
 export type DocumentsComparisonBlock = ComparisonBlock & {
   /** Same order and length as rows. */
   rowSlots: DocumentsComparisonRowSlot[];
+  /**
+   * The after group's categoryKey (buildCategoryGroups) for requirement badges — the step config
+   * is the after snapshot's. null for before-only categories: no requirement badges.
+   */
+  afterCategoryKey: string | null;
+  /** The before group's categoryKey; null for after-only categories. */
+  beforeCategoryKey: string | null;
 };
+
+type AmendmentRemark = { scope: string; scope_key: string; remark: string };
+
+/** Single matching rule for rows and the unmatched list: item-level supporting_documents remark vs a before slot key. */
+function remarkMatchesDocumentRow(r: AmendmentRemark, remarkScopeKey: string): boolean {
+  return (
+    r.scope === "item" &&
+    r.scope_key.startsWith("supporting_documents:") &&
+    documentAmendmentScopeMatchesRow(r.scope_key, remarkScopeKey)
+  );
+}
 
 /** Item-level supporting_documents remarks for one row; matches only the row's before slot. */
 export function amendmentRemarksForDocumentRow(
-  remarks: ReadonlyArray<{ scope: string; scope_key: string; remark: string }> | undefined,
+  remarks: ReadonlyArray<AmendmentRemark> | undefined,
   remarkScopeKey: string | null
 ): Array<{ remark: string }> {
   if (!remarks || remarkScopeKey == null) return [];
   return remarks
-    .filter(
-      (r) =>
-        r.scope === "item" &&
-        r.scope_key.startsWith("supporting_documents:") &&
-        documentAmendmentScopeMatchesRow(r.scope_key, remarkScopeKey)
-    )
+    .filter((r) => remarkMatchesDocumentRow(r, remarkScopeKey))
     .map((r) => ({ remark: r.remark }));
 }
 
@@ -132,30 +183,51 @@ export function projectDocumentsComparisonWithSlots(
 ): DocumentsComparisonBlock[] {
   const beforeGroups = buildCategoryGroups(beforeApp.supporting_documents);
   const afterGroups = buildCategoryGroups(afterApp.supporting_documents);
-  const beforeByKey = new Map(beforeGroups.map((g) => [g.categoryKey, g]));
-  const afterByKey = new Map(afterGroups.map((g) => [g.categoryKey, g]));
 
-  return categoryKeysInPayloadOrder(beforeGroups, afterGroups).map((categoryKey) => {
-    const bG = beforeByKey.get(categoryKey);
-    const aG = afterByKey.get(categoryKey);
+  return matchCategories(beforeGroups, afterGroups).map(({ id, before: bG, after: aG }) => {
     const slots = matchSlots(bG?.items ?? [], aG?.items ?? []);
     const rows: ComparisonRow[] = slots.map(({ before, after, beforeIndex, afterIndex }) => ({
-      key: `${categoryKey}:b${beforeIndex ?? "-"}:a${afterIndex ?? "-"}`,
+      key: `${id}:b${beforeIndex ?? "-"}:a${afterIndex ?? "-"}`,
       label: after?.label ?? before?.label ?? `Document ${(afterIndex ?? beforeIndex ?? 0) + 1}`,
       kind: "files",
       before: docFilesToRefs(before?.files ?? []),
       after: docFilesToRefs(after?.files ?? []),
     }));
     return {
-      id: categoryKey,
-      title: aG?.categoryLabel ?? bG?.categoryLabel ?? categoryKey,
+      id,
+      title: aG?.categoryLabel ?? bG?.categoryLabel ?? id,
       rows,
       rowSlots: slots.map((slot) => ({
         requirementSlotIndex: slot.afterIndex,
         remarkScopeKey: slot.before?.key ?? null,
       })),
+      afterCategoryKey: aG?.categoryKey ?? null,
+      beforeCategoryKey: bG?.categoryKey ?? null,
     };
   });
+}
+
+/**
+ * Item-level supporting_documents remarks that match no comparison row's before slot (slot or
+ * category gone from the before payload). Same predicate as amendmentRemarksForDocumentRow, so a
+ * remark is shown either on a row or in the Documents tab Remark bar — never both, never neither.
+ * Section-level remarks are not returned (the bar shows those itself). API order kept.
+ */
+export function unmatchedDocumentAmendmentRemarks<R extends AmendmentRemark>(
+  remarks: ReadonlyArray<R> | undefined,
+  beforeApp: ReviewApplicationView,
+  afterApp: ReviewApplicationView
+): R[] {
+  if (!remarks?.length) return [];
+  const rowKeys = projectDocumentsComparisonWithSlots(beforeApp, afterApp).flatMap((b) =>
+    b.rowSlots.flatMap((s) => (s.remarkScopeKey == null ? [] : [s.remarkScopeKey]))
+  );
+  return remarks.filter(
+    (r) =>
+      r.scope === "item" &&
+      r.scope_key.startsWith("supporting_documents:") &&
+      !rowKeys.some((key) => remarkMatchesDocumentRow(r, key))
+  );
 }
 
 export function projectDocumentsComparison(

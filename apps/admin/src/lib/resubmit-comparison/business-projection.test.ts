@@ -129,13 +129,38 @@ describe("projectBusinessComparison — layout", () => {
     expect(businessComparisonHasChanges(app(), app())).toBe(false);
   });
 
-  it("guarantor subtitle falls back to the before name when the after name is blank", () => {
+  it("guarantor subtitle never borrows the before name when the after guarantor has a blank name", () => {
     const after = app({ guarantors: [guarantorEntry({ name: "  " }), companyGuarantorEntry({ business_name: null })] });
     const blocks = projectBusinessComparison(app(), after);
-    expect(businessGuarantorBlockSubtitle(blocks[1]!)).toBe("Siti Aminah");
-    expect(businessGuarantorBlockSubtitle(blocks[2]!)).toBe("HoldCo Sdn Bhd");
+    expect(businessGuarantorBlockSubtitle(blocks[1]!)).toBe("");
+    expect(businessGuarantorBlockSubtitle(blocks[2]!)).toBe("");
     const bothBlank = projectBusinessComparison(after, after);
     expect(businessGuarantorBlockSubtitle(bothBlank[1]!)).toBe("");
+  });
+
+  it("guarantor subtitle: different kind in the slot with a blank after name shows no before name", () => {
+    const before = app({ guarantors: [companyGuarantorEntry({ position: 0 })] });
+    const after = app({ guarantors: [guarantorEntry({ name: "" })] });
+    const [, block] = projectBusinessComparison(before, after);
+    expect(block!.id).toBe("guarantor:0");
+    expect(businessGuarantorBlockSubtitle(block!)).not.toContain("HoldCo");
+    expect(businessGuarantorBlockSubtitle(block!)).toBe("");
+  });
+
+  it("guarantor subtitle: removed guarantor card keeps the before name", () => {
+    const after = app({ guarantors: [guarantorEntry()] });
+    const blocks = projectBusinessComparison(app(), after);
+    expect(blocks[2]!.id).toBe("guarantor:1");
+    expect(businessGuarantorBlockSubtitle(blocks[2]!)).toBe("HoldCo Sdn Bhd");
+  });
+
+  it("guarantor subtitle: a named after guarantor shows the after name", () => {
+    const after = app({
+      guarantors: [guarantorEntry({ name: "Ahmad Ali" }), companyGuarantorEntry({ business_name: "NewCo Bhd" })],
+    });
+    const blocks = projectBusinessComparison(app(), after);
+    expect(businessGuarantorBlockSubtitle(blocks[1]!)).toBe("Ahmad Ali");
+    expect(businessGuarantorBlockSubtitle(blocks[2]!)).toBe("NewCo Bhd");
   });
 
   it("returns no blocks when neither snapshot has business_details or guarantors", () => {

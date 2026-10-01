@@ -430,9 +430,11 @@ export function SupportingDocumentsComparisonLayout({
   return (
     <div className="space-y-2">
       {blocks.map((block) => {
-        const categoryKey = block.id;
+        /** Block id is the pairing identity; lookups use buildCategoryGroups' category keys. */
+        const requirementCategoryKey = block.afterCategoryKey;
+        const lockCategoryKey = block.afterCategoryKey ?? block.beforeCategoryKey;
         return (
-          <Collapsible key={categoryKey} defaultOpen>
+          <Collapsible key={block.id} defaultOpen>
             <div className="rounded-xl border">
               <CollapsibleTrigger asChild>
                 <button
@@ -442,7 +444,7 @@ export function SupportingDocumentsComparisonLayout({
                   <ChevronDownIcon className="h-4 w-4 shrink-0 transition-transform group-data-[state=closed]:rotate-[-90deg]" />
                   <DocumentArrowDownIcon className="h-4 w-4 text-muted-foreground shrink-0" />
                   {block.title}
-                  {facilityLockedCategoryKeys.includes(categoryKey) ? (
+                  {lockCategoryKey != null && facilityLockedCategoryKeys.includes(lockCategoryKey) ? (
                     <span className="ml-auto inline-flex items-center gap-1 text-xs font-normal text-muted-foreground">
                       <LockClosedIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
                       Locked at facility
@@ -464,11 +466,11 @@ export function SupportingDocumentsComparisonLayout({
                         key={row.key}
                         row={row}
                         requirementMeta={
-                          requirementSlotIndex == null
+                          requirementSlotIndex == null || requirementCategoryKey == null
                             ? undefined
                             : supportingDocRowRequirementMeta(
                                 supportingDocumentsStepConfig,
-                                categoryKey,
+                                requirementCategoryKey,
                                 requirementSlotIndex
                               )
                         }
