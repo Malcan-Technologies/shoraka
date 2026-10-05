@@ -18,6 +18,7 @@
     "prisma:seed-one-legal-document": "tsx prisma/seed-one-legal-document.ts",
     "prisma:migrate-onboarding": "tsx prisma/migrate-onboarding-logs.ts",
     "cleanup-notifications": "tsx scripts/cleanup-notifications.ts",
+    "cleanup-spurious-acceptance-reset-logs": "tsx scripts/cleanup-spurious-acceptance-reset-logs.ts",
     "seed-notifications": "tsx prisma/seed-notification-types.ts",
     "create-admin": "tsx scripts/create-admin.ts",
     "seed-application-new-contract": "tsx scripts/seed-application-new-contract.ts",

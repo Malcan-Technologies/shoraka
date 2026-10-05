@@ -113,10 +113,10 @@ import {
   isPhaseDeadlineExpired,
   workflowUsesOfferAcceptanceFlow,
   workflowShowsAcceptanceReviewSection,
-  isAcceptanceHubCompleteFromOffer,
   shouldShowAcceptanceDocumentsReviewSection,
   isFacilityOnlyNewContract,
   isInvoiceOnlyFinancingStructure,
+  readFinancingStructureType,
   isCommercialOfferSendUnlocked,
   INHERITED_FACILITY_GUARANTORS_AML_BLOCKED,
   isRegtankIso3166Code,
@@ -202,6 +202,7 @@ import { logApplicationActivity } from "../applications/logs/service";
 import { createApplicationReviewEventRow } from "../applications/logs/review-events";
 import { ActivityPortal, ApplicationLogEventType } from "../applications/logs/types";
 import {
+  isAcceptanceSectionLockedByAcceptedOffer,
   resolveAcceptanceReviewApprovalGate,
   resolveOfferAcceptancePhaseTarget,
 } from "../applications/acceptance-document-review-sync";
@@ -248,6 +249,21 @@ export interface AdminLogContext {
   userAgent?: string | null;
   deviceInfo?: string | null;
 }
+
+type AcceptanceSectionSyncApplication = {
+  acceptance_documents?: unknown;
+  financing_type?: unknown;
+  financing_structure?: unknown;
+  product_version?: number | null;
+  application_reviews?: { section: string; status: string }[];
+  application_review_items?: { item_type: string; item_id: string; status: string }[];
+  contract?: { status?: string | null; offer_details?: unknown } | null;
+  invoices?: Array<{
+    contract_id?: string | null;
+    status?: string | null;
+    offer_details?: unknown;
+  }>;
+};
 
 type OfferAcceptancePhaseSyncApplication = {
   financing_type?: unknown;
@@ -330,6 +346,7 @@ import {
   adminAuditContextFromRequest,
   auditContextFromRequest,
   createOnboardingLogRow,
+  internalAuditContext,
   persistOrganizationUpdateAndOnboardingLogs,
 } from "../../lib/audit";
 
@@ -8102,6 +8119,25 @@ export class AdminService {
     });
   }
 
+  /** Timeline event for the detail-load auto-approve of the Acceptance section (system actor). */
+  private async logAcceptanceAutoApproval(applicationId: string, oldStatus: string): Promise<void> {
+    await logApplicationActivity({
+      userId: null,
+      applicationId,
+      eventType: ApplicationLogEventType.SECTION_REVIEWED_APPROVED,
+      portal: null,
+      remark: "Approved automatically because the offer was accepted",
+      metadata: {
+        scope: "section",
+        scope_key: "acceptance_documents",
+        old_status: oldStatus,
+        new_status: "APPROVED",
+      },
+      context: internalAuditContext(),
+      source: AUDIT_SOURCE.INTERNAL,
+    });
+  }
+
   /**
    * Existing-contract apps inherit contract acceptance from the prior application.
    * Mark acceptance_documents APPROVED when a stale PENDING row exists from older flows.
@@ -8137,12 +8173,14 @@ export class AdminService {
         reviewed_at: new Date(),
       },
     });
+    await this.logAcceptanceAutoApproval(applicationId, existing?.status ?? "PENDING");
   }
 
   /**
    * Signing-only products never create an acceptance_documents review row during
    * doc review. Once the primary offer is accepted, mark the tab APPROVED so the
-   * admin status dot matches the completed signing package.
+   * admin status dot matches the completed signing package. Shares the lock predicate
+   * with syncAcceptanceDocumentsSectionFromItems.
    */
   private async ensureAcceptanceHubReviewApprovedIfOfferComplete(
     repository: AdminRepository,
@@ -8156,7 +8194,7 @@ export class AdminService {
     structureType?: string | null
   ): Promise<void> {
     if (
-      !isAcceptanceHubCompleteFromOffer({
+      !isAcceptanceSectionLockedByAcceptedOffer({
         workflow,
         structureType,
         contractStatus: application.contract?.status ?? null,
@@ -8185,6 +8223,7 @@ export class AdminService {
         reviewed_at: new Date(),
       },
     });
+    await this.logAcceptanceAutoApproval(applicationId, existing?.status ?? "PENDING");
     const reviews = application.application_reviews ?? [];
     const index = reviews.findIndex((review) => review.section === "acceptance_documents");
     if (index >= 0) {
@@ -8441,14 +8480,7 @@ export class AdminService {
   private async syncAcceptanceDocumentsSectionFromItems(
     repository: AdminRepository,
     applicationId: string,
-    application: {
-      acceptance_documents?: unknown;
-      financing_structure?: unknown;
-      application_reviews?: { section: string; status: string }[];
-      application_review_items?: { item_type: string; item_id: string; status: string }[];
-      contract?: { offer_details?: unknown } | null;
-      invoices?: Array<{ contract_id?: string | null; offer_details?: unknown }>;
-    },
+    application: AcceptanceSectionSyncApplication,
     reviewerUserId: string,
     logContext?: AdminLogContext
   ): Promise<void> {
@@ -8471,6 +8503,29 @@ export class AdminService {
     ];
     if (docKeys.length === 0 && partyKeys.length === 0) {
       return;
+    }
+
+    // Once the offer is accepted this row is owned by it (see ensureAcceptanceHubReviewApprovedIfOfferComplete).
+    // Precheck avoids a product lookup when the offer is not accepted.
+    const contractStatus = application.contract?.status ?? null;
+    const offerMayBeAccepted =
+      contractStatus === "APPROVED" ||
+      (application.invoices ?? []).some(
+        (invoice) => !invoice.contract_id && invoice.status === "APPROVED"
+      );
+    if (offerMayBeAccepted) {
+      const workflow = (await this.getReviewSectionPolicy(application)).productWorkflow;
+      const structureType = readFinancingStructureType(application.financing_structure);
+      if (
+        isAcceptanceSectionLockedByAcceptedOffer({
+          workflow,
+          structureType,
+          contractStatus,
+          invoices: application.invoices,
+        })
+      ) {
+        return;
+      }
     }
 
     const reviewRows =
@@ -8535,12 +8590,7 @@ export class AdminService {
   private async syncDocumentDerivedSectionsFromItems(
     repository: AdminRepository,
     applicationId: string,
-    application: {
-      supporting_documents?: unknown;
-      acceptance_documents?: unknown;
-      application_reviews?: { section: string; status: string }[];
-      application_review_items?: { item_type: string; item_id: string; status: string }[];
-    },
+    application: AcceptanceSectionSyncApplication & { supporting_documents?: unknown },
     reviewerUserId: string,
     logContext?: AdminLogContext
   ): Promise<void> {
@@ -8555,13 +8605,7 @@ export class AdminService {
     await this.syncAcceptanceDocumentsSectionFromItems(
       repository,
       applicationId,
-      (afterSupporting ?? application) as {
-        acceptance_documents?: unknown;
-        application_reviews?: { section: string; status: string }[];
-        application_review_items?: { item_type: string; item_id: string; status: string }[];
-        contract?: { offer_details?: unknown } | null;
-        invoices?: Array<{ contract_id?: string | null; offer_details?: unknown }>;
-      },
+      (afterSupporting ?? application) as AcceptanceSectionSyncApplication,
       reviewerUserId,
       logContext
     );
@@ -10518,13 +10562,7 @@ export class AdminService {
           await this.syncAcceptanceDocumentsSectionFromItems(
             repository,
             applicationId,
-            nextApp as {
-              acceptance_documents?: unknown;
-              application_reviews?: { section: string; status: string }[];
-              application_review_items?: { item_type: string; item_id: string; status: string }[];
-              contract?: { offer_details?: unknown } | null;
-              invoices?: Array<{ contract_id?: string | null; offer_details?: unknown }>;
-            },
+            nextApp as AcceptanceSectionSyncApplication,
             reviewerUserId,
             logContext
           );

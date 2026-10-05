@@ -1,4 +1,5 @@
 import {
+  isAcceptanceSectionLockedByAcceptedOffer,
   resolveAcceptanceReviewApprovalGate,
   resolveOfferAcceptancePhaseTarget,
 } from "./acceptance-document-review-sync";
@@ -134,6 +135,75 @@ describe("acceptance-document-review-sync", () => {
           requiredKeyCount: 1,
         })
       ).toBeNull();
+    });
+  });
+
+  describe("isAcceptanceSectionLockedByAcceptedOffer", () => {
+    const signingOnly = [
+      {
+        id: "financing_type_1",
+        config: { signing_packages: { documents: [{ key: "facility", name: "Facility" }] } },
+      },
+    ];
+
+    it("locks an existing-contract drawdown once the contract is APPROVED", () => {
+      expect(
+        isAcceptanceSectionLockedByAcceptedOffer({
+          workflow: signingOnly,
+          structureType: "existing_contract",
+          contractStatus: "APPROVED",
+        })
+      ).toBe(true);
+    });
+
+    it("does not lock an existing-contract drawdown while the contract offer is out", () => {
+      expect(
+        isAcceptanceSectionLockedByAcceptedOffer({
+          workflow: signingOnly,
+          structureType: "existing_contract",
+          contractStatus: "OFFER_SENT",
+        })
+      ).toBe(false);
+    });
+
+    it("locks a new contract on a signing-only product once the contract is APPROVED", () => {
+      expect(
+        isAcceptanceSectionLockedByAcceptedOffer({
+          workflow: signingOnly,
+          structureType: "new_contract",
+          contractStatus: "APPROVED",
+        })
+      ).toBe(true);
+    });
+
+    it("does not lock a new contract while the contract offer is out", () => {
+      expect(
+        isAcceptanceSectionLockedByAcceptedOffer({
+          workflow: signingOnly,
+          structureType: "new_contract",
+          contractStatus: "OFFER_SENT",
+        })
+      ).toBe(false);
+    });
+
+    it("locks invoice-only once a standalone invoice is APPROVED", () => {
+      expect(
+        isAcceptanceSectionLockedByAcceptedOffer({
+          workflow: signingOnly,
+          structureType: "invoice_only",
+          invoices: [{ contract_id: null, status: "APPROVED" }],
+        })
+      ).toBe(true);
+    });
+
+    it("does not lock when the product workflow is unresolved", () => {
+      expect(
+        isAcceptanceSectionLockedByAcceptedOffer({
+          workflow: null,
+          structureType: "new_contract",
+          contractStatus: "APPROVED",
+        })
+      ).toBe(false);
     });
   });
 });

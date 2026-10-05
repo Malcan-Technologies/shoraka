@@ -2,6 +2,25 @@
  * Pure helpers for acceptance document review ↔ offer phase alignment.
  * Item reject/reset follows the same rules as supporting documents (derived section status).
  */
+import { isAcceptanceHubCompleteFromOffer } from "@cashsouk/types";
+
+/**
+ * True when the Acceptance section is owned by the accepted offer ceremony and the
+ * item-derived sync must not downgrade it. Mirrors the two detail-load auto-approve
+ * branches in AdminService.getApplicationDetail: existing-contract drawdowns follow the
+ * contract status; every other structure follows the acceptance hub completion rule.
+ */
+export function isAcceptanceSectionLockedByAcceptedOffer(input: {
+  workflow: unknown;
+  structureType?: string | null;
+  contractStatus?: string | null;
+  invoices?: Array<{ contract_id?: string | null; status?: string | null }>;
+}): boolean {
+  if (input.structureType === "existing_contract") {
+    return input.contractStatus === "APPROVED";
+  }
+  return isAcceptanceHubCompleteFromOffer(input);
+}
 
 /** Docs + people must all be APPROVED; any AMENDMENT_REQUESTED flags CHANGES_REQUESTED. */
 export function resolveAcceptanceReviewApprovalGate(input: {
@@ -65,10 +84,7 @@ export function resolveOfferAcceptancePhaseTarget(input: {
   }
 
   if (input.allApproved) {
-    if (
-      current.status === "PENDING_ADMIN_REVIEW" ||
-      current.status === "APPROVED_FOR_SIGNING"
-    ) {
+    if (current.status === "PENDING_ADMIN_REVIEW" || current.status === "APPROVED_FOR_SIGNING") {
       return "APPROVED_FOR_SIGNING";
     }
     return null;
