@@ -2,7 +2,7 @@
 
 import { ProductCatalogName } from "@cashsouk/ui";
 import type { IssuerDashboardInvoice } from "@/types/issuer-dashboard";
-import { resolveIssuerInvoiceDashboardBadge } from "@/lib/issuer-dashboard-labels";
+import { resolveIssuerInvoiceRowBadge } from "@/lib/issuer-dashboard-labels";
 import {
   FINANCING_ATTENTION_SURFACE,
   IssuerFinancingStatusBadge,
@@ -31,7 +31,7 @@ export function InvoiceAttentionCard({
   productImageS3Key?: string | null;
 }) {
   const action = getInvoiceAttentionAction(row);
-  const badgeKind = resolveIssuerInvoiceDashboardBadge(row.note, row.invoiceStatus);
+  const badgeKind = resolveIssuerInvoiceRowBadge(row);
   const facilityLink = resolveIssuerFacilityLink({
     contractId: row.contractId,
     displayReference: facilityDisplayReference,

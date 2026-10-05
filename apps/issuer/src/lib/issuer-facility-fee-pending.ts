@@ -4,7 +4,7 @@ import {
   asContractForModal,
   type IssuerDashboardContract,
 } from "@/types/issuer-dashboard";
-import { isFacilityAmendmentRequested } from "@/lib/issuer-contract-actionable";
+import { isFacilityAmendmentSentToIssuer } from "@/lib/issuer-contract-actionable";
 
 function moneyNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -37,7 +37,7 @@ export function remainingFacilityFeeForDrawdowns(
 export function isIssuerContractFeeOnlyActionable(contract: IssuerDashboardContract): boolean {
   if (outstandingFacilityFeeAmount(contract) <= 0) return false;
   if (shouldShowIssuerReviewOfferCta(asContractForModal(contract.contractForModal))) return false;
-  return !isFacilityAmendmentRequested(contract.contractStatus);
+  return !isFacilityAmendmentSentToIssuer(contract);
 }
 
 export function aggregateFacilityFeeBannerAmounts(

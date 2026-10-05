@@ -5,10 +5,11 @@ import {
 } from "@/app/(application-management)/applications/status";
 import { dashboardNoteFromListItem } from "@/components/financing/financing-invoice-rows";
 import { resolveIssuerInvoiceDashboardBadge } from "@/lib/issuer-dashboard-labels";
-import type {
-  IssuerDashboardContract,
-  IssuerDashboardInvoice,
-  IssuerDashboardNote,
+import {
+  asInvoiceForModal,
+  type IssuerDashboardContract,
+  type IssuerDashboardInvoice,
+  type IssuerDashboardNote,
 } from "@/types/issuer-dashboard";
 
 const CLOSED_APPLICATION_KEYS = new Set([
@@ -202,7 +203,10 @@ export function classifyLiveInvoice(
   invoice: IssuerDashboardInvoice,
   note: IssuerDashboardNote | null
 ): InvoiceLaneKey | null {
-  const badge = resolveIssuerInvoiceDashboardBadge(note, invoice.invoiceStatus);
+  const badge = resolveIssuerInvoiceDashboardBadge(note, invoice.invoiceStatus, {
+    offerDetails: asInvoiceForModal(invoice.invoiceForModal)?.offer_details,
+    amendmentsSent: (invoice.actionRequiredApplicationIds ?? []).length > 0,
+  });
   if (badge === "completed") return "repaid";
   if (badge === "unsuccessful" || badge === "draft") return null;
   if (note && isNoteRaisingNow(note)) return "raisingNow";

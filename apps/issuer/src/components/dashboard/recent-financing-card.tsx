@@ -16,8 +16,8 @@ import type {
 } from "@/types/issuer-dashboard";
 import {
   getIssuerFinancingStatusPresentation,
-  resolveIssuerContractDashboardBadge,
-  resolveIssuerInvoiceDashboardBadge,
+  resolveIssuerContractRowBadge,
+  resolveIssuerInvoiceRowBadge,
   type IssuerFinancingStatusKind,
 } from "@/lib/issuer-dashboard-labels";
 import { financingKindToStatusToken } from "@/components/financing/utils";
@@ -58,16 +58,14 @@ function rankContract(c: IssuerDashboardContract): number {
   return (
     base +
     (STATUS_RANK[
-      resolveIssuerContractDashboardBadge(c.contractStatus, {
-        facilityFeeUpfrontOutstanding: c.facilityFeeUpfrontOutstanding,
-      })
+      resolveIssuerContractRowBadge(c)
     ] ?? 99)
   );
 }
 
 function rankInvoice(i: IssuerDashboardInvoice): number {
   const base = isIssuerInvoiceActionable(i) ? -10 : 0;
-  return base + (STATUS_RANK[resolveIssuerInvoiceDashboardBadge(i.note, i.invoiceStatus)] ?? 99);
+  return base + (STATUS_RANK[resolveIssuerInvoiceRowBadge(i)] ?? 99);
 }
 
 function formatMoney(v: unknown) {
@@ -166,9 +164,7 @@ function StatusPill({ kind }: { kind: IssuerFinancingStatusKind }) {
 }
 
 function ContractRow({ row }: { row: IssuerDashboardContract }) {
-  const kind = resolveIssuerContractDashboardBadge(row.contractStatus, {
-    facilityFeeUpfrontOutstanding: row.facilityFeeUpfrontOutstanding,
-  });
+  const kind = resolveIssuerContractRowBadge(row);
   return (
     <li>
       <Link
@@ -194,7 +190,7 @@ function ContractRow({ row }: { row: IssuerDashboardContract }) {
 }
 
 function InvoiceRow({ row }: { row: IssuerDashboardInvoice }) {
-  const kind = resolveIssuerInvoiceDashboardBadge(row.note, row.invoiceStatus);
+  const kind = resolveIssuerInvoiceRowBadge(row);
   const href = `/financing/invoices/${row.id}`;
   return (
     <li>

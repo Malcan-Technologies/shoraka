@@ -63,6 +63,7 @@ describe("issuer facility fee dashboard copy", () => {
         contract({
           contractStatus: "AMENDMENT_REQUESTED",
           contractForModal: { status: "AMENDMENT_REQUESTED" },
+          actionRequiredApplicationIds: ["app_1"],
           facilityFeeUpfrontOutstanding: 2500,
         })
       )

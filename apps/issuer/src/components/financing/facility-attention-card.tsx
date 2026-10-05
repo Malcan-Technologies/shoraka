@@ -2,7 +2,7 @@
 
 import { ProductCatalogName } from "@cashsouk/ui";
 import type { IssuerDashboardContract } from "@/types/issuer-dashboard";
-import { resolveIssuerContractDashboardBadge } from "@/lib/issuer-dashboard-labels";
+import { resolveIssuerContractRowBadge } from "@/lib/issuer-dashboard-labels";
 import {
   FINANCING_ATTENTION_SURFACE,
   IssuerFinancingStatusBadge,
@@ -35,9 +35,7 @@ export function FacilityAttentionCard({
       kind="facility"
       badge={
         <IssuerFinancingStatusBadge
-          kind={resolveIssuerContractDashboardBadge(row.contractStatus, {
-            facilityFeeUpfrontOutstanding: row.facilityFeeUpfrontOutstanding,
-          })}
+          kind={resolveIssuerContractRowBadge(row)}
         />
       }
       headline={action.headline}

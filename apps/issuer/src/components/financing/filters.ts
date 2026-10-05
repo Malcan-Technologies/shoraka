@@ -1,7 +1,7 @@
 import type { IssuerDashboardContract, IssuerDashboardInvoice } from "@/types/issuer-dashboard";
 import {
-  resolveIssuerContractDashboardBadge,
-  resolveIssuerInvoiceDashboardBadge,
+  resolveIssuerContractRowBadge,
+  resolveIssuerInvoiceRowBadge,
   type IssuerFinancingStatusKind,
 } from "@/lib/issuer-dashboard-labels";
 
@@ -148,9 +148,7 @@ export function filterContracts(
   return rows.filter((row) => {
     if (f.statusKind !== "all") {
       if (
-        resolveIssuerContractDashboardBadge(row.contractStatus, {
-          facilityFeeUpfrontOutstanding: row.facilityFeeUpfrontOutstanding,
-        }) !== f.statusKind
+        resolveIssuerContractRowBadge(row) !== f.statusKind
       )
         return false;
     }
@@ -170,7 +168,7 @@ export function filterInvoices(
 ): IssuerDashboardInvoice[] {
   return rows.filter((row) => {
     if (f.statusKind !== "all") {
-      if (resolveIssuerInvoiceDashboardBadge(row.note, row.invoiceStatus) !== f.statusKind) return false;
+      if (resolveIssuerInvoiceRowBadge(row) !== f.statusKind) return false;
     }
     if (f.customer) {
       const name = (row.customerName ?? "").trim();

@@ -412,7 +412,10 @@ function ApplicationDetailPageBody() {
 
   const documents = collectApplicationDocuments(application, rawApplication as ApiApplication);
   const timeline = buildApplicationTimeline(logs, application);
-  const invoicesNeedingAction = countInvoicesNeedingAction(application.invoices);
+  const invoicesNeedingAction = countInvoicesNeedingAction(
+    application.invoices,
+    application.applicationStatus
+  );
 
   if (isDraft) {
     return (

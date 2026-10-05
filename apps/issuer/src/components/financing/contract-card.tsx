@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { IssuerDashboardContract } from "@/types/issuer-dashboard";
-import { resolveIssuerContractDashboardBadge } from "@/lib/issuer-dashboard-labels";
+import { resolveIssuerContractRowBadge } from "@/lib/issuer-dashboard-labels";
 import { financingOfferHref } from "@/lib/financing-offer-href";
 import {
   getIssuerOfferActionCtaFromOfferDetails,
@@ -158,9 +158,7 @@ export function DashboardContractCard({
                 </p>
               ) : null}
               <IssuerFinancingStatusBadge
-                kind={resolveIssuerContractDashboardBadge(row.contractStatus, {
-                  facilityFeeUpfrontOutstanding: row.facilityFeeUpfrontOutstanding,
-                })}
+                kind={resolveIssuerContractRowBadge(row)}
               />
               {requiresFacilityFeePayment ? (
                 <StatusBadge label="Pay facility fee" status="action" />

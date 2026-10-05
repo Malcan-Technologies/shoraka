@@ -11,8 +11,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   getIssuerFinancingStatusPresentation,
-  resolveIssuerContractDashboardBadge,
-  resolveIssuerInvoiceDashboardBadge,
+  resolveIssuerContractRowBadge,
+  resolveIssuerInvoiceRowBadge,
   type IssuerFinancingStatusKind,
 } from "@/lib/issuer-dashboard-labels";
 import type { IssuerDashboardContract, IssuerDashboardInvoice } from "@/types/issuer-dashboard";
@@ -103,9 +103,7 @@ export function FinancingContractFilterToolbar({
   const kindsPresent = new Set<IssuerFinancingStatusKind>();
   for (const r of rows) {
     kindsPresent.add(
-      resolveIssuerContractDashboardBadge(r.contractStatus, {
-        facilityFeeUpfrontOutstanding: r.facilityFeeUpfrontOutstanding,
-      })
+      resolveIssuerContractRowBadge(r)
     );
   }
   const statusOptions = FINANCING_STATUS_ORDER.filter((k) => kindsPresent.has(k));
@@ -232,7 +230,7 @@ export function FinancingInvoiceFilterToolbar({
 }) {
   const kindsPresent = new Set<IssuerFinancingStatusKind>();
   for (const r of rows) {
-    kindsPresent.add(resolveIssuerInvoiceDashboardBadge(r.note, r.invoiceStatus));
+    kindsPresent.add(resolveIssuerInvoiceRowBadge(r));
   }
   const statusOptions = FINANCING_STATUS_ORDER.filter((k) => kindsPresent.has(k));
 

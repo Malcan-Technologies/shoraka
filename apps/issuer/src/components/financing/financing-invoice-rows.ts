@@ -1,6 +1,7 @@
 import { formatInvoiceReference, formatNoteReference, type NoteListItem } from "@cashsouk/types";
 import type { IssuerDashboardInvoice, IssuerDashboardNote } from "@/types/issuer-dashboard";
-import { resolveIssuerInvoiceDashboardBadge } from "@/lib/issuer-dashboard-labels";
+import { resolveIssuerInvoiceDashboardBadge,
+  resolveIssuerInvoiceRowBadge } from "@/lib/issuer-dashboard-labels";
 import {
   issuerNoteDisplayFundedAmount,
   issuerNoteDisplayFundingPercent,
@@ -126,7 +127,7 @@ export function financingInvoiceRowMatchesFilters(
   if (row.kind === "invoice") {
     const invoice = row.invoice;
     if (filters.statusKind !== "all") {
-      if (resolveIssuerInvoiceDashboardBadge(invoice.note, invoice.invoiceStatus) !== filters.statusKind) {
+      if (resolveIssuerInvoiceRowBadge(invoice) !== filters.statusKind) {
         return false;
       }
     }

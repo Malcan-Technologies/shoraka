@@ -7,6 +7,8 @@ import {
   resolveOriginationPhase,
 } from "@cashsouk/types";
 
+import { issuerAmendmentsSent } from "../status";
+
 export { badgeKeyToStatusToken };
 
 /**
@@ -106,13 +108,18 @@ export function issuerWithdrawBlockedReason(app: {
   });
 }
 
-/** Invoices needing work on the Invoices tab (amendments / rejected). Offer review lives on the Offer tab. */
+/**
+ * Invoices needing work on the Invoices tab (amendments / rejected). Offer review lives on the Offer tab.
+ * Amendments count only once CashSouk has sent them (application is AMENDMENT_REQUESTED).
+ */
 export function countInvoicesNeedingAction(
-  invoices: Array<{ status?: string }>
+  invoices: Array<{ status?: string }>,
+  applicationStatus: string | null | undefined
 ): number {
+  const amendmentsSent = issuerAmendmentsSent(applicationStatus);
   return invoices.filter((inv) => {
     const s = (inv.status ?? "").toUpperCase();
-    return s === "AMENDMENT_REQUESTED" || s === "REJECTED";
+    return (amendmentsSent && s === "AMENDMENT_REQUESTED") || s === "REJECTED";
   }).length;
 }
 

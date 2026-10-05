@@ -1,10 +1,20 @@
-import { InvoiceStatus } from "@cashsouk/types";
+import {
+  getOfferAcceptanceFromOfferDetails,
+  InvoiceStatus,
+  offerAcceptanceAllowsIssuerReviewCta,
+} from "@cashsouk/types";
 import type { UserPortalStatusToken } from "@cashsouk/config";
 import {
   issuerNoteDisplayFundedAmount,
   issuerNoteDisplayFundingPercent,
 } from "@/notes/lib/funding-display";
-import type { IssuerDashboardNote } from "@/types/issuer-dashboard";
+import {
+  asContractForModal,
+  asInvoiceForModal,
+  type IssuerDashboardContract,
+  type IssuerDashboardInvoice,
+  type IssuerDashboardNote,
+} from "@/types/issuer-dashboard";
 
 /**
  * Issuer financing dashboard groups. Colors via StatusBadge tokens (viewer-centric):
@@ -138,15 +148,38 @@ function norm(s: string | null | undefined): string {
 }
 
 /**
+ * OFFER_SENT is only issuer work while acceptance allows the Review offer CTA.
+ * Once CashSouk reviews acceptance docs or sends signing links, the offer waits on admin.
+ */
+function offerSentBadge(offerDetails: unknown): IssuerFinancingStatusKind {
+  const acceptanceStatus = getOfferAcceptanceFromOfferDetails(offerDetails)?.status ?? null;
+  return offerAcceptanceAllowsIssuerReviewCta(acceptanceStatus) ? "action_required" : "pending_approval";
+}
+
+/**
+ * Contract/invoice AMENDMENT_REQUESTED is issuer work only once amendments are sent
+ * (application AMENDMENT_REQUESTED); otherwise CashSouk is drafting or reviewing a resubmission.
+ */
+function amendmentBadge(amendmentsSent: boolean | undefined): IssuerFinancingStatusKind {
+  return amendmentsSent === false ? "pending_approval" : "action_required";
+}
+
+/**
  * Contract card / contract detail: maps `Contract.status` only (no Note).
  */
 export function resolveIssuerContractDashboardBadge(
   contractStatus: string,
-  options?: { facilityFeeUpfrontOutstanding?: number | null }
+  options?: {
+    facilityFeeUpfrontOutstanding?: number | null;
+    offerDetails?: unknown;
+    /** False while CashSouk drafts amendments or after the issuer resubmits. */
+    amendmentsSent?: boolean;
+  }
 ): IssuerFinancingStatusKind {
   const c = norm(contractStatus);
   if (c === "DRAFT") return "draft";
-  if (c === "OFFER_SENT" || c === "AMENDMENT_REQUESTED") return "action_required";
+  if (c === "OFFER_SENT") return offerSentBadge(options?.offerDetails);
+  if (c === "AMENDMENT_REQUESTED") return amendmentBadge(options?.amendmentsSent);
   if (c === "SUBMITTED") return "pending_approval";
   if (c === "APPROVED") {
     const outstanding = Number(options?.facilityFeeUpfrontOutstanding ?? 0);
@@ -184,14 +217,18 @@ function leftoverLateChargesOutstanding(note: IssuerDashboardNote): number {
  */
 export function resolveIssuerInvoiceDashboardBadge(
   note: IssuerDashboardNote | null,
-  invoiceStatus: string
+  invoiceStatus: string,
+  options?: {
+    offerDetails?: unknown;
+    /** False while CashSouk drafts amendments or after the issuer resubmits. */
+    amendmentsSent?: boolean;
+  }
 ): IssuerFinancingStatusKind {
   if (!note) {
     const inv = norm(invoiceStatus);
     if (inv === InvoiceStatus.DRAFT) return "draft";
-    if (inv === InvoiceStatus.OFFER_SENT || inv === InvoiceStatus.AMENDMENT_REQUESTED) {
-      return "action_required";
-    }
+    if (inv === InvoiceStatus.OFFER_SENT) return offerSentBadge(options?.offerDetails);
+    if (inv === InvoiceStatus.AMENDMENT_REQUESTED) return amendmentBadge(options?.amendmentsSent);
     if (inv === InvoiceStatus.SUBMITTED) return "pending_approval";
     if (inv === InvoiceStatus.APPROVED) return "pending_listing";
     if (
@@ -270,6 +307,23 @@ export function resolveIssuerInvoiceDashboardBadge(
   }
 
   return "in_progress";
+}
+
+/** Contract row badge, including the offer acceptance phase from `contractForModal`. */
+export function resolveIssuerContractRowBadge(row: IssuerDashboardContract): IssuerFinancingStatusKind {
+  return resolveIssuerContractDashboardBadge(row.contractStatus, {
+    facilityFeeUpfrontOutstanding: row.facilityFeeUpfrontOutstanding,
+    offerDetails: asContractForModal(row.contractForModal)?.offer_details,
+    amendmentsSent: (row.actionRequiredApplicationIds ?? []).length > 0,
+  });
+}
+
+/** Invoice row badge, including the offer acceptance phase from `invoiceForModal`. */
+export function resolveIssuerInvoiceRowBadge(row: IssuerDashboardInvoice): IssuerFinancingStatusKind {
+  return resolveIssuerInvoiceDashboardBadge(row.note, row.invoiceStatus, {
+    offerDetails: asInvoiceForModal(row.invoiceForModal)?.offer_details,
+    amendmentsSent: (row.actionRequiredApplicationIds ?? []).length > 0,
+  });
 }
 
 /** @deprecated Use resolveIssuerInvoiceDashboardBadge — kept name so imports stay stable. */

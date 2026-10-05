@@ -2,6 +2,7 @@ import {
   countIssuerApplicationsNeedingAction,
   countPendingIssuerOfferReviewItems,
   isIssuerApplicationActionable,
+  issuerAmendmentsSent,
   type NormalizedApplication,
 } from "@/app/(application-management)/applications/status";
 import { actionsRequiredLabel, joinBannerSentences } from "./issuer-action-required";
@@ -14,7 +15,8 @@ export function issuerApplicationActionHref(app: NormalizedApplication): string 
   const needsAmendments =
     app.cardStatus.showMakeAmendments ||
     key === "amendment_requested" ||
-    app.invoices.some((inv) => String(inv.status ?? "").toUpperCase() === "AMENDMENT_REQUESTED");
+    (issuerAmendmentsSent(app.applicationStatus) &&
+      app.invoices.some((inv) => String(inv.status ?? "").toUpperCase() === "AMENDMENT_REQUESTED"));
 
   if (app.status === "draft" || needsAmendments) {
     return `/applications/${app.id}/edit`;
@@ -70,7 +72,8 @@ export function buildIssuerApplicationsPendingAction(
     return (
       app.cardStatus.showMakeAmendments ||
       key === "amendment_requested" ||
-      app.invoices.some((inv) => String(inv.status ?? "").toUpperCase() === "AMENDMENT_REQUESTED")
+      (issuerAmendmentsSent(app.applicationStatus) &&
+        app.invoices.some((inv) => String(inv.status ?? "").toUpperCase() === "AMENDMENT_REQUESTED"))
     );
   });
 

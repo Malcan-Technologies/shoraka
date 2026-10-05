@@ -112,7 +112,11 @@ export default function InvoiceDetailPage() {
 
   const badgeKind = resolveIssuerInvoiceDashboardBadge(
     row?.note ?? null,
-    row?.invoiceStatus ?? modalInvoice?.status ?? ""
+    row?.invoiceStatus ?? modalInvoice?.status ?? "",
+    {
+      offerDetails: modalInvoice?.offer_details,
+      amendmentsSent: row ? (row.actionRequiredApplicationIds ?? []).length > 0 : undefined,
+    }
   );
   const progress = resolveFundingProgressPercent(row?.note ?? null);
   const fundingLabel = resolveFundingStatusText(row?.note ?? null);

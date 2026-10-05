@@ -1,7 +1,7 @@
 import { formatCurrency, resolveOfferedAmount } from "@cashsouk/config";
 import { getIssuerOfferActionCta } from "@/lib/offer-utils";
 import { issuerApplicationActionHref } from "@/lib/issuer-pending-actions";
-import type { NormalizedApplication, NormalizedInvoice } from "../status";
+import { issuerAmendmentsSent, type NormalizedApplication, type NormalizedInvoice } from "../status";
 import { countInvoicesNeedingAction } from "./issuer-status-display";
 
 /** Soft card wash (≈45% of badge fill) so attention reads without overpowering content. */
@@ -70,6 +70,7 @@ function isFacilityOfferActive(app: NormalizedApplication): boolean {
 }
 
 function hasInvoiceAmendment(app: NormalizedApplication): boolean {
+  if (!issuerAmendmentsSent(app.applicationStatus)) return false;
   return app.invoices.some((inv) => invoiceStatus(inv) === "AMENDMENT_REQUESTED");
 }
 
@@ -118,7 +119,7 @@ export function applicationHeadlineAmount(app: NormalizedApplication): string {
 export function applicationCardSubStatus(app: NormalizedApplication): string {
   if (app.status === "draft") return "Continue when you are ready";
   const invoiceCount = app.invoices.length;
-  const invoicesNeedingAction = countInvoicesNeedingAction(app.invoices);
+  const invoicesNeedingAction = countInvoicesNeedingAction(app.invoices, app.applicationStatus);
 
   if (invoiceCount > 1) {
     return `${invoiceCount} invoices${

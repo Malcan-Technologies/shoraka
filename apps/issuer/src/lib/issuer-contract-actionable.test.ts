@@ -60,6 +60,19 @@ describe("isIssuerContractActionable", () => {
     ).toBe(true);
   });
 
+  it("drops a facility amendment once the issuer resubmits (or while CashSouk drafts)", () => {
+    // Contract stays AMENDMENT_REQUESTED after resubmit; the application no longer is.
+    expect(
+      isIssuerContractActionable(
+        contract({
+          contractStatus: "AMENDMENT_REQUESTED",
+          contractForModal: { status: "AMENDMENT_REQUESTED" },
+          actionRequiredApplicationIds: [],
+        })
+      )
+    ).toBe(false);
+  });
+
   it("treats an approved facility with outstanding upfront fee as actionable", () => {
     expect(
       isIssuerContractActionable(

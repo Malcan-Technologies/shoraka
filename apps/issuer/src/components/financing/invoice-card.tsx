@@ -12,7 +12,7 @@ import {
   resolveFundingDisplayFundedAmount,
   resolveFundingProgressPercent,
   resolveFundingStatusText,
-  resolveIssuerInvoiceDashboardBadge,
+  resolveIssuerInvoiceRowBadge,
 } from "@/lib/issuer-dashboard-labels";
 import { financingOfferHref } from "@/lib/financing-offer-href";
 import {
@@ -149,7 +149,7 @@ export function DashboardInvoiceCard({
   const showActionRequired = actionRequiredCount > 0;
   const actionRequiredLabel =
     actionRequiredCount === 1 ? "Action required" : `Action required (${actionRequiredCount})`;
-  const badgeKind = resolveIssuerInvoiceDashboardBadge(row.note, row.invoiceStatus);
+  const badgeKind = resolveIssuerInvoiceRowBadge(row);
   const fundingLabel = resolveFundingStatusText(row.note);
   const invoiceModal = asInvoiceForModal(row.invoiceForModal);
   const invDetails = invoiceModal?.details;

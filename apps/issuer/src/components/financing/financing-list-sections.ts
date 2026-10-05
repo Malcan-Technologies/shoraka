@@ -1,6 +1,7 @@
 import {
-  resolveIssuerContractDashboardBadge,
+  resolveIssuerContractRowBadge,
   resolveIssuerInvoiceDashboardBadge,
+  resolveIssuerInvoiceRowBadge,
 } from "@/lib/issuer-dashboard-labels";
 import type { IssuerDashboardContract } from "@/types/issuer-dashboard";
 import {
@@ -10,9 +11,7 @@ import {
 
 export function isActiveFacility(row: IssuerDashboardContract): boolean {
   return (
-    resolveIssuerContractDashboardBadge(row.contractStatus, {
-      facilityFeeUpfrontOutstanding: row.facilityFeeUpfrontOutstanding,
-    }) === "active"
+    resolveIssuerContractRowBadge(row) === "active"
   );
 }
 
@@ -31,7 +30,7 @@ export function partitionByPredicate<T>(
 
 export function financingInvoiceRowStatusKind(row: FinancingInvoiceRow) {
   if (row.kind === "invoice") {
-    return resolveIssuerInvoiceDashboardBadge(row.invoice.note, row.invoice.invoiceStatus);
+    return resolveIssuerInvoiceRowBadge(row.invoice);
   }
   return resolveIssuerInvoiceDashboardBadge(dashboardNoteFromListItem(row.note), "");
 }

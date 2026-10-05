@@ -1,4 +1,10 @@
-import type { NormalizedApplication, NormalizedInvoice } from "../status";
+import {
+  getCardStatus,
+  isIssuerApplicationActionable,
+  type NormalizedApplication,
+  type NormalizedInvoice,
+} from "../status";
+import { issuerApplicationActionHref } from "@/lib/issuer-pending-actions";
 import {
   applicationAttentionHeadline,
   applicationCardSubStatus,
@@ -192,6 +198,7 @@ describe("applicationHeadlineAmount", () => {
         makeApp({
           type: "Facility financing",
           status: "AMENDMENT_REQUESTED",
+          applicationStatus: "AMENDMENT_REQUESTED",
           cardStatus: {
             badgeKey: "amendment_requested",
             displayLabel: "Action Required",
@@ -258,10 +265,22 @@ describe("applicationCardSubStatus", () => {
     expect(
       applicationCardSubStatus(
         makeApp({
+          applicationStatus: "AMENDMENT_REQUESTED",
           invoices: [makeInvoice({ status: "AMENDMENT_REQUESTED", number: "INV-1001" })],
         })
       )
     ).toBe("INV-1001 · Needs action");
+  });
+
+  it("does not flag an invoice while CashSouk is still drafting amendments", () => {
+    expect(
+      applicationCardSubStatus(
+        makeApp({
+          applicationStatus: "UNDER_REVIEW",
+          invoices: [makeInvoice({ status: "AMENDMENT_REQUESTED", number: "INV-1001" })],
+        })
+      )
+    ).toBe("INV-1001");
   });
 
   it("shows no invoice yet when the application has none", () => {
@@ -272,6 +291,7 @@ describe("applicationCardSubStatus", () => {
     expect(
       applicationCardSubStatus(
         makeApp({
+          applicationStatus: "AMENDMENT_REQUESTED",
           invoices: [
             makeInvoice({ status: "AMENDMENT_REQUESTED" }),
             makeInvoice({ id: "inv_2", status: "SUBMITTED" }),
@@ -398,5 +418,80 @@ describe("applicationAttentionHeadline", () => {
         buttonVariant: "default",
       })
     ).toBe("Make the requested changes");
+  });
+});
+
+describe("admin-drafted amendments", () => {
+  // CashSouk marks the invoice AMENDMENT_REQUESTED while drafting; the application
+  // only flips once amendments are sent, so the issuer has nothing to do yet.
+  const invoiceStatuses = ["AMENDMENT_REQUESTED"];
+  const draftingApp = () =>
+    makeApp({
+      type: "Facility financing",
+      applicationStatus: "UNDER_REVIEW",
+      contractStatus: "APPROVED",
+      cardStatus: getCardStatus({
+        applicationStatus: "UNDER_REVIEW",
+        contractStatus: "APPROVED",
+        invoiceStatuses,
+      }),
+      invoices: [
+        makeInvoice({ status: "AMENDMENT_REQUESTED", number: "INV-1001", canReviewOffer: false }),
+      ],
+    });
+
+  it("keeps the card Under Review and out of Needs your attention", () => {
+    const app = draftingApp();
+    expect(app.cardStatus.badgeKey).toBe("under_review");
+    expect(isIssuerApplicationActionable(app)).toBe(false);
+    expect(applicationCardSubStatus(app)).toBe("INV-1001");
+    expect(issuerApplicationActionHref(app)).toBe("/applications/app_1");
+  });
+
+  it("ignores a drafted contract amendment too", () => {
+    expect(
+      getCardStatus({
+        applicationStatus: "UNDER_REVIEW",
+        contractStatus: "AMENDMENT_REQUESTED",
+        invoiceStatuses: [],
+      }).badgeKey
+    ).toBe("under_review");
+  });
+
+  it("clears the card once the issuer resubmits", () => {
+    // Resubmit flips the application to RESUBMITTED; the invoice and contract keep
+    // AMENDMENT_REQUESTED until CashSouk reviews again.
+    const status = getCardStatus({
+      applicationStatus: "RESUBMITTED",
+      contractStatus: "AMENDMENT_REQUESTED",
+      invoiceStatuses,
+    });
+    const app = makeApp({
+      ...draftingApp(),
+      applicationStatus: "RESUBMITTED",
+      contractStatus: "AMENDMENT_REQUESTED",
+      cardStatus: status,
+    });
+    expect(status.badgeKey).toBe("resubmitted");
+    expect(isIssuerApplicationActionable(app)).toBe(false);
+    expect(applicationCardSubStatus(app)).toBe("INV-1001");
+    expect(issuerApplicationActionHref(app)).toBe("/applications/app_1");
+  });
+
+  it("asks for changes once amendments are sent", () => {
+    const status = getCardStatus({
+      applicationStatus: "AMENDMENT_REQUESTED",
+      contractStatus: "APPROVED",
+      invoiceStatuses,
+    });
+    const app = makeApp({
+      ...draftingApp(),
+      applicationStatus: "AMENDMENT_REQUESTED",
+      cardStatus: status,
+    });
+    expect(status.showMakeAmendments).toBe(true);
+    expect(isIssuerApplicationActionable(app)).toBe(true);
+    expect(applicationCardSubStatus(app)).toBe("INV-1001 · Needs action");
+    expect(issuerApplicationActionHref(app)).toBe("/applications/app_1/edit");
   });
 });

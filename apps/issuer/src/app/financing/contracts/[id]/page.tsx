@@ -56,7 +56,7 @@ import {
   displayCell,
   formatDate,
 } from "@/components/financing/utils";
-import { resolveIssuerContractDashboardBadge } from "@/lib/issuer-dashboard-labels";
+import { resolveIssuerContractRowBadge } from "@/lib/issuer-dashboard-labels";
 import { financeInvoiceApplicationHref } from "@/lib/finance-invoice-application-href";
 import { formatContractReference } from "@cashsouk/types";
 import { asContractForModal, asInvoiceForModal } from "@/types/issuer-dashboard";
@@ -286,9 +286,7 @@ function ContractDetailsPageContent() {
         title={displayCell(contractHeading)}
         status={
           <IssuerFinancingStatusBadge
-            kind={resolveIssuerContractDashboardBadge(row.contractStatus, {
-              facilityFeeUpfrontOutstanding: row.facilityFeeUpfrontOutstanding,
-            })}
+            kind={resolveIssuerContractRowBadge(row)}
           />
         }
         facts={

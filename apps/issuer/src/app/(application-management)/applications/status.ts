@@ -319,10 +319,6 @@ export const INVOICE_PRIORITY = [
   "WITHDRAWN",
 ] as const;
 
-function hasAmendmentRequested(invoiceStatuses: string[]): boolean {
-  return invoiceStatuses.some((s) => String(s ?? "").toUpperCase() === "AMENDMENT_REQUESTED");
-}
-
 function hasOfferSent(invoiceStatuses: string[]): boolean {
   return invoiceStatuses.some((s) => String(s ?? "").toUpperCase() === "OFFER_SENT");
 }
@@ -334,7 +330,9 @@ function hasOfferExpired(invoiceStatuses: string[]): boolean {
 /* =============================================================================
    SECTION E — getCardStatus (urgency-driven, application.status is source of truth)
    Priority: 1) Terminal states (app only), 2) Action Required, 3) Offer Waiting, 4) Normal lifecycle.
-   Invoices/contract may trigger Action Required or Offer Received; never override terminal states.
+   Invoices/contract may trigger Offer Received; never override terminal states.
+   Action Required comes from application.status only: CashSouk marks an invoice/contract
+   AMENDMENT_REQUESTED while drafting, but the issuer can act only once amendments are sent.
    ============================================================================= */
 
 export function getCardStatus(input: {
@@ -348,9 +346,7 @@ export function getCardStatus(input: {
   const app = String(input.applicationStatus ?? "DRAFT").toUpperCase();
   const contract = input.contractStatus ? String(input.contractStatus).toUpperCase() : null;
   const invoiceStatuses = input.invoiceStatuses.map((s) => String(s ?? "DRAFT").toUpperCase());
-  const anyInvoiceAmendmentRequested = hasAmendmentRequested(invoiceStatuses);
   const anyInvoiceOfferSent = hasOfferSent(invoiceStatuses);
-  const contractAmendmentRequested = contract === "AMENDMENT_REQUESTED";
   const contractOfferSent = contract === "OFFER_SENT";
   const acceptanceStatus = input.offerAcceptanceStatus
     ? String(input.offerAcceptanceStatus).toUpperCase()
@@ -382,12 +378,9 @@ export function getCardStatus(input: {
     return { badgeKey: "archived", displayLabel: "Archived", showReviewOffer: false, showMakeAmendments: false };
   }
 
-  /** Action Required: app, contract, or any invoice has AMENDMENT_REQUESTED. Highest urgency. */
+  /** Action Required: amendments sent to the issuer. Highest urgency. */
   if (app === "AMENDMENT_REQUESTED") {
     return { badgeKey: "amendment_requested", displayLabel: "Action Required", showReviewOffer: false, showMakeAmendments: true };
-  }
-  if (contractAmendmentRequested || anyInvoiceAmendmentRequested) {
-    return { badgeKey: "amendment_requested", displayLabel: "Action Required", showReviewOffer: false, showMakeAmendments: false };
   }
 
   /** Durable offer expiry (entity status) — same presentation as past-deadline soft window. */
@@ -471,6 +464,14 @@ export function getCardStatus(input: {
   return { badgeKey: "draft", displayLabel: "Draft", showReviewOffer: false, showMakeAmendments: false };
 }
 
+/**
+ * True once CashSouk has sent amendments to the issuer.
+ * Invoice/contract AMENDMENT_REQUESTED before this is an admin draft the issuer cannot act on.
+ */
+export function issuerAmendmentsSent(applicationStatus: string | null | undefined): boolean {
+  return String(applicationStatus ?? "").toUpperCase() === "AMENDMENT_REQUESTED";
+}
+
 export function countPendingIssuerOfferReviewItems(app: NormalizedApplication): number {
   let n = 0;
   const hasContract = app.type === "Facility financing";
@@ -497,9 +498,10 @@ export function isIssuerApplicationActionable(app: NormalizedApplication): boole
   if (key === "amendment_requested" || key === "offer_sent") return true;
   if (app.cardStatus.showMakeAmendments || app.cardStatus.showReviewOffer) return true;
   if (countPendingIssuerOfferReviewItems(app) > 0) return true;
+  const amendmentsSent = issuerAmendmentsSent(app.applicationStatus);
   return app.invoices.some((inv) => {
     const s = String(inv.status ?? "").toUpperCase();
-    return inv.canReviewOffer || s === "AMENDMENT_REQUESTED";
+    return inv.canReviewOffer || (amendmentsSent && s === "AMENDMENT_REQUESTED");
   });
 }
 

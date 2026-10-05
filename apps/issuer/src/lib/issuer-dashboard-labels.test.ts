@@ -4,9 +4,15 @@ import {
   resolveFundingProgressPercent,
   resolveFundingStatusText,
   resolveIssuerContractDashboardBadge,
+  resolveIssuerContractRowBadge,
   resolveIssuerInvoiceDashboardBadge,
+  resolveIssuerInvoiceRowBadge,
 } from "./issuer-dashboard-labels";
-import type { IssuerDashboardNote } from "@/types/issuer-dashboard";
+import type {
+  IssuerDashboardContract,
+  IssuerDashboardInvoice,
+  IssuerDashboardNote,
+} from "@/types/issuer-dashboard";
 
 describe("resolveIssuerContractDashboardBadge", () => {
   it("keeps an approved facility active until upfront fee is outstanding", () => {
@@ -17,6 +23,84 @@ describe("resolveIssuerContractDashboardBadge", () => {
     expect(
       resolveIssuerContractDashboardBadge("APPROVED", { facilityFeeUpfrontOutstanding: 2500 })
     ).toBe("action_required");
+  });
+});
+
+const acceptance = (status: string) => ({
+  offer_acceptance: { status, acceptance_expires_at: "2099-01-01T00:00:00.000Z" },
+});
+
+describe("OFFER_SENT badge follows the acceptance phase", () => {
+  it.each(["PENDING_ISSUER", "CHANGES_REQUESTED", "SIGNING_IN_PROGRESS"])(
+    "is action required while the issuer owns %s",
+    (status) => {
+      const offerDetails = acceptance(status);
+      expect(resolveIssuerContractDashboardBadge("OFFER_SENT", { offerDetails })).toBe(
+        "action_required"
+      );
+      expect(resolveIssuerInvoiceDashboardBadge(null, "OFFER_SENT", { offerDetails })).toBe(
+        "action_required"
+      );
+    }
+  );
+
+  it.each(["PENDING_ADMIN_REVIEW", "APPROVED_FOR_SIGNING"])(
+    "is pending approval while CashSouk owns %s",
+    (status) => {
+      const offerDetails = acceptance(status);
+      expect(resolveIssuerContractDashboardBadge("OFFER_SENT", { offerDetails })).toBe(
+        "pending_approval"
+      );
+      expect(resolveIssuerInvoiceDashboardBadge(null, "OFFER_SENT", { offerDetails })).toBe(
+        "pending_approval"
+      );
+    }
+  );
+
+  it("stays action required for legacy offers without acceptance", () => {
+    expect(resolveIssuerContractDashboardBadge("OFFER_SENT")).toBe("action_required");
+    expect(resolveIssuerInvoiceDashboardBadge(null, "OFFER_SENT")).toBe("action_required");
+  });
+
+  it("reads acceptance from dashboard rows", () => {
+    const contractRow = {
+      contractStatus: "OFFER_SENT",
+      contractForModal: { offer_details: acceptance("PENDING_ADMIN_REVIEW") },
+    } as unknown as IssuerDashboardContract;
+    const invoiceRow = {
+      note: null,
+      invoiceStatus: "OFFER_SENT",
+      invoiceForModal: { offer_details: acceptance("APPROVED_FOR_SIGNING") },
+    } as unknown as IssuerDashboardInvoice;
+    expect(resolveIssuerContractRowBadge(contractRow)).toBe("pending_approval");
+    expect(resolveIssuerInvoiceRowBadge(invoiceRow)).toBe("pending_approval");
+  });
+});
+
+describe("AMENDMENT_REQUESTED badge follows whether amendments are with the issuer", () => {
+  it("is action required while amendments are sent", () => {
+    expect(
+      resolveIssuerContractDashboardBadge("AMENDMENT_REQUESTED", { amendmentsSent: true })
+    ).toBe("action_required");
+    expect(
+      resolveIssuerInvoiceDashboardBadge(null, "AMENDMENT_REQUESTED", { amendmentsSent: true })
+    ).toBe("action_required");
+  });
+
+  it("is pending approval after resubmit or while CashSouk drafts", () => {
+    const contractRow = {
+      contractStatus: "AMENDMENT_REQUESTED",
+      contractForModal: { status: "AMENDMENT_REQUESTED" },
+      actionRequiredApplicationIds: [],
+    } as unknown as IssuerDashboardContract;
+    const invoiceRow = {
+      note: null,
+      invoiceStatus: "AMENDMENT_REQUESTED",
+      invoiceForModal: { status: "AMENDMENT_REQUESTED" },
+      actionRequiredApplicationIds: [],
+    } as unknown as IssuerDashboardInvoice;
+    expect(resolveIssuerContractRowBadge(contractRow)).toBe("pending_approval");
+    expect(resolveIssuerInvoiceRowBadge(invoiceRow)).toBe("pending_approval");
   });
 });
 
