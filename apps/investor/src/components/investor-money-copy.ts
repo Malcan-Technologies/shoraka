@@ -5,7 +5,14 @@ type DepositLimitHint = {
   tier: InvestmentLimitTier;
   limit: number | null;
   depositHeadroom?: number | null;
+  pendingDeposits?: number;
 };
+
+/** Pending deposits count against the limit, so name them or the gap looks unexplained. */
+function pendingDepositsClause(pendingDeposits: number | undefined): string {
+  const pending = pendingDeposits ?? 0;
+  return pending > 0 ? `, including ${formatCurrency(pending)} still clearing` : "";
+}
 
 export const INVESTOR_TYPE_REQUIRED_DEPOSIT_MESSAGE =
   "Set your Type of Investor in your profile before you deposit. We use it to work out your investment limit.";
@@ -36,10 +43,11 @@ export function depositLimitsHint(
     investmentLimit.depositHeadroom == null
       ? null
       : formatCurrency(investmentLimit.depositHeadroom);
+  const pendingClause = pendingDepositsClause(investmentLimit.pendingDeposits);
   if (remaining) {
-    return `${range} You can deposit up to ${remaining} more under your ${tierLabel} limit of ${formatCurrency(investmentLimit.limit)}.`;
+    return `${range} You can deposit up to ${remaining} more under your ${tierLabel} limit of ${formatCurrency(investmentLimit.limit)}${pendingClause}.`;
   }
-  return `${range} Remaining under your ${tierLabel} limit of ${formatCurrency(investmentLimit.limit)}.`;
+  return `${range} Remaining under your ${tierLabel} limit of ${formatCurrency(investmentLimit.limit)}${pendingClause}.`;
 }
 
 export function depositHeadroomBlockedHint(
@@ -48,9 +56,7 @@ export function depositHeadroomBlockedHint(
   investmentLimit: { tier: InvestmentLimitTier; limit: number; pendingDeposits?: number }
 ): string {
   const tierLabel = INVESTMENT_LIMIT_TIER_LABELS[investmentLimit.tier];
-  const pending = investmentLimit.pendingDeposits ?? 0;
-  const pendingClause =
-    pending > 0 ? `, including ${formatCurrency(pending)} still clearing` : "";
+  const pendingClause = pendingDepositsClause(investmentLimit.pendingDeposits);
   return `You can deposit up to ${formatCurrency(remaining)} more under your ${tierLabel} limit of ${formatCurrency(investmentLimit.limit)}${pendingClause}. The minimum deposit is ${formatCurrency(minAmount)}.`;
 }
 

@@ -41,6 +41,26 @@ describe("investor money copy", () => {
     ).toBe(
       "You can add from RM 100 to RM 30000. You can deposit up to RM 129000 more under your Retail limit of RM 400000."
     );
+    expect(
+      depositLimitsHint(100, 30000, {
+        tier: "RETAIL",
+        limit: 50000,
+        depositHeadroom: 39900,
+        pendingDeposits: 100,
+      })
+    ).toBe(
+      "You can add from RM 100 to RM 30000. You can deposit up to RM 39900 more under your Retail limit of RM 50000, including RM 100 still clearing."
+    );
+    expect(
+      depositLimitsHint(100, 30000, {
+        tier: "RETAIL",
+        limit: 50000,
+        depositHeadroom: 40000,
+        pendingDeposits: 0,
+      })
+    ).toBe(
+      "You can add from RM 100 to RM 30000. You can deposit up to RM 40000 more under your Retail limit of RM 50000."
+    );
     expect(depositHeadroomBlockedHint(50, 100, { tier: "RETAIL", limit: 50000 })).toBe(
       "You can deposit up to RM 50 more under your Retail limit of RM 50000. The minimum deposit is RM 100."
     );

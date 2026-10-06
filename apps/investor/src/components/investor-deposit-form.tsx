@@ -265,6 +265,7 @@ export function InvestorDepositForm({
                     tier: investmentLimit.tier,
                     limit: investmentLimit.limit,
                     depositHeadroom: investmentLimit.depositHeadroom,
+                    pendingDeposits: investmentLimit.pendingDeposits,
                   }
                 : null
             )}
