@@ -22,7 +22,11 @@ export function InvestorDashboardNew({
   seekingFunding: number | null;
   tenorLabel: string;
   minCommitMyr: number;
-  investmentLimit?: { tier: InvestmentLimitTier; limit: number | null } | null;
+  investmentLimit?: {
+    classificationRequired?: boolean;
+    tier: InvestmentLimitTier;
+    limit: number | null;
+  } | null;
   onDeposit: () => void;
 }) {
   const cards = [

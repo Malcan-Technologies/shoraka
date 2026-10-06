@@ -69,6 +69,7 @@ describe("marketplace invest copy", () => {
     );
     expect(marketplaceAvailableCashHint(12340)).toBe("Available cash RM 12340");
     expect(marketplaceInvestLimitHint({
+      classificationRequired: false,
       tier: "RETAIL",
       limit: 50000,
       outstandingPrincipal: 20000,
@@ -79,6 +80,18 @@ describe("marketplace invest copy", () => {
       depositMaxAmount: 30000,
       minDepositAmount: 100,
     })).toBe("You can invest up to RM 30000 more under your Retail limit of RM 50000.");
+    expect(marketplaceInvestLimitHint({
+      classificationRequired: true,
+      tier: "RETAIL",
+      limit: 0,
+      outstandingPrincipal: 0,
+      walletBalance: 0,
+      pendingDeposits: 0,
+      investHeadroom: 0,
+      depositHeadroom: 0,
+      depositMaxAmount: 0,
+      minDepositAmount: 100,
+    })).toBe("Set your Type of Investor in your profile before you invest.");
     expect(marketplaceConfirmReturnHint(note())).toBe(
       "45 days from disbursement. Advertised return is up to 14.5% p.a. before the service fee, for the days profit actually runs."
     );

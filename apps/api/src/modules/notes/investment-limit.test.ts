@@ -15,6 +15,7 @@ describe("buildInvestmentHeadroom", () => {
       maxDepositAmount: 30_000,
     });
 
+    expect(result.classificationRequired).toBe(false);
     expect(result.investHeadroom).toBe(10_000);
     expect(result.depositHeadroom).toBe(3_000);
     expect(result.depositMaxAmount).toBe(3_000);
@@ -52,6 +53,41 @@ describe("buildInvestmentHeadroom", () => {
     expect(result.investHeadroom).toBeNull();
     expect(result.depositHeadroom).toBeNull();
     expect(result.depositMaxAmount).toBe(30_000);
+  });
+
+  it("fails closed with zero limit and headroom when the investor type is missing", () => {
+    const result = buildInvestmentHeadroom({
+      classificationRequired: true,
+      tier: "RETAIL",
+      limit: 50_000,
+      outstandingPrincipal: 10_000,
+      walletBalance: 0,
+      pendingDeposits: 0,
+      minDepositAmount: 100,
+      maxDepositAmount: 30_000,
+    });
+
+    expect(result.classificationRequired).toBe(true);
+    expect(result.limit).toBe(0);
+    expect(result.investHeadroom).toBe(0);
+    expect(result.depositHeadroom).toBe(0);
+    expect(result.depositMaxAmount).toBe(0);
+  });
+
+  it("fails closed even when the fallback tier would be unlimited", () => {
+    const result = buildInvestmentHeadroom({
+      classificationRequired: true,
+      tier: "SOPHISTICATED",
+      limit: null,
+      outstandingPrincipal: 0,
+      walletBalance: 0,
+      pendingDeposits: 0,
+      minDepositAmount: 100,
+      maxDepositAmount: 30_000,
+    });
+
+    expect(result.limit).toBe(0);
+    expect(result.depositMaxAmount).toBe(0);
   });
 
   it("caps depositMaxAmount at the platform per-transaction maximum", () => {

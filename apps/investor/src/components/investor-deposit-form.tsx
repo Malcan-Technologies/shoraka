@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { Label, MoneyInput } from "@cashsouk/ui";
 import {
@@ -27,6 +28,7 @@ import {
   depositLimitsHint,
   depositMinimumError,
   depositTypedAmountError,
+  INVESTOR_TYPE_REQUIRED_DEPOSIT_MESSAGE,
 } from "@/components/investor-money-copy";
 import { PORTFOLIO_TRANSACTIONS_HREF } from "@/portfolio/portfolio-tabs";
 
@@ -63,9 +65,12 @@ export function InvestorDepositForm({
   const minAmount = depositLimitsQuery.data?.minAmount;
   const platformMaxAmount = depositLimitsQuery.data?.maxAmount;
   const investmentLimit = investmentLimitQuery.data;
+  // The API rejects every deposit until the investor sets their type, so block before FPX.
+  const classificationRequired = investmentLimit?.classificationRequired === true;
   const maxAmount =
     investmentLimit?.depositMaxAmount ?? platformMaxAmount;
   const depositBlockedByLimit =
+    !classificationRequired &&
     minAmount != null &&
     maxAmount != null &&
     investmentLimit?.limit != null &&
@@ -100,6 +105,10 @@ export function InvestorDepositForm({
     const parsed = parseMoneyAmount(amount);
     if (minAmount == null || maxAmount == null) {
       toast.error("We're still loading deposit limits. Try again in a moment.");
+      return;
+    }
+    if (classificationRequired) {
+      onValidationErrorChange(INVESTOR_TYPE_REQUIRED_DEPOSIT_MESSAGE);
       return;
     }
     if (depositBlockedByLimit && investmentLimit?.limit != null) {
@@ -178,12 +187,13 @@ export function InvestorDepositForm({
   }
 
   React.useEffect(() => {
-    if (!depositBlockedByLimit) return;
+    if (!depositBlockedByLimit && !classificationRequired) return;
     if (amount.trim() === "") return;
     onAmountChange("");
     if (validationError) onValidationErrorChange(null);
   }, [
     amount,
+    classificationRequired,
     depositBlockedByLimit,
     onAmountChange,
     onValidationErrorChange,
@@ -193,7 +203,7 @@ export function InvestorDepositForm({
   const isBusy = createDeposit.isPending || isOpeningCheckout;
   const limitsReady = minAmount != null && maxAmount != null && !investmentLimitQuery.isLoading;
   const parsedAmount = parseMoneyAmount(amount);
-  const liveError = limitsReady
+  const liveError = limitsReady && !classificationRequired
     ? depositBlockedByLimit && investmentLimit?.limit != null
       ? depositHeadroomBlockedHint(maxAmount, minAmount, {
           tier: investmentLimit.tier,
@@ -205,7 +215,11 @@ export function InvestorDepositForm({
   const fieldError = liveError ?? validationError;
   const amountHintId = fieldError ? "deposit-amount-error" : "deposit-amount-hint";
   const amountInRange =
-    limitsReady && parsedAmount > 0 && !liveError && !depositBlockedByLimit;
+    limitsReady &&
+    parsedAmount > 0 &&
+    !liveError &&
+    !depositBlockedByLimit &&
+    !classificationRequired;
 
   return (
     <div className="space-y-5">
@@ -222,9 +236,18 @@ export function InvestorDepositForm({
           invalid={Boolean(fieldError)}
           describedBy={amountHintId}
           inputClassName="h-11 rounded-xl"
-          disabled={disabled || isBusy || !limitsReady || depositBlockedByLimit}
+          disabled={
+            disabled || isBusy || !limitsReady || depositBlockedByLimit || classificationRequired
+          }
         />
-        {fieldError ? (
+        {limitsReady && classificationRequired ? (
+          <p id={amountHintId} className="text-ui text-destructive">
+            {INVESTOR_TYPE_REQUIRED_DEPOSIT_MESSAGE}{" "}
+            <Link href="/profile?focus=completeness" className="font-medium underline">
+              Go to profile
+            </Link>
+          </p>
+        ) : fieldError ? (
           <p id="deposit-amount-error" className="text-ui text-destructive">
             {fieldError}
           </p>
@@ -242,6 +265,7 @@ export function InvestorDepositForm({
                     tier: investmentLimit.tier,
                     limit: investmentLimit.limit,
                     depositHeadroom: investmentLimit.depositHeadroom,
+                    pendingDeposits: investmentLimit.pendingDeposits,
                   }
                 : null
             )}
