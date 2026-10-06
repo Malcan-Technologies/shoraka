@@ -1376,6 +1376,11 @@ export interface InvestorDepositLimits {
 }
 
 export interface InvestorInvestmentLimit {
+  /**
+   * True when the investor has no valid Type of Investor. Limits and headroom are then 0
+   * (fail closed) and `tier` is not meaningful; prompt the investor to set their type.
+   */
+  classificationRequired: boolean;
   tier: InvestmentLimitTier;
   /** Null means this investor type has no outstanding-principal cap. */
   limit: number | null;

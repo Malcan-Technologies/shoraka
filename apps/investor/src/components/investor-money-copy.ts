@@ -7,10 +7,18 @@ type DepositLimitHint = {
   depositHeadroom?: number | null;
 };
 
+export const INVESTOR_TYPE_REQUIRED_DEPOSIT_MESSAGE =
+  "Set your Type of Investor in your profile before you deposit. We use it to work out your investment limit.";
+
 export function dashboardParticipationHint(
-  investmentLimit?: { tier: InvestmentLimitTier; limit: number | null } | null
+  investmentLimit?: {
+    classificationRequired?: boolean;
+    tier: InvestmentLimitTier;
+    limit: number | null;
+  } | null
 ): string {
   if (investmentLimit == null) return "Limit depends on investor type";
+  if (investmentLimit.classificationRequired) return "Set your Type of Investor to see your limit";
   if (investmentLimit.limit == null) return "No cap on outstanding principal";
   const tierLabel = INVESTMENT_LIMIT_TIER_LABELS[investmentLimit.tier];
   return `${tierLabel} cap ${formatCurrency(investmentLimit.limit)} outstanding`;

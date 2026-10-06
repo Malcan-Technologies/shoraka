@@ -33,6 +33,8 @@ type ActorContext = {
 };
 
 export type InvestmentHeadroomInput = {
+  /** When true, every limit and headroom is 0 so callers that ignore the flag still block. */
+  classificationRequired?: boolean;
   tier: InvestmentLimitTier;
   limit: number | null;
   outstandingPrincipal: number;
@@ -65,12 +67,18 @@ function formatRm(amount: number): string {
 }
 
 export function buildInvestmentHeadroom(input: InvestmentHeadroomInput): InvestorInvestmentLimit {
+  const classificationRequired = input.classificationRequired === true;
   const outstandingPrincipal = roundNoteMoney(Math.max(0, input.outstandingPrincipal));
   const walletBalance = roundNoteMoney(Math.max(0, input.walletBalance));
   const pendingDeposits = roundNoteMoney(Math.max(0, input.pendingDeposits));
   const minDepositAmount = roundNoteMoney(Math.max(0, input.minDepositAmount));
   const txnMax = roundNoteMoney(Math.max(0, input.maxDepositAmount));
-  const limit = input.limit == null ? null : roundNoteMoney(Math.max(0, input.limit));
+  // No valid investor type: fail closed. A null limit means unlimited, so use 0 instead.
+  const limit = classificationRequired
+    ? 0
+    : input.limit == null
+      ? null
+      : roundNoteMoney(Math.max(0, input.limit));
 
   const investHeadroom =
     limit == null ? null : roundNoteMoney(Math.max(0, limit - outstandingPrincipal));
@@ -82,6 +90,7 @@ export function buildInvestmentHeadroom(input: InvestmentHeadroomInput): Investo
     depositHeadroom == null ? txnMax : roundNoteMoney(Math.min(txnMax, depositHeadroom));
 
   return {
+    classificationRequired,
     tier: input.tier,
     limit,
     outstandingPrincipal,
@@ -127,6 +136,14 @@ async function loadSettings(db: DbClient) {
   };
 }
 
+function hasActiveInvestorClassification(org: {
+  type: string;
+  sc_investor_category: ScInvestorCategory | null;
+}): boolean {
+  const organizationType = org.type === "COMPANY" ? "COMPANY" : "PERSONAL";
+  return isAllowedScInvestorCategory(org.sc_investor_category, { organizationType });
+}
+
 function limitForTier(
   tier: InvestmentLimitTier,
   settings: { retail: number | null; angel: number | null; sophisticated: number | null }
@@ -144,7 +161,7 @@ export async function computeInvestmentHeadroom(
   const [org, settings, outstandingAgg, balance, pendingAgg] = await Promise.all([
     db.investorOrganization.findUnique({
       where: { id: investorOrganizationId },
-      select: { sc_investor_category: true },
+      select: { type: true, sc_investor_category: true },
     }),
     loadSettings(db),
     db.noteInvestment.aggregate({
@@ -176,6 +193,7 @@ export async function computeInvestmentHeadroom(
 
   const tier = investmentLimitTierFor(org.sc_investor_category as ScInvestorCategory | null);
   return buildInvestmentHeadroom({
+    classificationRequired: !hasActiveInvestorClassification(org),
     tier,
     limit: limitForTier(tier, settings),
     outstandingPrincipal: toNumber(outstandingAgg._sum.amount),
@@ -199,9 +217,7 @@ async function assertActiveInvestorClassificationForLimits(
     throw new AppError(404, "INVESTOR_ORG_NOT_FOUND", "Investor organization not found");
   }
 
-  const organizationType = org.type === "COMPANY" ? "COMPANY" : "PERSONAL";
-  const valid = isAllowedScInvestorCategory(org.sc_investor_category, { organizationType });
-  if (!valid) {
+  if (!hasActiveInvestorClassification(org)) {
     throw new AppError(
       422,
       "INVESTOR_CLASSIFICATION_INVALID",

@@ -26,6 +26,9 @@ describe("investor money copy", () => {
     expect(dashboardParticipationHint({ tier: "RETAIL", limit: 400000 })).toBe(
       "Retail cap RM 400000 outstanding"
     );
+    expect(
+      dashboardParticipationHint({ classificationRequired: true, tier: "RETAIL", limit: 0 })
+    ).toBe("Set your Type of Investor to see your limit");
   });
 
   it("writes deposit and withdrawal limits for investors", () => {

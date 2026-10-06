@@ -41,6 +41,9 @@ export function marketplaceInvestLimitHint(
   if (!investmentLimit || investmentLimit.limit == null || investmentLimit.investHeadroom == null) {
     return null;
   }
+  if (investmentLimit.classificationRequired) {
+    return "Set your Type of Investor in your profile before you invest.";
+  }
   const tierLabel = INVESTMENT_LIMIT_TIER_LABELS[investmentLimit.tier];
   return `You can invest up to ${formatCurrency(investmentLimit.investHeadroom)} more under your ${tierLabel} limit of ${formatCurrency(investmentLimit.limit)}.`;
 }
