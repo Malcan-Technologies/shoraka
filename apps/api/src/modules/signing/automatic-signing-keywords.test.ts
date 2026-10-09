@@ -1,4 +1,5 @@
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { inflateSync } from "zlib";
+import { PDFDocument, StandardFonts, TextRenderingMode, rgb } from "pdf-lib";
 import {
   automaticSigningKeywordIssues,
   buildAutomaticSigningCloudSignsetsFromPdf,
@@ -53,6 +54,33 @@ function item(
 function keywordCount(text: string, keyword: string): number {
   const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return (text.match(new RegExp(`${escaped}(?![A-Z0-9_])`, "g")) ?? []).length;
+}
+
+/** Text rendering mode (`Tr`) in effect for each `Tj` that shows `keyword`, across all content streams. */
+function keywordTextRenderModes(pdf: Buffer, keyword: string): number[] {
+  const keywordHex = Buffer.from(keyword, "latin1").toString("hex").toUpperCase();
+  const modes: number[] = [];
+  const source = pdf.toString("latin1");
+  const streamRe = /stream\r?\n([\s\S]*?)\r?\nendstream/g;
+  let stream: RegExpExecArray | null;
+  while ((stream = streamRe.exec(source))) {
+    let content: string;
+    try {
+      content = inflateSync(Buffer.from(stream[1] ?? "", "latin1")).toString("latin1");
+    } catch {
+      content = stream[1] ?? "";
+    }
+    const stack = [0];
+    const opRe = /(\d+)\s+Tr\b|<([0-9A-Fa-f]+)>\s*Tj|\bq\b|\bQ\b/g;
+    let op: RegExpExecArray | null;
+    while ((op = opRe.exec(content))) {
+      if (op[0] === "q") stack.push(stack[stack.length - 1] ?? 0);
+      else if (op[0] === "Q") stack.pop();
+      else if (op[1] !== undefined) stack[stack.length - 1] = Number(op[1]);
+      else if (op[2]?.toUpperCase() === keywordHex) modes.push(stack[stack.length - 1] ?? 0);
+    }
+  }
+  return modes;
 }
 
 const FA_SLOTS = [
@@ -539,7 +567,7 @@ describe("automatic signing keywords", () => {
     expect(keywordCount(pair.signKeyword, pair.dateKeyword!)).toBe(0);
   });
 
-  it("stamps missing keywords so PDF text extraction can read them", async () => {
+  it("stamps missing keywords so PDF text extraction can read them, without painting them", async () => {
     const pdf = await PDFDocument.create();
     const page = pdf.addPage([595, 842]);
     const font = await pdf.embedFont(StandardFonts.Helvetica);
@@ -588,9 +616,15 @@ describe("automatic signing keywords", () => {
     const texts = (await extractPdfTextItems(stamped)).map((row) => row.text).join(" ");
     for (const owner of owners) {
       expect(keywordCount(texts, owner.signKeyword)).toBe(owner.placements.length);
+      // Invisible (mode 3), so the keyword cannot knock white holes into the signature line.
+      expect(keywordTextRenderModes(stamped, owner.signKeyword)).toEqual(
+        owner.placements.map(() => TextRenderingMode.Invisible)
+      );
       if (owner.dateKeyword) {
-        expect(keywordCount(texts, owner.dateKeyword)).toBe(
-          owner.placements.filter((placement) => executionRoleHasSignDate(placement.roleKey)).length
+        const dated = owner.placements.filter((placement) => executionRoleHasSignDate(placement.roleKey));
+        expect(keywordCount(texts, owner.dateKeyword)).toBe(dated.length);
+        expect(keywordTextRenderModes(stamped, owner.dateKeyword)).toEqual(
+          dated.map(() => TextRenderingMode.Invisible)
         );
       }
     }
