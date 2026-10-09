@@ -61,7 +61,7 @@ export const GENERATED_DOCUMENT_TYPES: Record<
   },
   arf_deed_of_assignment: {
     key: "arf_deed_of_assignment",
-    version: 2,
+    version: 3,
     label: "ARF Deed of Assignment",
     description:
       "CA-signed deed of assignment generated from the facility or invoice offer.",
@@ -70,7 +70,7 @@ export const GENERATED_DOCUMENT_TYPES: Record<
   },
   arf_facility_agreement: {
     key: "arf_facility_agreement",
-    version: 3,
+    version: 4,
     label: "ARF Facility Agreement",
     description:
       "CA-signed facility agreement that replaces the signing-package Offer Letter.",
