@@ -1,4 +1,12 @@
-import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
+import {
+  PDFDocument,
+  popGraphicsState,
+  pushGraphicsState,
+  rgb,
+  setTextRenderingMode,
+  StandardFonts,
+  TextRenderingMode,
+} from "pdf-lib";
 import {
   automaticContractKeywordLimitIssue,
   automaticSignerKeywordCollisionIssue,
@@ -795,6 +803,10 @@ function drawHiddenKeyword(
 ): void {
   const textWidth = font.widthOfTextAtSize(keyword, KEYWORD_FONT_SIZE);
   const maxX = Math.max(8, page.getWidth() - textWidth - 2);
+  // Invisible text mode keeps the keyword extractable for SigningCloud without painting it;
+  // painted white text knocked holes into the signature stroke it sits on. White stays as a
+  // fallback for readers that ignore the mode.
+  page.pushOperators(pushGraphicsState(), setTextRenderingMode(TextRenderingMode.Invisible));
   page.drawText(keyword, {
     x: Math.min(Math.max(x, 8), maxX),
     y: Math.max(8, page.getHeight() - yTop - 2),
@@ -802,6 +814,7 @@ function drawHiddenKeyword(
     font,
     color: rgb(1, 1, 1),
   });
+  page.pushOperators(popGraphicsState());
 }
 
 export async function ensureAutomaticSigningKeywords(
